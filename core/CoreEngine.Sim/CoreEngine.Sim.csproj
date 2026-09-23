@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The engine-independent simulation core (docs/04-technical-design.md §1, §3).
+    netstandard2.1 + C# 9 so the same source compiles inside Unity 6.
+    No UnityEngine references and no unsafe code in this project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <RootNamespace>CoreEngine.Sim</RootNamespace>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CoreEngine.Sim.Tests" />
+  </ItemGroup>
+
+</Project>

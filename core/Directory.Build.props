@@ -1,0 +1,11 @@
+<Project>
+  <!-- Settings shared by every project under core/. -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Product>CoreEngine</Product>
+    <Company>CoreEngine</Company>
+    <Copyright>CoreEngine</Copyright>
+  </PropertyGroup>
+</Project>

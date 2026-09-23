@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="CoreEngine.Sim.Cli/CoreEngine.Sim.Cli.csproj" />
+  <Project Path="CoreEngine.Sim.Tests/CoreEngine.Sim.Tests.csproj" />
+  <Project Path="CoreEngine.Sim/CoreEngine.Sim.csproj" />
+</Solution>
