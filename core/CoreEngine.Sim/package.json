@@ -1,0 +1,10 @@
+{
+  "name": "com.coreengine.sim",
+  "version": "0.1.0",
+  "displayName": "CoreEngine Simulation Core",
+  "description": "Engine-independent simulation core: AVR emulator, compile service and component models (docs/04-technical-design.md).",
+  "unity": "6000.0",
+  "author": {
+    "name": "CoreEngine"
+  }
+}

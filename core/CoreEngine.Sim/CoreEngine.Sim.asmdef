@@ -1,0 +1,14 @@
+{
+  "name": "CoreEngine.Sim",
+  "rootNamespace": "CoreEngine.Sim",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

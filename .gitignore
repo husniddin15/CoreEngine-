@@ -37,3 +37,9 @@ native/**/out/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# ---- core/ build output (see core/Directory.Build.props) ----
+core/.build/
+
+# ---- Manifold source, fetched by native/manifold/build.ps1 ----
+native/manifold/src/
