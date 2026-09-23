@@ -45,6 +45,15 @@ Goal: retire the biggest technical risks with small prototypes before building t
 
 Total ≈ 34 days.
 
+**Progress (2026-09-23):**
+
+| # | Status |
+|---|---|
+| 0.1 | Done: Git repository, C# solution (`core/`), CI workflow (runs once the repository is on GitHub). |
+| 0.2 | Mostly done: `tools/fetch-toolchain.ps1` installs arduino-cli 1.5.1 and the AVR core 1.8.8 offline-ready; Blink compiles to the same 924 bytes as the Arduino IDE; GCC errors are mapped to sketch lines. Open: repeat compiles take 4.3–5.3 s against the 3 s target ([13 §2 Q11](13-open-questions-and-risks.md)), and the clean-machine test with a Cyrillic user name. |
+| 0.3 | Done: the ATmega328P emulator runs the compiled Blink (LED toggles every 1000.010 ms), Serial at 9600 and 115200 baud with exact frame timing, and `millis()` matching emulated time; 65 automated tests; 130–156 M cycles/s with the .NET 10 JIT. |
+| 0.4–0.7 | Next: need the IL2CPP module in Unity 6.6 and Visual Studio with the C++ workload. |
+
 ## 4. Phase 1 — Vertical slice (months 2–9)
 
 Goal: one complete path through all pillars with a small parts set, playable by outsiders.

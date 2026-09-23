@@ -1,0 +1,25 @@
+name: core
+
+# Builds and tests the engine-independent simulation core (docs/04-technical-design.md §16).
+# The golden sketches are committed as .hex files, so CI does not need the Arduino toolchain.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test
+        run: dotnet test core/CoreEngine.slnx -c Release
+
+      - name: Emulator speed (informational)
+        run: dotnet run --project core/CoreEngine.Sim.Cli -c Release -- bench core/CoreEngine.Sim.Tests/Golden/Hex/Blink.hex --seconds 5

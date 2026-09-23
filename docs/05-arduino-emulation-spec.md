@@ -131,6 +131,8 @@ Outputs: `<sketch>.ino.hex`, `<sketch>.ino.elf`, `<sketch>.ino.eep`, `<sketch>.i
 
 Nano FQBN: `arduino:avr:nano:cpu=atmega328` (new bootloader) or `cpu=atmega328old`. Mega: `arduino:avr:mega:cpu=atmega2560`.
 
+Implementation note (Phase 0, 2026-09-23): `ArduinoCliCompiler` in `core/CoreEngine.Sim/Compile` runs this command without `--format json`, because the core library stays free of a JSON dependency; the configuration forces English output (`locale: en`), GCC diagnostics are parsed from the text, and the flash size is computed from the `.hex`. Measured compile times are in [13 §2 Q11](13-open-questions-and-risks.md).
+
 ### 8.3 Diagnostics mapping
 Parse `compiler_err` lines `path:line:col: (error|warning|note): message` (GCC format). Map paths back to the editor's tabs. Provide curated explanations for the most frequent messages.
 

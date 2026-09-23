@@ -33,9 +33,9 @@ Still open for the owner: the name check (D2), the bank confirmation (D12), the 
 
 ## 2. Technical questions for Phase 0
 
-1. Does the C# emulator hit ≥ 110 M cycles/s under IL2CPP on the min-spec CPU? If not: pre-decode more aggressively, or move the CPU core to C++ ([ADR-0002](adr/ADR-0002-mcu-emulation-approach.md) plan B).
-2. Does the bundled `arduino-cli` accept a pre-populated data directory via `ARDUINO_DIRECTORIES_DATA`/`--config-file` without network access on a clean machine? What about paths with spaces and non-Latin characters?
-3. `--build-path` together with `--output-dir` had an open issue (arduino-cli #2318); verify with v1.5.x or read artefacts from the build path.
+1. Does the C# emulator hit ≥ 110 M cycles/s under IL2CPP on the min-spec CPU? If not: pre-decode more aggressively, or move the CPU core to C++ ([ADR-0002](adr/ADR-0002-mcu-emulation-approach.md) plan B). **Partly answered 2026-09-23:** 130–156 M cycles/s with the .NET 10 JIT on the development laptop (i5-12450H) for Blink and Serial sketches. Still to measure: IL2CPP inside Unity (Phase 0.5) and a min-spec CPU.
+2. Does the bundled `arduino-cli` accept a pre-populated data directory via `ARDUINO_DIRECTORIES_DATA`/`--config-file` without network access on a clean machine? What about paths with spaces and non-Latin characters? **Partly answered 2026-09-23:** yes with `--config-file` pointing every directory into `tools/arduino/` ([tools/fetch-toolchain.ps1](../tools/fetch-toolchain.ps1)); compiles run offline after the one-time fetch. Still to test: a clean Windows machine and a Cyrillic user name.
+3. `--build-path` together with `--output-dir` had an open issue (arduino-cli #2318). **Answered 2026-09-23:** both options work together in arduino-cli 1.5.1.
 4. Unity `ArticulationBody` vs `Rigidbody` + `HingeJoint` for wheels: which gives stable 50–500 g robots at 100 Hz with realistic friction? (Unity's own differential-drive guide uses articulation drives.)
 5. Manifold via own P/Invoke: build size, IL2CPP compatibility, threading; fallback to csg.cs for simple cases?
 6. UI Toolkit for the code editor: is a custom editor viable, or is an external editor the realistic path for v1 with a minimal in-game editor?
@@ -43,6 +43,7 @@ Still open for the owner: the name check (D2), the bank confirmation (D12), the 
 8. Floating-input and ADC noise: deterministic pseudo-random sequences seeded per run — acceptable in classrooms where students compare results? Provide a "quiet mode" toggle?
 9. Which Arduino libraries to bundle (licence check for each; NewPing's licence in particular).
 10. CoreCLR migration timing: Unity 6.8 drops Mono; plan the upgrade window after the 1.0 release.
+11. **New, 2026-09-23: compile time.** Measured with arduino-cli 1.5.1 on the development laptop: first compile of a sketch 8.6 s, repeat with no change 4.3 s, after a code edit 5.3 s. The target is under 3 s. Most of the time is arduino-cli re-running library detection and the link-time-optimised link, each as separate processes. Options to try: a Windows Defender exclusion for `tools/arduino/` (the owner's decision, since it changes security settings), running arduino-cli as a long-lived daemon, and replaying the recorded compile commands directly for edits that do not change `#include` lines.
 
 ## 3. Risk register
 
