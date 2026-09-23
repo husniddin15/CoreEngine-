@@ -2,7 +2,7 @@
 
 A Windows 3D STEAM-education robotics game: design a robot body, place real electronic parts, wire them like on a real breadboard, write real Arduino code that is compiled by the real toolchain and executed by a cycle-accurate ATmega emulator, and test the robot in physics arenas. A pure sandbox, free to play on Steam, in English, Uzbek and Russian.
 
-Project status: **Phase 0, technical spikes** (September 2026). The ATmega328P emulator runs real compiled Arduino sketches; see [core/README.md](core/README.md).
+Project status: **Phase 0, technical spikes** (September 2026). The ATmega328P emulator runs real compiled Arduino sketches ([core/README.md](core/README.md)), and a Unity spike drives a physics robot with one of them ([app/README.md](app/README.md)).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\fetch-toolchain.ps1   # once: Arduino toolchain into tools/arduino
@@ -15,6 +15,6 @@ dotnet run --project core/CoreEngine.Sim.Cli -c Release -- compile core/CoreEngi
 - Decisions still open: [docs/13-open-questions-and-risks.md](docs/13-open-questions-and-risks.md)
 - Roadmap: [docs/11-roadmap.md](docs/11-roadmap.md)
 
-Planned repository layout (see docs/04 §3): `core/` (C# simulation core), `app/` (Unity 6), `native/` (Manifold CSG wrapper), `tools/` (arduino-cli + AVR core), `content-src/`.
+Repository layout (see docs/04 §3): `core/` (C# simulation core), `app/` (Unity 6), `native/` (Manifold mesh booleans, [native/README.md](native/README.md)), `tools/` (arduino-cli + AVR core), later `content-src/`.
 
 Arduino® is a trademark of Arduino S.r.l. This project is not affiliated with Arduino.

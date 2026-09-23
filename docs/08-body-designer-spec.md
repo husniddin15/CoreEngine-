@@ -63,7 +63,7 @@ Undo/redo covers every operation. Autosave of the body with the project.
 
 ## 7. Technical design
 
-- **Geometry kernel**: Manifold (Apache-2.0) via a thin C wrapper (`native/manifold_csg`) exposed to C# with P/Invoke: `csg_union`, `csg_difference`, `csg_intersection`, `mesh_from_primitive`, `decimate`, `is_manifold`, `repair`. Operations run on a worker thread; the UI shows a ghost until the result arrives (target < 100 ms for ≤ 50 shapes).
+- **Geometry kernel**: Manifold (Apache-2.0) through its own C API (`manifoldc.dll`, built by `native/manifold`) and a thin C# P/Invoke layer: primitives, transforms, union/difference/intersection (batch forms for groups), `simplify` for decimation, status checks for non-manifold input, and mesh output with normals. Mesh repair for imports is C# code (weld, fix normals) before the mesh is handed to Manifold. Operations run on a worker thread; the UI shows a ghost until the result arrives (target < 100 ms for ≤ 50 shapes). Phase 0 measurements are in [ADR-0005](adr/ADR-0005-body-designer-and-csg.md): a chassis plate with 48 holes takes 34 ms single-threaded with 20-sided holes (63 ms with 32-sided), most of it in one boolean, so holes use Manifold's size-based segment count (20 sides for a 6 mm hole) and each part is recomputed only when it changes.
 - Shape tree stored in `body.json` (parametric). Derived meshes cached in the project as glb for fast load; regenerated when the kernel version changes.
 - Rendering: one mesh per part with per-face colour groups; selection outline; hole shapes rendered translucent orange (Tinkercad convention; colour-blind alternative: hatch pattern).
 - Import: pb_Stl (MIT) for STL; a small OBJ reader; glTFast for glb caching and future sharing.

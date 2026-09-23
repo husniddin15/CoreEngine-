@@ -52,7 +52,9 @@ Total ≈ 34 days.
 | 0.1 | Done: Git repository, C# solution (`core/`), CI workflow (runs once the repository is on GitHub). |
 | 0.2 | Mostly done: `tools/fetch-toolchain.ps1` installs arduino-cli 1.5.1 and the AVR core 1.8.8 offline-ready; Blink compiles to the same 924 bytes as the Arduino IDE; GCC errors are mapped to sketch lines. Open: repeat compiles take 4.3–5.3 s against the 3 s target ([13 §2 Q11](13-open-questions-and-risks.md)), and the clean-machine test with a Cyrillic user name. |
 | 0.3 | Done: the ATmega328P emulator runs the compiled Blink (LED toggles every 1000.010 ms), Serial at 9600 and 115200 baud with exact frame timing, and `millis()` matching emulated time; 65 automated tests; 130–156 M cycles/s with the .NET 10 JIT. |
-| 0.4–0.7 | Next: need the IL2CPP module in Unity 6.6 and Visual Studio with the C++ workload. |
+| 0.4 | Done: `app/` Unity 6.6 project with URP; a 2WD robot on `ArticulationBody` wheels driven by the TT-motor and L298N models; the real compiled `ObstacleAvoider` sketch runs on the emulator inside the 10 ms physics step and reads a 17-ray HC-SR04 cone. IL2CPP player: 142 fps average (vsync) with one isolated 62 ms frame in 10 s; the emulator costs 0.8 ms per 10 ms step. The robot also found a real HC-SR04 limit: it pushed against a box beside the narrow beam ([07 §5.1](07-physics-world-sensors-spec.md)); the sketch now backs out when the distance stops changing. |
+| 0.5 | Done: Manifold v3.5.3 built as one self-contained `manifoldc.dll` and called through P/Invoke from IL2CPP. Two boxes and a hole: 1.6 ms (target < 50 ms); a 51-shape chassis plate: 34 ms (target < 100 ms); results in [ADR-0005](adr/ADR-0005-body-designer-and-csg.md), now accepted. Emulator in the IL2CPP player: 223 M cycles/s (target 110). |
+| 0.6–0.7 | Next: UI Toolkit panels, code editor and fonts; then the decision review. |
 
 ## 4. Phase 1 — Vertical slice (months 2–9)
 

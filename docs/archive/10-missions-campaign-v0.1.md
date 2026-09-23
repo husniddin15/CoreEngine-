@@ -2,7 +2,7 @@
 
 > **ARCHIVED 2026-09-23.** Superseded by the owner decision for a pure sandbox with no missions ([ADR-0008](../adr/ADR-0008-pure-sandbox-full-release.md)). Kept for reference only; links in this file are not maintained.
 
-Status:Accepted DRAFT v0.1 (2026-09-22) · Pillar P5 · Related: [03 §9–11](03-game-design.md), [04 §6, §15](04-technical-design.md), [05 §8.1](05-arduino-emulation-spec.md) (allowed libraries), [06 §6](06-electrical-simulation-spec.md) (failure codes), [07 §6](07-physics-world-sensors-spec.md) (arena physics), [09](09-components-catalog.md) (parts)
+Status:Accepted DRAFT v0.1 (2026-09-22) · Pillar P5 · Related: [03 §9–11](../03-game-design.md), [04 §6, §15](../04-technical-design.md), [05 §8.1](../05-arduino-emulation-spec.md) (allowed libraries), [06 §6](../06-electrical-simulation-spec.md) (failure codes), [07 §6](../07-physics-world-sensors-spec.md) (arena physics), [09](../09-components-catalog.md) (parts)
 
 ---
 
@@ -389,7 +389,7 @@ Chapter 6 unlocks: LiPo, TB6612, gripper, HC-05, LCD/OLED, Challenges.
 
 ## 3. Arenas (content specs)
 
-Physical representation and sensor-relevant materials are in [07 §6](07-physics-world-sensors-spec.md); this section fixes the content.
+Physical representation and sensor-relevant materials are in [07 §6](../07-physics-world-sensors-spec.md); this section fixes the content.
 
 | Arena | Dimensions | Materials | Lighting / climate presets | Start pads and zones | Used by |
 |---|---|---|---|---|---|
@@ -407,7 +407,7 @@ Sumo opponents (scripted, not emulated): **Easy** — drives forward, reverses a
 
 ## 4. Success-check DSL
 
-Missions declare checks in `mission.json`; the headless core evaluates them each physics step ([04 §15](04-technical-design.md)). Conditions are pure functions of the simulation state and the mission script (scripted events such as button presses, wall movement, light changes, remote keys).
+Missions declare checks in `mission.json`; the headless core evaluates them each physics step ([04 §15](../04-technical-design.md)). Conditions are pure functions of the simulation state and the mission script (scripted events such as button presses, wall movement, light changes, remote keys).
 
 ```json
 {
@@ -439,7 +439,7 @@ Condition types (v1):
 | `tone_sequence` / `tone_count` | pin, frequencies_hz, tolerance_pct, min_ms | From pin edge timing |
 | `serial_contains` / `serial_matches_regex` / `serial_numeric_tracks` / `serial_plot_series` | board, baud, pattern/quantity, tolerance | Monitor stream at the expected baud |
 | `net_voltage_range` / `net_current_range` | net or component, min, max | From the electrical layer |
-| `component_not_damaged` / `component_damaged` / `component_warning` | component (or `*`), failure code | F-codes from [06 §6](06-electrical-simulation-spec.md) |
+| `component_not_damaged` / `component_damaged` / `component_warning` | component (or `*`), failure code | F-codes from [06 §6](../06-electrical-simulation-spec.md) |
 | `event_observed` / `no_event` | event id (reset.brownout, fuse.trip, hcsr04.retrigger_too_fast…), min count, window | From the event log |
 | `telemetry_observed` | quantity, comparison, for_s | e.g., `bat.voltage < 7.0` |
 | `multimeter_reading_logged` | probe target, range | Player must use the tool |
@@ -492,14 +492,14 @@ Three worked examples:
 23. **From the game to the desk** — exporting the wiring table, BOM and STL; flashing the same sketch with the Arduino IDE.
 
 ### 5.2 Datasheet cards
-One card per component ([09](09-components-catalog.md)) with: photo render, pinout diagram, absolute maximums, operating ranges, typical values used by the simulation (with the [VERIFY] flag hidden from players but visible to content reviewers), common mistakes, the link to the original datasheet. Card template fields: `name`, `pins`, `supply`, `limits`, `typical`, `mistakes`, `datasheet_url`, `used_in_missions`.
+One card per component ([09](../09-components-catalog.md)) with: photo render, pinout diagram, absolute maximums, operating ranges, typical values used by the simulation (with the [VERIFY] flag hidden from players but visible to content reviewers), common mistakes, the link to the original datasheet. Card template fields: `name`, `pins`, `supply`, `limits`, `typical`, `mistakes`, `datasheet_url`, `used_in_missions`.
 
 ### 5.3 The 30 most common beginner errors (explanation cards)
 Compile errors (GCC message → plain language): 1 `expected ';' before` · 2 `'x' was not declared in this scope` (typo/case/scope) · 3 `expected ')' before` / unbalanced braces · 4 `no matching function for call to` (wrong argument types) · 5 `'Serial' does not name a type`/`was not declared` (missing `Serial.begin` is runtime; this is usually a typo like `serial`) · 6 `stray '\302' in program` (pasted smart quotes) · 7 `a function-definition is not allowed here` (function inside `loop`) · 8 `redefinition of 'void setup()'` · 9 `#include expects "FILENAME"` / `No such file or directory` (library not installed) · 10 `invalid conversion from 'const char*' to 'int'` · 11 `expected primary-expression before ')'` · 12 `'else' without a previous 'if'` · 13 `assignment of read-only variable` (const) · 14 `too few arguments to function` · 15 `'class Servo' has no member named` · 16 `lvalue required as left operand` (`=` vs `==`) · 17 `Sketch too big` · 18 `Low memory available, stability problems may occur` · 19 `undefined reference to 'loop'` (missing `loop`) · 20 `variable or field declared void`.
 Runtime/wiring symptoms: 21 nothing happens (no upload / wrong board / no power) · 22 Serial shows garbage (baud) · 23 LED dim (wrong resistor / shared resistor) · 24 button reads random (floating) · 25 motor twitches (GPIO drive / no common ground) · 26 board resets when motors start (brown-out) · 27 servo jitters (power) · 28 ultrasonic reads 0 or 3000 (wiring / too-fast trigger) · 29 I2C device not found (address, pull-ups, SDA/SCL swapped) · 30 PWM stopped working after adding `Servo`/`tone` (timer conflicts).
 
 ### 5.4 "Why it broke" cards
-One per failure code F1–F28 in [06 §6](06-electrical-simulation-spec.md): what happened, the measured value vs the limit, how to fix it, how to prevent it, and the real-world consequence (cost of the part). Written in the same warm voice as the missions; no blame.
+One per failure code F1–F28 in [06 §6](../06-electrical-simulation-spec.md): what happened, the measured value vs the limit, how to fix it, how to prevent it, and the real-world consequence (cost of the part). Written in the same warm voice as the missions; no blame.
 
 ## 6. Challenges (unlocked after Chapter 3; Steam leaderboards)
 
@@ -512,9 +512,9 @@ One per failure code F1–F28 in [06 §6](06-electrical-simulation-spec.md): wha
 | 5 | **Cheapest Robot That…** | Delivery Course | Deliver the cube; parts priced from the BOM price list | Lowest BOM cost that passes | Global |
 | 6 | **Edge Dancer** | Table Edge | 60 s on the table at ≥ 0.3 m/s average, never falling | Distance | Global |
 
-Leaderboard integrity: submissions include the project and seed; the top 100 are re-verified by the headless runner (Unity batch mode for driving challenges, [07 §7](07-physics-world-sensors-spec.md)) before display.
+Leaderboard integrity: submissions include the project and seed; the top 100 are re-verified by the headless runner (Unity batch mode for driving challenges, [07 §7](../07-physics-world-sensors-spec.md)) before display.
 
-Fair play with paid packs ([ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md)): every challenge has two leaderboards. **Standard** (the default view) accepts only free parts; **Open** accepts any part, including paid packs. Cosmetics are allowed in both, because they never change physics. Every challenge must be winnable with free parts.
+Fair play with paid packs ([ADR-0007](../adr/ADR-0007-monetization-free-to-play-dlc.md)): every challenge has two leaderboards. **Standard** (the default view) accepts only free parts; **Open** accepts any part, including paid packs. Cosmetics are allowed in both, because they never change physics. Every challenge must be winnable with free parts.
 
 ## 7. Sandbox starters and templates
 
@@ -546,7 +546,7 @@ Fair play with paid packs ([ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc
 Skip: an "I know Arduino" option in step 1 jumps to C3-M1 with Chapters 1–2 marked complete (stars can still be earned later).
 
 ## 9. Localization notes
-- English is the source language; string tables for Uzbek (Latin script) and Russian are prepared in v1.1 ([13 D8](13-open-questions-and-risks.md)). Mission briefs, hints, Notebook lessons and error cards are localized; datasheet cards stay English-first with localized field labels; code identifiers, pin names and part numbers are never translated.
+- English is the source language; string tables for Uzbek (Latin script) and Russian are prepared in v1.1 ([13 D8](../13-open-questions-and-risks.md)). Mission briefs, hints, Notebook lessons and error cards are localized; datasheet cards stay English-first with localized field labels; code identifiers, pin names and part numbers are never translated.
 - Layout: Russian strings run ≈ 15–25 % longer than English, Uzbek Latin ≈ 10 %; UI cards reserve 30 % slack; hint cards wrap.
 - Fonts must cover Latin with diacritics (Oʻ, Gʻ, ʼ) and Cyrillic; avoid all-caps stylistic labels.
 - Numbers/units: SI everywhere; decimal separator follows the locale in UI text but never in code samples.
@@ -566,7 +566,7 @@ Skip: an "I know Arduino" option in step 1 jumps to C3-M1 with Chapters 1–2 ma
 | Challenge | 4 h | | | | **4 h** |
 | Template | 2 h | | | | **2 h** |
 
-v1 totals: 14 workbench missions × 8 h = 112 h; 12 driving missions × 16 h = 192 h; 4 grand challenges × 26 h = 104 h; 9 arenas × 12 h = 108 h; 23 lessons × 4 h = 92 h; 55 datasheet cards × 1.5 h = 83 h; 30 error cards × 0.5 h = 15 h; 6 challenges × 4 h = 24 h; 9 templates × 2 h = 18 h → **≈ 750 h ≈ 19 weeks** for one content author (consistent with the Phase 2 allocation in [11 §5](11-roadmap.md) when combined with the tooling estimates).
+v1 totals: 14 workbench missions × 8 h = 112 h; 12 driving missions × 16 h = 192 h; 4 grand challenges × 26 h = 104 h; 9 arenas × 12 h = 108 h; 23 lessons × 4 h = 92 h; 55 datasheet cards × 1.5 h = 83 h; 30 error cards × 0.5 h = 15 h; 6 challenges × 4 h = 24 h; 9 templates × 2 h = 18 h → **≈ 750 h ≈ 19 weeks** for one content author (consistent with the Phase 2 allocation in [11 §5](../11-roadmap.md) when combined with the tooling estimates).
 
 ## 11. Open questions
 1. Should Chapter 1 allow skipping for experienced users without losing achievements? (Proposed: yes, stars can be earned later.)

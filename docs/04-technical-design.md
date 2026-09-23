@@ -44,8 +44,8 @@ Status: Accepted DRAFT v0.2 (2026-09-23) · Depends on: [01](01-vision-and-scope
 +--------------------------------------------------------------------+
         |  subprocess                      |  P/Invoke (native/)
 +-------v--------+               +---------v-----------+
-| tools/arduino- |               | manifold_csg.dll    |
-| cli + avr-gcc  |               | (C++ CSG wrapper)   |
+| tools/arduino- |               | manifoldc.dll       |
+| cli + avr-gcc  |               | (Manifold C API)    |
 +----------------+               +---------------------+
 ```
 
@@ -54,7 +54,7 @@ Status: Accepted DRAFT v0.2 (2026-09-23) · Depends on: [01](01-vision-and-scope
 ```
 CoreEngine/
   docs/                      this documentation
-  core/                      engine-independent C# (built with .NET SDK; also referenced by Unity as source)
+  core/                      engine-independent C# (built with .NET SDK; Unity loads CoreEngine.Sim as a local package)
     CoreEngine.Sim/          Avr/, Electrical/, Components/, Scheduler/, Model/, Serialization/, Compile/, Physics/ (contracts)
     CoreEngine.Sim.Tests/    xUnit tests; golden sketches; timing tests
     CoreEngine.Sim.Cli/      headless runner: `simcli run project.rbp --seconds 30 --telemetry out.csv --expect expect.json` (regression tests)
@@ -63,7 +63,7 @@ CoreEngine/
     Assets/Content/{Components,Arenas,Tutorial,Notebook,Localization}/   JSON + prefabs + meshes + string tables (en, uz, ru)
     Packages/
   native/
-    manifold_csg/            C++ wrapper around Manifold with a C ABI (CMake; builds x64 DLL)
+    manifold/                CMake project: Manifold's own C API built as one self-contained x64 DLL (manifoldc.dll)
   tools/
     arduino-cli/             bundled binary + config; scripts to fetch the arduino:avr core into a local data dir
     licenses/                third-party licence texts and the GPL source offer

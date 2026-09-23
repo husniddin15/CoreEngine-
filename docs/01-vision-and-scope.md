@@ -125,7 +125,7 @@ All four activities happen in one continuous 3D scene (the **Workbench** with an
 | [ADR-0002](adr/ADR-0002-mcu-emulation-approach.md) | Binary-level, cycle-accurate AVR emulation (own C# implementation, informed by the avr8js design); no source interpretation | Accepted |
 | [ADR-0003](adr/ADR-0003-compile-pipeline.md) | Local compilation with bundled `arduino-cli` + `arduino:avr` core, invoked as a subprocess | Accepted |
 | [ADR-0004](adr/ADR-0004-electrical-simulation.md) | Hybrid solver: event-driven digital nets + DC nodal analysis at 1 kHz + behavioral component models; no SPICE | Accepted |
-| [ADR-0005](adr/ADR-0005-body-designer-and-csg.md) | Tinkercad-style primitives with Manifold CSG (native plugin) + STL/OBJ import/export; compound primitive colliders | Proposed |
+| [ADR-0005](adr/ADR-0005-body-designer-and-csg.md) | Tinkercad-style primitives with Manifold CSG (native plugin) + STL/OBJ import/export; compound primitive colliders | Accepted (Phase 0.5 spike) |
 | [ADR-0006](adr/ADR-0006-time-and-sync-model.md) | Fixed-step lockstep: physics 100 Hz, electrical 1 kHz, MCU cycle-level events; deterministic | Accepted |
 | [ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md) | Free to play on Steam; paid DLC packs (boards, real parts, customization) as ownership flags; no server, no currency, no pay-to-win | Accepted |
 | [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md) | Pure sandbox with no missions; full release without Early Access; EN/UZ/RU; solo developer with AI | Accepted |
