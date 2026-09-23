@@ -1,0 +1,39 @@
+# ---- .NET (core/) ----
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+TestResults/
+*.DotSettings.user
+
+# ---- Arduino toolchain, fetched by tools/fetch-toolchain.ps1 (never committed) ----
+tools/arduino/
+
+# ---- Unity project (app/), added in Phase 0.4 ----
+app/[Ll]ibrary/
+app/[Tt]emp/
+app/[Oo]bj/
+app/[Bb]uild/
+app/[Bb]uilds/
+app/[Ll]ogs/
+app/[Uu]ser[Ss]ettings/
+app/[Mm]emoryCaptures/
+app/*.csproj
+app/*.sln
+app/*.slnx
+app/*.pidb
+app/*.booproj
+app/*.unityproj
+
+# ---- Native builds (native/) ----
+native/**/build/
+native/**/out/
+
+# ---- Editors and OS ----
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
+desktop.ini
+.DS_Store

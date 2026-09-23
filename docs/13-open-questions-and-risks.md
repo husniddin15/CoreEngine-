@@ -1,0 +1,73 @@
+# 13 — Open Questions, Decisions Needed and Risk Register
+
+Status: DRAFT v0.2 (2026-09-23). Section 1 lists decisions only the project owner can make, each with a recommendation. Section 2 lists technical questions to settle during Phase 0. Section 3 is the risk register.
+
+---
+
+## 1. Owner decisions
+
+All answers below were given by the owner on 2026-09-23.
+
+| # | Decision | Answer | Notes | Status |
+|---|---|---|---|---|
+| D1 | **Game engine** | Unity 6 (C#): Unity 6.6 now (installed), Unity 6.7 LTS as soon as it is released (expected at the end of 2026); the simulation core stays engine-free | [ADR-0001](adr/ADR-0001-game-engine.md) | Decided |
+| D2 | **Product name** | "CoreEngine" | Before the Steam page, check Steam, trademark databases (USPTO, EUIPO, WIPO, Uzbekistan) and domains; other software already uses "Core Engine" ([12 §4](12-business-steam-legal.md)) | Decided; name check open |
+| D3 | **Team** | Solo: the owner, working with AI assistance | Replaces the earlier "2–3 people" answer; the schedule uses solo estimates ([11](11-roadmap.md)); 3D art is the biggest load (R20) | Decided |
+| D4 | **Release model** | One full 1.0 release, no Early Access | Steam Playtest and a demo give feedback before release ([ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md)) | Decided |
+| D5 | **Board naming** | Real names as text ("Arduino Uno R3"), no Arduino logos, ® acknowledgement in credits and store text | [12 §4](12-business-steam-legal.md) | Decided |
+| D6 | **Block-based coding** | Not in 1.0; only if players ask for it after release | — | Open (after release) |
+| D7 | **Business model and prices** | Free to play with paid DLC packs; low prices: board pack $2.99–3.99, part pack $2.99, customization pack $0.99–1.99, bundle ≈ 30 % off; school licence $300–600 per 30 seats/year | [ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md), [12 §1](12-business-steam-legal.md) | Decided |
+| D8 | **Languages** | English, Uzbek (Latin) and Russian at release | [10 §5](10-content-arenas-tutorial-notebook.md) | Decided |
+| D9 | **Validation hardware** | The owner already has an Uno kit | Add a USB logic analyser (≈ $10–15) if the kit has none | Decided |
+| D10 | **Toolchain delivery** | Bundle arduino-cli + AVR core, fully offline | [ADR-0003](adr/ADR-0003-compile-pipeline.md) | Decided |
+| D11 | **Art direction** | Realistic parts with readable labels; stylized room and arenas | [03 §13](03-game-design.md) | Decided |
+| D12 | **Legal entity and bank** | Company (LLC) in Uzbekistan with a USD SWIFT account | Confirm with the bank that USD wires from Valve arrive, and with an accountant, before Steamworks sign-up ([12 §2.1](12-business-steam-legal.md)) | Decided; bank check open |
+| D13 | **Mega 2560 at release** | Yes, as the first paid pack | Same AVR core, so it is the cheapest board to add | Decided |
+| D14 | **Multiplayer / LAN** | Not in 1.0 | — | Open (after release) |
+| D15 | **Release pack line-up** | Mega 2560 Pack + 2 customization packs + supporter bundle | [09 Appendix C](09-components-catalog.md) | Decided |
+| D16 | **Missions or sandbox** | Pure sandbox: no missions, challenges, leaderboards or example robots. A short interactive tutorial; a Notebook with datasheet cards, error help and "why it broke" cards | [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md), [10](10-content-arenas-tutorial-notebook.md) | Decided |
+| D17 | **Workshop robots with paid parts** | Free players can open and run them; saving an edited copy needs the pack | [04 §14.1](04-technical-design.md) | Decided |
+| D18 | **Player accounts** | None at release (Steam only); an optional email account after release | Needs a server, a privacy policy and parental-consent rules for children; first define what the account is for, for example saves outside Steam or school licences | Decided for 1.0; design open |
+
+Still open for the owner: the name check (D2), the bank confirmation (D12), the purpose of email accounts (D18), and three small content questions in [10 §7](10-content-arenas-tutorial-notebook.md).
+
+## 2. Technical questions for Phase 0
+
+1. Does the C# emulator hit ≥ 110 M cycles/s under IL2CPP on the min-spec CPU? If not: pre-decode more aggressively, or move the CPU core to C++ ([ADR-0002](adr/ADR-0002-mcu-emulation-approach.md) plan B).
+2. Does the bundled `arduino-cli` accept a pre-populated data directory via `ARDUINO_DIRECTORIES_DATA`/`--config-file` without network access on a clean machine? What about paths with spaces and non-Latin characters?
+3. `--build-path` together with `--output-dir` had an open issue (arduino-cli #2318); verify with v1.5.x or read artefacts from the build path.
+4. Unity `ArticulationBody` vs `Rigidbody` + `HingeJoint` for wheels: which gives stable 50–500 g robots at 100 Hz with realistic friction? (Unity's own differential-drive guide uses articulation drives.)
+5. Manifold via own P/Invoke: build size, IL2CPP compatibility, threading; fallback to csg.cs for simple cases?
+6. UI Toolkit for the code editor: is a custom editor viable, or is an external editor the realistic path for v1 with a minimal in-game editor?
+7. PhysX determinism across runs on the same machine with "enhanced determinism" enabled — sufficient for replays and regression tests? (Tests use the headless core plus a deterministic physics stub, or the Unity build in batch mode; decide.)
+8. Floating-input and ADC noise: deterministic pseudo-random sequences seeded per run — acceptable in classrooms where students compare results? Provide a "quiet mode" toggle?
+9. Which Arduino libraries to bundle (licence check for each; NewPing's licence in particular).
+10. CoreCLR migration timing: Unity 6.8 drops Mono; plan the upgrade window after the 1.0 release.
+
+## 3. Risk register
+
+| ID | Risk | Likelihood | Impact | Mitigation | Owner |
+|---|---|---|---|---|---|
+| R1 | Emulator timing bugs break popular libraries (NeoPixel, SoftwareSerial, Servo) | Medium | High | Golden-sketch corpus, differential tests vs simavr in CI, hardware fidelity log from Phase 1 | Core dev |
+| R2 | C# emulator too slow on min-spec | Medium | Medium | Phase 0 benchmark gate; C++ fallback behind `ICpuCore` | Core dev |
+| R3 | Scope creep (too many parts, CAD features, more boards) | High | High | Tier system in doc 09; release scope fixed in doc 11; "no feature without a clear player need seen in playtests" | Owner |
+| R4 | Body Studio/CSG integration drags | Medium | Medium | Plan B: ship MVP without booleans; presets + STL import cover most needs | Unity dev |
+| R5 | Toolchain packaging fails on some Windows setups (antivirus, paths, permissions) | Medium | High | Clean-VM tests in CI; explicit config paths; fallback "locate arduino-cli" setting; clear error UI | Core dev |
+| R6 | GPL compliance mistakes (arduino-cli, avr-gcc, libraries) | Low | High | Separate-process rule; licence inventory generated at build; legal review before release | Owner |
+| R7 | Trademark issue with "Arduino" naming | Low | High | Naming policy (doc 12 §4); no logos; ® acknowledgement | Owner |
+| R8 | Steam payout/tax problems for an Uzbekistan-based developer | Medium | High | Confirm bank + W-8BEN early (D12); fallback channels (itch/Payoneer, Paddle) | Owner |
+| R9 | Competitor (CRUMB 2.0, Velxio, Shortcuit) ships a similar combination first | Medium | Medium | Ship the vertical slice quickly; store page early for wishlists; fidelity, free-to-play reach and the STL round-trip as differentiators | Owner |
+| R10 | Beginners find real C++ and real wiring too hard in a pure sandbox with no guided path, and leave | High | High | Interactive tutorial, datasheet cards, curated error help, event-log explanations, Workshop robots made by other players; playtests with beginners from Phase 1 | Owner |
+| R11 | Physics instability with small light bodies | Medium | Medium | Articulation bodies, 100 Hz step, tuned solver iterations, validation tests in doc 07 | Unity dev |
+| R12 | Solo-developer burnout / schedule slip | High | High | Buffer already in estimates; AI assistance for first drafts; re-estimate after Phase 0; monthly milestone reviews; cut parts and arenas before cutting fidelity | Owner |
+| R13 | Unity licensing or runtime changes (CoreCLR at 6.8) | Low | Medium | Engine-free core; stay on 6.7 LTS until after the 1.0 release | Unity dev |
+| R14 | Workshop content abuse (inappropriate names/meshes) | Low | Medium | Steam's reporting/moderation; data-only content; mesh validation | Owner |
+| R15 | Save-format churn breaks projects after release | Medium | Medium | Schema versions + migrations from day one; headless tests load every sample project | Core dev |
+| R16 | Free-to-play revenue too low: typical PC F2P converts 1–5 % of players into buyers, and cosmetics sell less in a mostly single-player game | High | High | Strong launch pack line-up (D15); regular new packs; supporter bundle; school licences as a second income; track conversion from the first month and revisit pricing | Owner |
+| R17 | Players perceive paid packs as pay-to-win → negative reviews | Medium | High | Fair-play rules in [12 §1.2](12-business-steam-legal.md); no leaderboards; every paid part is a real product; say so clearly on the store page | Owner |
+| R18 | Purchases by children and consumer-protection rules | Low | Medium | Steam DLC only with fixed prices; no loot boxes, currency or timers; Steam parental controls | Owner |
+| R19 | Maintaining pack content (store pages, art, new CPU cores) outgrows a small team | Medium | Medium | Customization packs are art-only; board packs one at a time; content in the base depot so a pack is just a flag | Owner |
+| R20 | One person must make 3D models for ≈ 65 parts, the room and 9 arenas | High | High | Realistic parts with a simple stylized room; buy licensed asset packs where possible; AI-assisted modelling; model the 19 vertical-slice assets first; reuse meshes for variants | Owner |
+| R21 | No Early Access: no revenue and little outside feedback for about two years | High | Medium | Steam page 6 months before release; Steam Playtest and a demo; a small community channel (for example Telegram or Discord); playtests from Phase 1 | Owner |
+| R22 | Uzbek and Russian texts are inaccurate or break the layout | Medium | Medium | The owner reviews every text; a fixed term list per language; 30 % spare room in UI; screenshot check of every screen in all three languages | Owner |
+| R23 | AI output that is subtly wrong (code, datasheet values, translations) gets into the game | Medium | High | Everything AI writes is reviewed and tested; datasheet values keep their [VERIFY] marks until checked; unit tests and comparisons with the real Uno are mandatory | Owner |
