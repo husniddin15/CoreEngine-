@@ -173,3 +173,80 @@ public class ObstacleAvoiderGoldenTests
         Assert.Equal(in4 ? PinDrive.High : PinDrive.Low, mcu.PortB.GetDrive(0)); // D8
     }
 }
+
+public class BatteryPackTests
+{
+    [Fact]
+    public void FreshFourCellPackIs6Point4VoltsAndSagsUnderLoad()
+    {
+        var pack = new BatteryPack(4);
+        Assert.Equal(6.4, pack.OpenCircuitVolts, 6);
+        Assert.Equal(6.4 - 1.0 * 0.6, pack.TerminalVolts(1.0), 6);  // 4 cells x 0.15 ohm
+    }
+
+    [Fact]
+    public void CapacityFallsWithDrainCurrent()
+    {
+        Assert.Equal(2.8, BatteryPack.CapacityAh(0.025), 6);
+        Assert.Equal(1.2, BatteryPack.CapacityAh(0.5), 6);
+        Assert.True(BatteryPack.CapacityAh(1.0) < 1.2);
+    }
+
+    [Fact]
+    public void DrainsByChargeOverCapacity()
+    {
+        var pack = new BatteryPack(4);
+        pack.Drain(0.5, 1800);                                     // 0.25 Ah of 1.2 Ah
+        Assert.Equal(1 - 0.25 / 1.2, pack.StateOfCharge, 6);
+        Assert.InRange(pack.OpenCircuitVolts, 4 * 1.25, 4 * 1.38);  // on the plateau
+    }
+
+    [Fact]
+    public void EmptyPackGivesNoVoltageUntilReplaced()
+    {
+        var pack = new BatteryPack(4);
+        pack.Drain(0.5, 3 * 3600);
+        Assert.True(pack.IsEmpty);
+        Assert.Equal(0, pack.TerminalVolts(0.1));
+        pack.Replace();
+        Assert.Equal(6.4, pack.OpenCircuitVolts, 6);
+    }
+}
+
+public class MotorWindingTests
+{
+    [Fact]
+    public void StalledTtMotorBurnsAfterAbout50Seconds()
+    {
+        // 1.05 A through 4 ohm is 4.4 W; at 40 C/W the winding would settle 176 C above ambient,
+        // so it passes 120 C after about 50 s.
+        var winding = new MotorWinding();
+        for (int step = 0; step < 4800; step++) winding.Update(1.05, 4.0, 0.01);  // 48 s
+        Assert.False(winding.Burnt);
+        for (int step = 0; step < 400; step++) winding.Update(1.05, 4.0, 0.01);   // to 52 s
+        Assert.True(winding.Burnt);
+    }
+
+    [Fact]
+    public void DrivingCurrentOnlyWarmsItSlightly()
+    {
+        var winding = new MotorWinding();
+        winding.Update(0.2, 4.0, 600);                // ten minutes at the running current
+        Assert.InRange(winding.TemperatureC, 26, 27);  // 20 C + 0.16 W x 40 C/W
+        Assert.False(winding.Burnt);
+    }
+
+    [Fact]
+    public void BurntMotorCoolsAndReplaceResetsIt()
+    {
+        var winding = new MotorWinding();
+        winding.Update(1.05, 4.0, 120);
+        Assert.True(winding.Burnt);
+        winding.Update(1.05, 4.0, 600);               // no current flows through an open winding
+        Assert.True(winding.TemperatureC < 25);
+        Assert.True(winding.Burnt);
+        winding.Replace();
+        Assert.False(winding.Burnt);
+        Assert.Equal(MotorWinding.AmbientC, winding.TemperatureC);
+    }
+}
