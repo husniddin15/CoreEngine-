@@ -60,13 +60,13 @@ Total ≈ 34 days.
 
 ### Re-estimate after Phase 0 (2026-09-23)
 
-Phase 0 was planned at 34 days of focused work. Spikes 0.1–0.6 took about two calendar days of AI-driven work plus the owner's time to install tools. Spikes are the kind of work AI speeds up most (new code, clear goals, automatic checks), so that pace does not carry over one to one. The remaining 416 planned days are therefore split by kind of work:
+Phase 0 was planned at 34 days of focused work. Spikes 0.1–0.6 took about two calendar days of AI-driven work plus the owner's time to install tools. Spikes are the kind of work AI speeds up most (new code, clear goals, automatic checks), so that pace does not carry over one to one. The remaining 422 planned days (including the Garage added on 2026-09-23) are therefore split by kind of work:
 
 | Kind of work | Planned days | Factor | Re-estimate |
 |---|---|---|---|
-| Code-heavy work packages: emulator, electrical core, components, workbench, Code Desk, world, bench tools, save/load, localization framework, Body Studio, Mega 2560 profile, Steamworks, shop, performance pass, the code half of customization and arenas, fixes during QA | ≈ 269 | 0.4–0.5 | ≈ 108–135 |
+| Code-heavy work packages: emulator, electrical core, components, workbench, Code Desk, world, bench tools, save/load, localization framework, Garage, Body Studio, Mega 2560 profile, Steamworks, shop, performance pass, the code half of customization and arenas, fixes during QA | ≈ 275 | 0.4–0.5 | ≈ 110–138 |
 | Art, content, translation review, playtests, testing, store page and trailer, legal and admin, release buffer | ≈ 147 | 0.85–0.9 | ≈ 125–132 |
-| **Remaining total** | **≈ 416** | | **≈ 233–267** |
+| **Remaining total** | **≈ 422** | | **≈ 235–270** |
 
 That is about 11–13 months of full-time work, so the plan becomes **15–18 months to the 1.0 release** (was 24–28), at 40 hours a week; part-time work roughly doubles the calendar time. The factors are an assumption to check: at M1 (vertical slice) the real Phase 1 pace replaces them. The owner's own time for 3D models, reviews, playtests and hardware checks is now the main limit, not programming. The original estimate stays as the upper bound without any AI speed-up.
 
@@ -88,9 +88,10 @@ Scope: Uno R3, half breadboard, jumpers, LED, resistor, button, 4×AA holder, L2
 | Bench tools v0: voltmeter probe, event log panel, basic telemetry graph | 5 |
 | Localization framework from day one: string tables, fonts for Uzbek Latin and Cyrillic; every new UI text goes through the tables | 3 |
 | Save/load, autosave, settings, logging | 6 |
+| Garage hub v1 ([ADR-0009](adr/ADR-0009-garage-main-screen.md)): robot bar, robot card, action column, Customize with free finishes, Check & repair, START with the arena picker, robot list in the save file. A working prototype exists since 2026-09-24 (`app/Assets/Spike/Scripts/Garage/`) | 6 |
 | Playtest with 5 outsiders, fixes | 8 |
 
-Total ≈ 139 days. Exit: 5 testers finish the tutorial and build a working obstacle-avoiding robot using only in-game help; 5 sketches verified against the real Uno with the logic analyser.
+Total ≈ 145 days. Exit: 5 testers finish the tutorial and build a working obstacle-avoiding robot using only in-game help; 5 sketches verified against the real Uno with the logic analyser.
 
 ## 5. Phase 2 — Breadth and content (months 9–18)
 

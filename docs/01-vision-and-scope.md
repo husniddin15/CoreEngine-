@@ -129,6 +129,7 @@ All four activities happen in one continuous 3D scene (the **Workbench** with an
 | [ADR-0006](adr/ADR-0006-time-and-sync-model.md) | Fixed-step lockstep: physics 100 Hz, electrical 1 kHz, MCU cycle-level events; deterministic | Accepted |
 | [ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md) | Free to play on Steam; paid DLC packs (boards, real parts, customization) as ownership flags; no server, no currency, no pay-to-win | Accepted |
 | [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md) | Pure sandbox with no missions; full release without Early Access; EN/UZ/RU; solo developer with AI | Accepted |
+| [ADR-0009](adr/ADR-0009-garage-main-screen.md) | The Garage as the main screen: robots on a turntable, every editor and START one click away (War Thunder's hangar pattern, without unlocks or currencies) | Accepted |
 
 ## 12. Document map
 

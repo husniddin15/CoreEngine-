@@ -1,6 +1,6 @@
 # 03 — Game Design Document (GDD)
 
-Status: Accepted DRAFT v0.2 (2026-09-23) · Depends on: [01-vision-and-scope.md](01-vision-and-scope.md) · Content (arenas, tutorial, Notebook): [10-content-arenas-tutorial-notebook.md](10-content-arenas-tutorial-notebook.md) · Decisions: [ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md), [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md)
+Status: Accepted DRAFT v0.3 (2026-09-23) · Depends on: [01-vision-and-scope.md](01-vision-and-scope.md) · Content (arenas, tutorial, Notebook): [10-content-arenas-tutorial-notebook.md](10-content-arenas-tutorial-notebook.md) · Decisions: [ADR-0007](adr/ADR-0007-monetization-free-to-play-dlc.md), [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md), [ADR-0009](adr/ADR-0009-garage-main-screen.md) (the Garage)
 
 ---
 
@@ -27,11 +27,41 @@ All spaces are parts of one continuous 3D scene so switching is instant and the 
 
 | Space | What happens there |
 |---|---|
+| **Garage** (main screen) | The home screen ([§3.1](#31-the-garage-main-screen)): the player's robots, the selected robot on a turntable, every editor one click away, and START. |
 | **Workbench** | Build and wire. Robot sits on a stand or the mat. Parts Bin drawer on the left, Tools rack (multimeter, logic probe, screwdriver, tape, wire cutter) on the right. Camera orbits the desk. |
 | **Body Studio** | Sub-mode of the Workbench for designing the chassis (see [08-body-designer-spec.md](08-body-designer-spec.md)). Same camera. |
 | **Code Desk** | A dockable IDE panel (half-screen or full-screen). One sketch per board. Serial Monitor/Plotter docked below. |
 | **Arena** | "Send to Arena" moves the robot to the chosen environment's start pad. Environments: line track, obstacle field, maze, sumo ring, table edge, ramp/sandbox, empty floor. Environment editing tools are available here. |
 | **Notebook** | Datasheet cards for every part, error help, "why it broke" cards, glossary, and the event log ("what happened and why"). Offline, in English, Uzbek and Russian. No lessons ([10 §4](10-content-arenas-tutorial-notebook.md)). |
+
+### 3.1 The Garage (main screen)
+
+The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's idea, modelled on War Thunder's hangar). Everything the player can do is one click from the robot.
+
+```
++--------------------------------------------------------------------------------------------+
+| CoreEngine   Garage  Notebook  Shop  Workshop     Arena: [Obstacle field v]  [ START ]  EN |
++----------------+------------------------------------------------------+--------------------+
+| ROBOT CARD     |                                                      | Build              |
+| name, board    |                                                      | Wire               |
+| sketch status  |          the selected robot on a turntable           | Code               |
+| parts, mass    |          (drag to orbit, wheel to zoom)              | Body               |
+| battery %      |                                                      | Customize          |
+| warnings       |                                                      | Check & repair     |
++----------------+------------------------------------------------------+--------------------+
+| [robot] [robot] [robot] [+ New robot]                                                      |
++--------------------------------------------------------------------------------------------+
+```
+
+- **Room**: the turntable stands on the player's desk in the maker room (D11): a pegboard with tools behind it, a drawer cabinet for parts, a lamp, a cutting mat. A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor. Prototype: `app/Assets/Spike/Scripts/Garage/` (2026-09-24).
+- **Robot bar**: every saved robot as a card with a rendered thumbnail; click to select, right-click to rename, duplicate or delete; **+ New robot** starts from an empty chassis plate. The shipped game starts with an empty bar (no example robots, [§9](#9-no-missions-a-pure-sandbox)); the tutorial creates the first robot.
+- **Robot card**: name, board, sketch name with compile status and size, number of parts, mass, battery charge, and warnings from the wiring check. Warnings never block START.
+- **Build, Wire, Code, Body** open the editors of [§5](#5-build-mode)–[§7](#7-code-mode) and the Body Studio with this robot; a **Garage** button returns.
+- **Customize**: finishes for the body, wheels, boards and wires, and decals ([§10](#10-economy-and-achievements)). Free finishes are always available; pack finishes show a lock and the pack name. Clicking one tries it on: a tried finish shows everywhere, even in arenas, but only owned finishes are saved.
+- **Check & repair**: a readiness list (power, sketch uploaded, wiring warnings) and every part's condition: burnt or dead parts from the failure model ([06 §6](06-electrical-simulation-spec.md)), motor winding temperature, and battery charge. **Replace** is always free and instant and links to the "why it broke" card. Batteries drain while the robot drives, and **Replace batteries** fills them again.
+- **START**: runs the robot in the arena chosen next to it ([10 §2](10-content-arenas-tutorial-notebook.md)). In the arena the Test-mode tools of [§8](#8-test-mode-simulation) apply; **Garage** brings the robot back with its battery and damage.
+- **Top bar**: Notebook, Shop (packs with previews and "Try"), Workshop (browse and share robots), language, settings.
+- Not taken from War Thunder: research trees, unlocks, currencies, crews, paid or timed repairs, battle rewards ([§10](#10-economy-and-achievements)).
 
 ## 4. Core loop (detailed)
 
@@ -152,7 +182,8 @@ On first launch a 5–10 minute interactive tutorial teaches the controls: camer
 ## 12. UI and controls
 
 ### 12.1 Layout
-- Centre: 3D viewport. Top bar: mode tabs (**Build · Wire · Code · Test**), sim controls (Play/Pause/Step/Reset/time scale/real-time factor), Shop and Notebook buttons.
+- Home: the Garage ([§3.1](#31-the-garage-main-screen)). Inside a robot's editors:
+- Centre: 3D viewport. Top bar: a **Garage** button, mode tabs (**Build · Wire · Code · Test**), sim controls (Play/Pause/Step/Reset/time scale/real-time factor), Shop and Notebook buttons.
 - Left panel: Parts Bin (Build/Wire) or Arduino code examples/Libraries (Code). Right panel: Inspector (selection properties, pin table, warnings). Bottom panel: Console (compiler output), Serial Monitor/Plotter, Telemetry, Event log — tabbed and collapsible.
 - Panels are dockable; layouts saved per mode.
 

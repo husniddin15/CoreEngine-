@@ -110,7 +110,7 @@ Why three rates: the MCU needs cycle resolution (62.5 ns) for correctness; elect
 
 | Entity | Key fields |
 |---|---|
-| `Project` | id, name, schema version, boards[], components[], wires[], body (assembly), arena ref, sketches[], settings, created/modified |
+| `Project` | One robot in the Garage ([ADR-0009](adr/ADR-0009-garage-main-screen.md)): id, name, schema version, boards[], components[], wires[], body (assembly), finishes (customization per target: body, wheels, boards, wires, decals), last arena, sketches[], settings, created/modified |
 | `ComponentInstance` | id, definition id, transform, mount (target part + mount point or tape/breadboard position), settings (jumpers, knob angle), state (damaged, temperature), pins[] → net ids |
 | `ComponentDefinition` (content) | id, display name, category, tier, dimensions (mm), mass (g), mesh, pins[] {name, role, position, group}, mount points[], electrical model {type, params}, behaviour {type, params}, datasheet ref |
 | `Net` | id, pins[] (component id + pin), kind (digital/analog/power/ground/mixed), solver node index, voltage, is-floating |
@@ -179,6 +179,7 @@ The `arduino:avr` core and toolchain are installed into a bundled data directory
 ## 11. UI technology
 
 - **UI Toolkit** for all panels (dockable layout, virtualized lists for the parts bin, inspector property drawers, console).
+- **Screens** ([ADR-0009](adr/ADR-0009-garage-main-screen.md)): the **Garage** is the main screen and its own scene (room, turntable, robot bar, robot card, action column, Customize, Check & repair). Build, Wire, Body and Code open the workbench space with the selected project; START loads the chosen arena with it. The project travels between screens with its state (battery charge, part damage and temperatures in `ComponentInstance.state`), and returning to the Garage saves it. Robot thumbnails are rendered from the model with an off-screen camera and stored as `thumbnail.png`.
 - **Code editor**: v1 implements a custom editor on UI Toolkit: line numbers, syntax colouring via a small tokenizer, auto-indent, bracket matching, find/replace, error markers. The Phase 0.6 spike (`app/Assets/Spike/Scripts/UI/CodeEditor.cs`) proved the base: each line is a rich-text row in a virtualised `ListView`, colouring is incremental (block-comment state carried from line to line), and every glyph is pre-loaded into the font atlas at start-up. Evaluate a Monaco/WebView-based editor (Vuplex or similar) only if the custom editor proves inadequate; keep the editor behind an `ICodeEditor` interface. "Open in external editor" + file watching is the escape hatch for power users from day one.
 - Localization via Unity Localization package string tables.
 

@@ -34,6 +34,7 @@ Measuring tools that help players with their own goals, without scores: a tape-m
 
 Teaches the controls only. It starts on first launch, can be skipped at any step, and can be replayed from the main menu. Each step is a prompt card at the top left; the step completes when the player does the action.
 
+0. **Garage.** "This is your garage. Your robots will live here. Press **+ New robot**, then **Build**." ([03 §3.1](03-game-design.md))
 1. **Camera.** "Hold the right mouse button and move to look around. Scroll to zoom." Completes after orbit + zoom.
 2. **Place a board.** The Parts Bin opens. "Drag the Uno onto the mat." Then: "Drag the USB cable's plug into the Uno's USB port."
 3. **Breadboard and parts.** "Place a breadboard, then a red LED and a 220 Ω resistor." Prompt shows the X-ray toggle (**X**) so the player sees which holes are connected. Hint: "The longer LED leg is +."
@@ -42,7 +43,7 @@ Teaches the controls only. It starts on first launch, can be skipped at any step
 6. **Change and re-upload.** "Change both `delay(1000)` to `delay(200)` and upload again."
 7. **Help.** "Right-click the LED and open its datasheet card." Shows the Notebook.
 8. **Optional: see a failure.** "Want to see what happens without the resistor?" If yes: the LED burns after a few seconds, the event log explains the measured current against the 30 mA limit, and the player presses **Replace part**. Achievement *Magic Smoke*.
-9. **Done.** "The workshop is yours. Everything you build here works like the real thing." The tutorial scene is kept as the player's first project.
+9. **Done.** "The workshop is yours. Everything you build here works like the real thing." The tutorial's robot stays in the Garage as the player's first robot.
 
 Analytics (opt-in only, [04 §17](04-technical-design.md)): which step players quit at, to improve the tutorial.
 
