@@ -1,0 +1,16 @@
+{
+  "name": "CoreEngine.Spike",
+  "rootNamespace": "CoreEngine.Spike",
+  "references": [
+    "CoreEngine.Sim"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
