@@ -18,6 +18,18 @@ Unity 6 with C#. Development starts on **Unity 6.6** (installed: 6000.6.2f1) and
 
 Version choice: Unity 6.3 LTS is supported only until December 2027, before the planned 1.0 release (late 2028), so it would force an upgrade late in the project. Unity 6.6 is a Supported Update release: it gets fixes only until the next release, and features first introduced in 6.6 can be removed again in 6.7 LTS ([Unity 6 support](https://unity.com/releases/unity-6/support), [makaka.org](https://makaka.org/unity-tutorials/best-version)). Moving from 6.6 to the next LTS is a small step, so 6.6 is a good starting point as long as the project avoids 6.6-only experimental features.
 
+## Phase 0 check (2026-09-23)
+All Phase 0 gates passed in the Unity 6000.6.2f1 IL2CPP player on the development laptop (i5-12450H, GTX 1650), so this decision stands:
+
+| Gate | Result |
+|---|---|
+| Emulator speed (target 110 M cycles/s) | 209–223 M cycles/s on a quiet machine; 153 with heavy background load; 0.8–1.3 ms per 10 ms physics step while the robot drives |
+| Physics robot, 60 fps | 142 fps (vsync-limited), stable driving, stalling and turning on `ArticulationBody` wheels |
+| Native plugin under IL2CPP | Manifold through P/Invoke works ([ADR-0005](ADR-0005-body-designer-and-csg.md)) |
+| Tool UI | UI Toolkit panels docked around the 3D view; a 522-line sketch in the custom editor scrolls at the display's 144 fps with no frame over 20 ms; about 0.1 ms per keystroke; English, Uzbek and Russian render correctly |
+
+Notes for day-to-day work: a clean IL2CPP build takes about 12 minutes (incremental about 4), so testing uses the editor or a Mono build (under a minute); Unity 6.6 deprecates `FindFirstObjectByType` (use `FindAnyObjectByType`). With the re-estimated schedule ([11 §3](../11-roadmap.md)) 1.0 is planned for early 2028, still inside the 6.7 LTS support window.
+
 ## Consequences
 - Track revenue for the Unity Personal threshold; budget Pro seats if exceeded.
 - Upgrade once from 6.6 to 6.7 LTS when it ships, then stay on 6.7 LTS through the 1.0 release; plan the CoreCLR/6.8 migration afterwards (BinaryFormatter and stricter float semantics are already avoided).

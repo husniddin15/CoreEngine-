@@ -20,14 +20,15 @@ Status: DRAFT v0.2 (2026-09-23) · Decisions: [ADR-0001](adr/ADR-0001-game-engin
 ## 2. Phase overview
 
 ```
-Phase 0  Foundations & spikes        months 1–2      (≈ 7 weeks)
-Phase 1  Vertical slice               months 2–9      "Obstacle avoider end-to-end"
-Phase 2  Breadth & content            months 9–18     "Everything for 1.0"
-Phase 3  Steam release 1.0            months 18–22
-Phase 4  After release                ongoing         paid packs and updates
+                                      first plan      re-estimate after Phase 0 (full-time)
+Phase 0  Foundations & spikes        months 1–2      done 2026-09-23
+Phase 1  Vertical slice               months 2–9      months 1–5    "Obstacle avoider end-to-end"
+Phase 2  Breadth & content            months 9–18     months 5–11   "Everything for 1.0"
+Phase 3  Steam release 1.0            months 18–22    months 11–13 (plan 15–18 with buffer)
+Phase 4  After release                ongoing         ongoing       paid packs and updates
 ```
 
-Total ≈ 450 working days ≈ 21 months of full-time work (optimistic) → **plan 24–28 months to the 1.0 release**. AI assistance can shorten the programming work noticeably, but 3D art, testing, translation review and decisions still take the owner's time. The plan is re-estimated at the end of Phase 0.
+Total ≈ 450 working days ≈ 21 months of full-time work (optimistic) → plan 24–28 months to the 1.0 release, **without** any AI speed-up. **Re-estimated after Phase 0: ≈ 235–270 working days, plan 15–18 months** ([§3](#re-estimate-after-phase-0-2026-09-23)); 3D art, testing, translation review and decisions still take the owner's time.
 
 ## 3. Phase 0 — Foundations and technical spikes (≈ 7 weeks)
 
@@ -54,7 +55,20 @@ Total ≈ 34 days.
 | 0.3 | Done: the ATmega328P emulator runs the compiled Blink (LED toggles every 1000.010 ms), Serial at 9600 and 115200 baud with exact frame timing, and `millis()` matching emulated time; 65 automated tests; 130–156 M cycles/s with the .NET 10 JIT. |
 | 0.4 | Done: `app/` Unity 6.6 project with URP; a 2WD robot on `ArticulationBody` wheels driven by the TT-motor and L298N models; the real compiled `ObstacleAvoider` sketch runs on the emulator inside the 10 ms physics step and reads a 17-ray HC-SR04 cone. IL2CPP player: 142 fps average (vsync) with one isolated 62 ms frame in 10 s; the emulator costs 0.8 ms per 10 ms step. The robot also found a real HC-SR04 limit: it pushed against a box beside the narrow beam ([07 §5.1](07-physics-world-sensors-spec.md)); the sketch now backs out when the distance stops changing. |
 | 0.5 | Done: Manifold v3.5.3 built as one self-contained `manifoldc.dll` and called through P/Invoke from IL2CPP. Two boxes and a hole: 1.6 ms (target < 50 ms); a 51-shape chassis plate: 34 ms (target < 100 ms); results in [ADR-0005](adr/ADR-0005-body-designer-and-csg.md), now accepted. Emulator in the IL2CPP player: 223 M cycles/s (target 110). |
-| 0.6–0.7 | Next: UI Toolkit panels, code editor and fonts; then the decision review. |
+| 0.6 | Done: UI Toolkit panels docked around the running 3D view (code, inspector, console, Serial Monitor with the robot's live output, event log); tabs move between dock areas by dragging; split views resize. The custom code editor shows a 522-line sketch with line numbers, colouring, caret, typing and auto-indent; in the IL2CPP player it scrolls at the display's 144 fps with no frame over 20 ms, and a keystroke costs about 0.1 ms. English, Uzbek and Russian switch live with Segoe UI and Consolas from Windows ([10 §5](10-content-arenas-tutorial-notebook.md)); glyphs are pre-loaded at start-up, because a glyph drawn for the first time mid-scroll caused frames of up to 200 ms. |
+| 0.7 | Done: ADR-0005 accepted; ADR-0001 re-checked and kept (its Phase 0 check section); schedule re-estimated below. |
+
+### Re-estimate after Phase 0 (2026-09-23)
+
+Phase 0 was planned at 34 days of focused work. Spikes 0.1–0.6 took about two calendar days of AI-driven work plus the owner's time to install tools. Spikes are the kind of work AI speeds up most (new code, clear goals, automatic checks), so that pace does not carry over one to one. The remaining 416 planned days are therefore split by kind of work:
+
+| Kind of work | Planned days | Factor | Re-estimate |
+|---|---|---|---|
+| Code-heavy work packages: emulator, electrical core, components, workbench, Code Desk, world, bench tools, save/load, localization framework, Body Studio, Mega 2560 profile, Steamworks, shop, performance pass, the code half of customization and arenas, fixes during QA | ≈ 269 | 0.4–0.5 | ≈ 108–135 |
+| Art, content, translation review, playtests, testing, store page and trailer, legal and admin, release buffer | ≈ 147 | 0.85–0.9 | ≈ 125–132 |
+| **Remaining total** | **≈ 416** | | **≈ 233–267** |
+
+That is about 11–13 months of full-time work, so the plan becomes **15–18 months to the 1.0 release** (was 24–28), at 40 hours a week; part-time work roughly doubles the calendar time. The factors are an assumption to check: at M1 (vertical slice) the real Phase 1 pace replaces them. The owner's own time for 3D models, reviews, playtests and hardware checks is now the main limit, not programming. The original estimate stays as the upper bound without any AI speed-up.
 
 ## 4. Phase 1 — Vertical slice (months 2–9)
 
@@ -120,14 +134,14 @@ Other work, ordered by expected player value: debugger (breakpoints, watches, GD
 
 ## 8. Milestone summary
 
-| Milestone | Month (full-time, optimistic) |
-|---|---|
-| M0 Spikes done, schedule re-estimated | 2 |
-| M1 Vertical slice playable by outsiders | 8–9 |
-| M2 Steam "Coming soon" page live | 15–16 |
-| M3 Content complete, closed Steam Playtest | 18 |
-| M4 **1.0 release**: free to play, Mega 2560 Pack, two customization packs, supporter bundle | 22 (plan 24–28) |
-| M5 First post-release pack | release + 2 |
+| Milestone | Month, first plan (full-time) | Month, re-estimate after Phase 0 |
+|---|---|---|
+| M0 Spikes done, schedule re-estimated | 2 | Done 2026-09-23 |
+| M1 Vertical slice playable by outsiders | 8–9 | 4–5 |
+| M2 Steam "Coming soon" page live | 15–16 | 9–10 |
+| M3 Content complete, closed Steam Playtest | 18 | 11–13 |
+| M4 **1.0 release**: free to play, Mega 2560 Pack, two customization packs, supporter bundle | 22 (plan 24–28) | 13 (plan 15–18) |
+| M5 First post-release pack | release + 2 | release + 2 |
 
 ## 9. Sequencing rules
 1. The emulator and the compile pipeline come first: every other feature is untestable without them.

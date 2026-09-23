@@ -174,7 +174,7 @@ Gamepad support is limited to remote-controlling robots (v1.x).
 
 ### 12.3 Accessibility
 - Colour-blind-safe wire palette option and always-available text labels on hover.
-- UI scaling 100–200 %; font choice with Cyrillic and Latin-with-diacritics coverage (Uzbek Latin uses Oʻ, Gʻ).
+- UI scaling 100–200 %; fonts with Cyrillic and Latin-with-diacritics coverage (Uzbek Latin uses Oʻ, Gʻ): Segoe UI and Consolas from Windows, checked in Phase 0.6 ([10 §5](10-content-arenas-tutorial-notebook.md)).
 - Captions for audio events ("buzzer 440 Hz", "motor stalled").
 - Full keyboard navigation of panels; no time-limited interactions.
 

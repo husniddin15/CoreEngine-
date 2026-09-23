@@ -47,6 +47,6 @@ CoreEngine/
 ## Status and next steps (2026-09-23)
 All major decisions are made ([13 §1](13-open-questions-and-risks.md)): Unity 6 (6.6 now, 6.7 LTS when released); name "CoreEngine"; a solo developer working with AI; a pure sandbox with a short tutorial and the Notebook; one full 1.0 release, free to play with low-priced paid packs (Mega 2560 first); English, Uzbek and Russian; payouts through a company in Uzbekistan.
 
-1. Phase 0 (doc 11 §3): spikes 0.1 to 0.5 are done: repository and CI, the Arduino toolchain, the emulator, the Unity robot spike and the Manifold spike, with IL2CPP measurements. Next: 0.6 (UI Toolkit panels, code editor, fonts for English, Uzbek and Russian) and 0.7 (decision review and a new schedule estimate).
+1. Phase 0 is done (doc 11 §3): repository and CI, the Arduino toolchain, the emulator, the Unity robot spike, the Manifold spike, the UI spike with the code editor and three languages, and the decision review. The schedule was re-estimated to 15–18 months to 1.0. Next: Phase 1, the vertical slice.
 2. Tools in use: .NET 10 SDK, Unity 6000.6.2f1 with Windows Build Support (IL2CPP), Visual Studio Build Tools 2026 with the C++ workload and CMake.
 3. Open items: the name check (D2), the bank confirmation (D12), the purpose of email accounts (D18), a logic analyser if the Uno kit has none (D9), and compile time (13 §2 Q11).

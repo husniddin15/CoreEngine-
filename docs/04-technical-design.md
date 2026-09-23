@@ -179,7 +179,7 @@ The `arduino:avr` core and toolchain are installed into a bundled data directory
 ## 11. UI technology
 
 - **UI Toolkit** for all panels (dockable layout, virtualized lists for the parts bin, inspector property drawers, console).
-- **Code editor**: v1 implements a custom editor on UI Toolkit/TextMeshPro: line numbers, syntax colouring via a small tokenizer, auto-indent, bracket matching, find/replace, error markers. Evaluate a Monaco/WebView-based editor (Vuplex or similar) only if the custom editor proves inadequate; keep the editor behind an `ICodeEditor` interface. "Open in external editor" + file watching is the escape hatch for power users from day one.
+- **Code editor**: v1 implements a custom editor on UI Toolkit: line numbers, syntax colouring via a small tokenizer, auto-indent, bracket matching, find/replace, error markers. The Phase 0.6 spike (`app/Assets/Spike/Scripts/UI/CodeEditor.cs`) proved the base: each line is a rich-text row in a virtualised `ListView`, colouring is incremental (block-comment state carried from line to line), and every glyph is pre-loaded into the font atlas at start-up. Evaluate a Monaco/WebView-based editor (Vuplex or similar) only if the custom editor proves inadequate; keep the editor behind an `ICodeEditor` interface. "Open in external editor" + file watching is the escape hatch for power users from day one.
 - Localization via Unity Localization package string tables.
 
 ## 12. Physics integration (summary; details in doc 07)

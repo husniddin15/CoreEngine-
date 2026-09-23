@@ -67,6 +67,7 @@ The event log (resets, damage, fuse trips, warnings) links each entry to its "wh
 - Everything the player reads is translated: UI, tutorial, Notebook cards, error help, event log texts, store page. English is the source language.
 - Never translated: code, compiler output, pin names, part numbers, library names. Error cards match the English compiler text and show the explanation in the player's language.
 - Uzbek uses the Latin script, including Oʻ, Gʻ and the ʼ sign; the UI font must cover these and Cyrillic.
+- Fonts (Phase 0.6 result): Segoe UI for the interface and Consolas for code and telemetry, loaded from Windows at run time, so no font files are shipped. Both cover English, Uzbek Latin (U+02BB ʻ, U+02BC ʼ) and Russian completely. Every needed glyph is loaded into the font atlas at start-up (about 30–70 ms), because a glyph drawn for the first time mid-scroll causes a visible hitch. A bundled OFL font (for example Inter and Cascadia Mono) is only needed for a distinct visual style or for Proton/Steam Deck, where Windows fonts are missing.
 - Layout: Russian runs about 15–25 % longer than English and Uzbek about 10 %, so UI text boxes keep 30 % spare room.
 - Workflow: English source → AI-assisted draft → review by a native speaker (the owner) → in-game check of every screen. A fixed term list per language keeps technical words consistent (e.g., breadboard, jumper, pull-up); it is built during Phase 2.
 - The language can be changed at any time in Settings; it follows the Steam language by default.
