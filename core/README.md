@@ -27,7 +27,7 @@ dotnet run --project core/CoreEngine.Sim.Cli -c Release -- compile path\to\MySke
 | GPIO ports B, C, D | DDR/PORT/PIN, PIN-write toggling, pull-ups, external input levels, pin-change callbacks. |
 | Timer0, Timer2 | Normal, CTC, fast PWM and phase-correct counting; TOV/OCFA/OCFB flags and interrupts; prescalers. |
 | USART0 | Transmit buffer and shift register, exact frame timing from UBRR/U2X/format, UDRE/TXC/RXC interrupts, host receive queue. |
-| Compile service | arduino-cli as a separate process; GCC diagnostics mapped to sketch lines. |
+| Compile service | arduino-cli as a separate process, started with CreateProcessW on Windows (IL2CPP has no `System.Diagnostics.Process`); GCC diagnostics mapped to sketch lines. |
 | Component models (spike) | TT gear motor (DC motor with gearbox and friction), L298N channel (drive, brake, coast), HC-SR04 with cycle-exact echo timing (the distance comes from the host's raycast), alkaline battery pack (charge, voltage sag, rate-dependent capacity), and motor winding temperature with burn-out (F18). |
 | Not yet (Phase 1) | Timer1, ADC, SPI, TWI (I2C), EEPROM, watchdog, external and pin-change interrupts, PWM output pins, bit-level UART pins, Optiboot start-up delay, ATmega2560. |
 

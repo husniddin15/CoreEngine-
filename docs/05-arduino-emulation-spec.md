@@ -133,6 +133,8 @@ Nano FQBN: `arduino:avr:nano:cpu=atmega328` (new bootloader) or `cpu=atmega328ol
 
 Implementation note (Phase 0, 2026-09-23): `ArduinoCliCompiler` in `core/CoreEngine.Sim/Compile` runs this command without `--format json`, because the core library stays free of a JSON dependency; the configuration forces English output (`locale: en`), GCC diagnostics are parsed from the text, and the flash size is computed from the `.hex`. Measured compile times are in [13 §2 Q11](13-open-questions-and-risks.md).
 
+Process start (2026-09-24): Unity's IL2CPP runtime does not implement `System.Diagnostics.Process`; starting arduino-cli from the IL2CPP player failed with "Native error= Success" ([Unity forum](https://discussions.unity.com/threads/solved-il2cpp-and-process-start.533988/)). `Win32ProcessRunner` (`core/CoreEngine.Sim/Compile/ProcessRunner.cs`) starts it with `CreateProcessW` through P/Invoke, one anonymous pipe for standard output and error, no console window, and a timeout. It is the default on Windows, so tests, simcli, Mono and IL2CPP builds use the same code; a test compiles Blink through it into folders with spaces and checks the hex against the golden file.
+
 ### 8.3 Diagnostics mapping
 Parse `compiler_err` lines `path:line:col: (error|warning|note): message` (GCC format). Map paths back to the editor's tabs. Provide curated explanations for the most frequent messages.
 

@@ -21,3 +21,4 @@ Bundle `arduino-cli` (v1.5.x, GPLv3) and a pre-installed `arduino:avr` core (1.8
 - Watch `--build-path` + `--output-dir` behaviour (arduino-cli issue #2318); read artefacts from the build path if needed.
 - Toolchain updates are a deliberate, tested step (core version pinned; changing it re-runs the golden corpus).
 - An "advanced" setting lets power users point to their own arduino-cli/core for newer libraries.
+- IL2CPP (ADR-0001) does not implement `System.Diagnostics.Process`, so the game starts arduino-cli with `CreateProcessW` through P/Invoke (`Win32ProcessRunner`, found and fixed 2026-09-24; details in [05 §8.2](../05-arduino-emulation-spec.md)).

@@ -68,14 +68,18 @@ namespace CoreEngine.Sim.Compile
             @"^(?<file>.+?):(?<line>\d+):(?<col>\d+):\s+(?<sev>fatal error|error|warning|note):\s+(?<msg>.*)$",
             RegexOptions.Multiline | RegexOptions.CultureInvariant);
 
-        public ArduinoCliCompiler(string cliPath, string configPath)
+        public ArduinoCliCompiler(string cliPath, string configPath, IProcessRunner? runner = null)
         {
             CliPath = cliPath;
             ConfigPath = configPath;
+            Runner = runner ?? ProcessRunner.Default;
         }
 
         public string CliPath { get; }
         public string ConfigPath { get; }
+
+        /// <summary>How arduino-cli is started; the Win32 runner by default on Windows, which also works under IL2CPP.</summary>
+        public IProcessRunner Runner { get; }
 
         /// <summary>
         /// Looks for tools/arduino/bin/arduino-cli.exe and tools/arduino/arduino-cli.yaml
@@ -102,50 +106,19 @@ namespace CoreEngine.Sim.Compile
             Directory.CreateDirectory(buildDirectory);
             Directory.CreateDirectory(outputDirectory);
 
-            var start = new ProcessStartInfo(CliPath)
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8,
-            };
-            foreach (string arg in new[]
+            var arguments = new[]
             {
                 "compile", "--fqbn", fqbn, "--config-file", ConfigPath,
                 "--build-path", Path.GetFullPath(buildDirectory), "--output-dir", Path.GetFullPath(outputDirectory),
                 "--warnings", "default", sketchDir,
-            })
-            {
-                start.ArgumentList.Add(arg);
-            }
-
-            var output = new StringBuilder();
-            var watch = Stopwatch.StartNew();
-            using var process = new Process { StartInfo = start };
-            process.OutputDataReceived += (_, e) => { if (e.Data != null) lock (output) output.AppendLine(e.Data); };
-            process.ErrorDataReceived += (_, e) => { if (e.Data != null) lock (output) output.AppendLine(e.Data); };
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            int limitMs = (int)(timeout ?? TimeSpan.FromMinutes(2)).TotalMilliseconds;
-            if (!process.WaitForExit(limitMs))
-            {
-                try { process.Kill(); } catch (InvalidOperationException) { }
-                throw new TimeoutException($"arduino-cli did not finish within {limitMs / 1000} s.");
-            }
-            process.WaitForExit(); // flush the asynchronous output readers
-            watch.Stop();
-
-            string text;
-            lock (output) text = output.ToString();
+            };
+            var run = Runner.Run(CliPath, arguments, timeout ?? TimeSpan.FromMinutes(2));
+            string text = run.Output;
             string hex = Path.Combine(outputDirectory, sketchName + ".ino.hex");
             string elf = Path.Combine(outputDirectory, sketchName + ".ino.elf");
-            bool success = process.ExitCode == 0 && File.Exists(hex);
-            return new CompileResult(success, process.ExitCode, success ? hex : null, File.Exists(elf) ? elf : null,
-                ParseDiagnostics(text), text, watch.Elapsed);
+            bool success = run.ExitCode == 0 && File.Exists(hex);
+            return new CompileResult(success, run.ExitCode, success ? hex : null, File.Exists(elf) ? elf : null,
+                ParseDiagnostics(text), text, run.Duration);
         }
 
         /// <summary>Extracts GCC-style "file:line:col: severity: message" lines.</summary>
