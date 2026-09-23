@@ -1,0 +1,475 @@
+/* The Garage, the main screen (ADR-0009): dark translucent panels around the robot on its turntable. */
+
+.garage-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    color: rgb(225, 228, 235);
+    font-size: 13px;
+}
+
+/* ---- top bar ---- */
+.top-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 48px;
+    padding: 0 12px;
+    background-color: rgba(14, 17, 23, 0.92);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.app-title {
+    -unity-font-style: bold;
+    font-size: 16px;
+    color: rgb(240, 240, 240);
+    margin-right: 16px;
+}
+.nav-button {
+    margin: 0 2px;
+    padding: 6px 12px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgb(160, 170, 185);
+    font-size: 13px;
+}
+.nav-button:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+    color: rgb(255, 255, 255);
+}
+.nav-button--active {
+    background-color: rgba(79, 193, 255, 0.18);
+    color: rgb(255, 255, 255);
+}
+.spacer {
+    flex-grow: 1;
+}
+.arena-label {
+    color: rgb(160, 170, 185);
+    margin-right: 4px;
+}
+.arena-field {
+    width: 200px;
+    margin-right: 10px;
+}
+.arena-field .unity-base-popup-field__input {
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    background-color: rgb(30, 36, 48);
+}
+.arena-field .unity-base-popup-field__text {
+    color: rgb(232, 234, 240);
+}
+.arena-field .unity-base-popup-field__arrow {
+    -unity-background-image-tint-color: rgb(160, 170, 185);
+}
+.start-button {
+    height: 36px;
+    min-width: 150px;
+    margin-right: 14px;
+    border-width: 0;
+    border-radius: 5px;
+    background-color: rgb(46, 160, 67);
+    color: rgb(255, 255, 255);
+    font-size: 17px;
+    -unity-font-style: bold;
+}
+.start-button:hover {
+    background-color: rgb(58, 184, 82);
+}
+.start-button:disabled {
+    background-color: rgb(58, 66, 62);
+    color: rgb(140, 150, 145);
+}
+.lang-button {
+    margin: 0 1px;
+    padding: 2px 8px;
+    min-width: 38px;
+    border-width: 0;
+    border-radius: 3px;
+    background-color: rgb(45, 52, 68);
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+}
+.lang-button--active {
+    background-color: rgb(79, 193, 255);
+    color: rgb(17, 21, 28);
+}
+.icon-button {
+    margin-left: 8px;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgb(160, 170, 185);
+    font-size: 18px;
+}
+
+/* ---- middle row ---- */
+.middle {
+    flex-direction: row;
+    flex-grow: 1;
+    padding: 12px;
+}
+.centre {
+    flex-grow: 1;
+}
+.robot-card {
+    width: 250px;
+    align-self: flex-start;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border-left-width: 3px;
+    border-left-color: rgb(79, 193, 255);
+    background-color: rgba(14, 17, 23, 0.84);
+}
+.card-name {
+    margin-bottom: 8px;
+    font-size: 20px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+    white-space: normal;
+}
+.card-row {
+    flex-direction: row;
+    justify-content: space-between;
+    margin: 2px 0;
+}
+.card-key {
+    color: rgb(150, 160, 175);
+    margin-right: 8px;
+}
+.card-value {
+    flex-shrink: 1;
+    color: rgb(232, 234, 240);
+    -unity-text-align: upper-right;
+    white-space: normal;
+}
+.battery-bar {
+    height: 12px;
+    margin: 2px 0 6px 0;
+}
+.battery-bar .unity-progress-bar__background {
+    border-width: 0;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+.battery-bar .unity-progress-bar__progress {
+    border-radius: 3px;
+    background-color: rgb(110, 220, 130);
+}
+.battery-bar .unity-progress-bar__title {
+    display: none;
+}
+.card-warnings {
+    margin-top: 6px;
+}
+.warn-line {
+    margin: 1px 0;
+    color: rgb(255, 196, 80);
+    white-space: normal;
+}
+.try-line {
+    margin: 1px 0;
+    color: rgb(190, 150, 255);
+    white-space: normal;
+}
+.ok-line {
+    margin: 1px 0;
+    color: rgb(110, 220, 130);
+    white-space: normal;
+}
+
+/* ---- actions and side panel ---- */
+.right-column {
+    width: 280px;
+    align-self: flex-start;
+}
+.action-button {
+    height: 40px;
+    margin: 0 0 6px 0;
+    padding-left: 16px;
+    border-width: 0;
+    border-left-width: 3px;
+    border-left-color: rgba(79, 193, 255, 0);
+    border-radius: 5px;
+    background-color: rgba(14, 17, 23, 0.84);
+    color: rgb(232, 234, 240);
+    font-size: 15px;
+    -unity-text-align: middle-left;
+}
+.action-button:hover {
+    background-color: rgba(30, 36, 48, 0.94);
+    border-left-color: rgb(79, 193, 255);
+}
+.side-panel {
+    max-height: 500px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background-color: rgba(14, 17, 23, 0.92);
+}
+.side-header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.back-button {
+    width: 30px;
+    height: 26px;
+    margin-right: 8px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: rgb(255, 255, 255);
+}
+.side-title {
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+}
+.section-title {
+    margin: 8px 0 6px 0;
+    font-size: 12px;
+    -unity-font-style: bold;
+    color: rgb(150, 160, 175);
+}
+.info-text {
+    margin: 4px 0 8px 0;
+    color: rgb(205, 210, 218);
+    white-space: normal;
+}
+.swatch-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+.swatch-item {
+    width: 78px;
+    height: 88px;
+    margin: 0 4px 6px 0;
+    padding: 4px;
+    flex-direction: column;
+    align-items: center;
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+.swatch-item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+.swatch-item--active {
+    border-color: rgb(79, 193, 255);
+}
+.swatch-chip {
+    width: 42px;
+    height: 32px;
+    align-items: flex-end;
+    justify-content: flex-end;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+}
+.swatch-lock {
+    padding: 0 2px;
+    border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: rgb(255, 255, 255);
+    font-size: 11px;
+}
+.swatch-name {
+    margin-top: 3px;
+    font-size: 10px;
+    color: rgb(220, 224, 230);
+    -unity-text-align: upper-center;
+    white-space: normal;
+}
+.swatch-pack {
+    font-size: 9px;
+    color: rgb(150, 160, 175);
+    -unity-text-align: upper-center;
+    white-space: normal;
+}
+.small-button {
+    height: 26px;
+    margin: 2px 4px 2px 0;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(79, 193, 255, 0.2);
+    color: rgb(255, 255, 255);
+}
+.small-button:hover {
+    background-color: rgba(79, 193, 255, 0.35);
+}
+.repair-buttons {
+    flex-direction: row;
+    margin-bottom: 4px;
+}
+.part-row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+.part-name {
+    flex-shrink: 1;
+    margin-right: 8px;
+    color: rgb(220, 224, 230);
+    white-space: normal;
+}
+.status-ok {
+    color: rgb(110, 220, 130);
+}
+.status-bad {
+    color: rgb(255, 110, 90);
+    -unity-font-style: bold;
+}
+
+/* ---- robot bar ---- */
+.garage-hint {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 126px;
+    color: rgba(220, 225, 235, 0.55);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+}
+.robot-bar {
+    height: 118px;
+    padding: 8px 12px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.06);
+    background-color: rgba(14, 17, 23, 0.9);
+}
+.bar-scroll {
+    flex-grow: 1;
+}
+.bar-scroll .unity-scroll-view__content-container {
+    flex-direction: row;
+}
+.bar-card {
+    width: 176px;
+    height: 100px;
+    margin: 0 8px 0 0;
+    padding: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.bar-card:hover {
+    border-color: rgba(79, 193, 255, 0.45);
+}
+.bar-card--selected {
+    border-color: rgb(79, 193, 255);
+}
+.bar-thumb {
+    height: 62px;
+    background-color: rgb(40, 45, 55);
+    -unity-background-scale-mode: scale-and-crop;
+}
+.bar-name {
+    margin: 3px 6px 0 6px;
+    font-size: 13px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+    -unity-text-align: middle-left;
+}
+.bar-sub {
+    margin: 0 6px;
+    font-size: 10px;
+    color: rgb(150, 160, 175);
+    -unity-text-align: middle-left;
+}
+.bar-new {
+    justify-content: center;
+    align-items: center;
+}
+.bar-new-label {
+    font-size: 15px;
+    color: rgb(79, 193, 255);
+}
+
+/* ---- toast and overlays ---- */
+.toast {
+    position: absolute;
+    top: 60px;
+    left: 30%;
+    right: 30%;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border-left-width: 3px;
+    border-left-color: rgb(255, 196, 80);
+    background-color: rgba(30, 36, 48, 0.97);
+    color: rgb(255, 255, 255);
+    white-space: normal;
+    -unity-text-align: middle-center;
+}
+.overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+.overlay-panel {
+    width: 80%;
+    height: 82%;
+    padding: 12px;
+    border-radius: 8px;
+    background-color: rgb(24, 28, 36);
+}
+.overlay-page {
+    width: 560px;
+    height: auto;
+}
+.overlay-header {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    height: 34px;
+    margin-bottom: 8px;
+}
+.overlay-title {
+    flex-grow: 1;
+    -unity-text-align: middle-left;
+    font-size: 16px;
+    -unity-font-style: bold;
+    color: rgb(255, 255, 255);
+}
+.upload-button {
+    height: 28px;
+    min-width: 96px;
+    margin-right: 6px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgb(46, 160, 67);
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+}
+.code-overlay-editor {
+    flex-grow: 1;
+}
+.code-status-line {
+    margin-top: 6px;
+    color: rgb(200, 205, 215);
+    white-space: normal;
+}
+.diagnostics {
+    height: 72px;
+    margin-top: 4px;
+}
+.diag-line {
+    padding-left: 4px;
+    font-size: 12px;
+    color: rgb(244, 135, 113);
+    -unity-text-align: middle-left;
+}

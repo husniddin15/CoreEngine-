@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using CoreEngine.Spike.Garage;
 using CoreEngine.Spike.UI;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using FontAsset = UnityEngine.TextCore.Text.FontAsset;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
@@ -43,7 +45,7 @@ namespace CoreEngine.Spike
         Toggle autoscroll = null!;
         readonly List<string> events = new List<string>();
         ListView eventView = null!;
-        bool leftStalled, rightStalled;
+        bool leftStalled, rightStalled, leftBurnt, rightBurnt;
 
         float fpsTimer, refreshTimer;
         int fpsFrames;
@@ -93,6 +95,10 @@ namespace CoreEngine.Spike
         {
             var top = new VisualElement();
             top.AddToClassList("top-bar");
+            var garage = new Button(ReturnToGarage) { focusable = false };
+            garage.AddToClassList("garage-button");
+            localized.Add((garage, "nav.back"));
+            top.Add(garage);
             var title = new Label("CoreEngine");
             title.AddToClassList("app-title");
             top.Add(title);
@@ -320,14 +326,11 @@ namespace CoreEngine.Spike
 
         void LoadFonts()
         {
-            uiFont = CreateOsFont("Segoe UI");
-            codeFont = CreateOsFont("Consolas") ?? CreateOsFont("Cascadia Mono");
-            // Render every needed glyph now: a glyph first met while scrolling costs a visible hitch.
-            var watch = Stopwatch.StartNew();
-            string charset = Charset();
-            uiFont?.TryAddCharacters(charset, false);
-            codeFont?.TryAddCharacters(charset, false);
-            fontPreloadMs = watch.Elapsed.TotalMilliseconds;
+            // Shared with the Garage; every needed glyph is loaded when the fonts are created, because a
+            // glyph first met while scrolling costs a visible hitch.
+            uiFont = SpikeFonts.Ui;
+            codeFont = SpikeFonts.Code;
+            fontPreloadMs = SpikeFonts.PreloadMs;
             if (uiFont != null) root.style.unityFontDefinition = FontDefinition.FromSDFFont(uiFont);
             if (codeFont != null)
             {
@@ -366,7 +369,8 @@ namespace CoreEngine.Spike
         {
             string path = Path.Combine(Application.streamingAssetsPath, "Sketches", sketchFile);
             string source = File.Exists(path) ? File.ReadAllText(path) : "// " + sketchFile + " not found\n";
-            editor.SetText(LongSketch(source, 520));
+            if (!SpikeReport.Active && robot != null && robot.Project.SketchText.Length > 0) source = robot.Project.SketchText;
+            editor.SetText(SpikeReport.Active ? LongSketch(source, 520) : source);
         }
 
         /// <summary>The real sketch followed by generated helpers, so the editor holds 500+ lines.</summary>
@@ -400,6 +404,7 @@ namespace CoreEngine.Spike
         void Update()
         {
             if (Input.GetKeyDown(KeyCode.F1) && !CodeEditor.HasTypingFocus) Visible = !Visible;
+            if (Input.GetKeyDown(KeyCode.Escape) && !CodeEditor.HasTypingFocus && !SpikeReport.Active) ReturnToGarage();
 
             if (pendingSerial.Count > 0)
             {
@@ -433,7 +438,7 @@ namespace CoreEngine.Spike
             string cm = SpikeStrings.Get("unit.cm"), v = SpikeStrings.Get("unit.V"), a = SpikeStrings.Get("unit.A");
             values["insp.distance"].text = double.IsNaN(robot.DistanceCm) ? SpikeStrings.Get("insp.noEcho") : $"{robot.DistanceCm:F1} {cm}";
             values["insp.measurements"].text = robot.SonarMeasurements.ToString();
-            values["insp.supply"].text = $"{robot.SupplyVolts:F1} {v}";
+            values["insp.supply"].text = $"{robot.SupplyVolts:F2} {v} ({robot.Project.Battery.StateOfCharge * 100:F1} %)";
             values["insp.leftMotor"].text = $"{Volts(robot.LeftVolts, v)}  {robot.LeftAmps:F2} {a}";
             values["insp.rightMotor"].text = $"{Volts(robot.RightVolts, v)}  {robot.RightAmps:F2} {a}";
             values["insp.wheelSpeed"].text = $"{robot.LeftWheelSpeed:F1} / {robot.RightWheelSpeed:F1} {SpikeStrings.Get("unit.rads")}";
@@ -449,6 +454,8 @@ namespace CoreEngine.Spike
             if (robot == null || robot.Mcu == null) return;
             leftStalled = Stall(leftStalled, robot.LeftAmps, robot.LeftWheelSpeed, "event.left");
             rightStalled = Stall(rightStalled, robot.RightAmps, robot.RightWheelSpeed, "event.right");
+            leftBurnt = Burnt(leftBurnt, robot.Project.LeftMotor, "event.left");
+            rightBurnt = Burnt(rightBurnt, robot.Project.RightMotor, "event.right");
         }
 
         bool Stall(bool wasStalled, double amps, double speed, string sideKey)
@@ -461,6 +468,25 @@ namespace CoreEngine.Spike
                 eventView.ScrollToItem(events.Count - 1);
             }
             return stalled;
+        }
+
+        bool Burnt(bool wasBurnt, Sim.Components.MotorWinding winding, string sideKey)
+        {
+            if (winding.Burnt && !wasBurnt)
+            {
+                events.Add($"{robot!.Mcu.Seconds,7:F2} s  " + SpikeStrings.Format("event.burnt", SpikeStrings.Get(sideKey), winding.TemperatureC));
+                eventView.RefreshItems();
+                eventView.ScrollToItem(events.Count - 1);
+            }
+            return winding.Burnt;
+        }
+
+        /// <summary>Back to the Garage with the robot's battery and motor state (ADR-0009).</summary>
+        public void ReturnToGarage()
+        {
+            GarageState.Save();
+            SpikeReport.Transition = Stopwatch.StartNew();
+            SceneManager.LoadScene("Garage");
         }
 
         void UpdateCodeStatus()
@@ -611,12 +637,12 @@ namespace CoreEngine.Spike
                 for (int language = 0; language < SpikeStrings.LanguageCodes.Length; language++)
                 {
                     string text = SpikeStrings.AllText(language) + "Ωµ°±×→…";
-                    bool all = font.HasCharacters(text, out uint[] missing, false, true);
+                    bool all = font.HasCharacters(text, out uint[] missing, true, true); // symbols come from the fallback font
                     parts.Add($"{SpikeStrings.LanguageCodes[language]} {(all ? "complete" : "missing " + Describe(missing))}");
                 }
                 sb.AppendLine($"  {role}: {font.name} (from Windows) - {string.Join(", ", parts)}");
             }
-            sb.AppendLine($"  glyph pre-loading at start-up (both fonts): {fontPreloadMs:F1} ms");
+            sb.AppendLine($"  fonts created and glyphs pre-loaded at start-up: {fontPreloadMs:F1} ms, of which the Segoe UI Symbol fallback {SpikeFonts.SymbolFontMs:F1} ms");
             // What pre-loading every needed glyph costs when a font is created (the fix for first-use hitches).
             string charset = Charset();
             foreach (string family in new[] { "Segoe UI", "Consolas" })
@@ -635,7 +661,7 @@ namespace CoreEngine.Spike
         static string Describe(uint[] missing)
         {
             var sb = new StringBuilder();
-            foreach (uint c in missing) sb.Append($"U+{c:X4} ");
+            foreach (uint c in new HashSet<uint>(missing)) sb.Append($"U+{c:X4} ");
             return sb.ToString().TrimEnd();
         }
 

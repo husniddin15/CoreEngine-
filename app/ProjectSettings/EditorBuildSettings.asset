@@ -6,6 +6,9 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Spike/Garage.unity
+    guid: 25c203a6cc7ec554b920e7cee33ac0ea
+  - enabled: 1
     path: Assets/Spike/RobotSpike.unity
     guid: f729fa1778978434ca617d0be41468eb
   m_configObjects: {}

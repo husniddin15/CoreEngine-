@@ -21,6 +21,15 @@
     border-bottom-width: 1px;
     border-bottom-color: rgb(17, 21, 28);
 }
+.garage-button {
+    margin: 0 14px 0 0;
+    padding: 3px 10px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgb(46, 160, 67);
+    color: rgb(255, 255, 255);
+    font-size: 12px;
+}
 .app-title {
     -unity-font-style: bold;
     font-size: 14px;

@@ -8,9 +8,19 @@ The simulation core is not copied into the project: `Packages/manifest.json` loa
 
 1. `powershell -ExecutionPolicy Bypass -File native\manifold\build.ps1` puts `manifoldc.dll` into `Assets/Plugins/x86_64/` ([native/README.md](../native/README.md)).
 2. Unity Hub: add `app/`, open it with 6000.6.2f1 (Windows Build Support (IL2CPP) module installed).
-3. Menu **CoreEngine → Spike → Configure Project** creates the URP pipeline, physics and player settings, the plugin settings and `Assets/Spike/RobotSpike.unity`.
+3. Menu **CoreEngine → Spike → Configure Project** creates the URP pipeline, physics and player settings, the plugin settings, and the two scenes `Assets/Spike/Garage.unity` (first in the build) and `Assets/Spike/RobotSpike.unity`.
 
-## Phase 0 spike
+## The Garage (main screen prototype, ADR-0009)
+
+The game starts in the Garage (`Scripts/Garage/GarageSpike.cs`): the selected robot turns on a turntable on the player's desk, with the robot card on the left, the actions on the right and the robot bar with rendered thumbnails at the bottom. Drag to orbit, mouse wheel to zoom.
+
+- **Customize**: free finishes and the two launch packs' finishes; a locked finish can be tried (shown everywhere, never saved).
+- **Check & repair**: battery charge and motor winding temperatures from the core models (`BatteryPack`, `MotorWinding`); burnt motors and empty batteries are replaced for free, with a "why it broke" card.
+- **Code**: the sketch in the code editor; **Upload** compiles it with the bundled arduino-cli on a worker thread and the arena then runs the new firmware.
+- **START** runs the robot in the obstacle field; **◀ Garage** (or Esc) in the arena brings it back with its battery and motor state. The robots are saved to `garage.json` in the player's data folder.
+- Build, Wire and Body show what they will do; Notebook, Shop and Workshop show their plans. The prototype starts with two test robots; the shipped game starts empty (D16).
+
+## Phase 0 spikes
 
 `RobotSpike` builds a 3 × 3 m arena with random boxes and a two-wheel robot (articulation bodies, TT motors through an L298N model, HC-SR04 as a 17-ray cone). The robot runs the real compiled `ObstacleAvoider` sketch (`core/CoreEngine.Sim.Tests/Golden/Sketches/ObstacleAvoider`) on the ATmega328P emulator, 160 000 cycles per 10 ms physics step. Press **C** to switch between the follow camera and the top view.
 
@@ -28,4 +38,4 @@ $unity = "C:\Program Files\Unity\Hub\Editor\6000.6.2f1\Editor\Unity.exe"
 
 The IL2CPP build (`Builds/Spike/`) is the reference for speed and takes about 12 minutes from clean; the Mono build (`Builds/SpikeMono/`) takes under a minute and is for debugging.
 
-Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about 35 seconds, then writes `report.txt` (emulator speed, frame rate, emulator cost per physics step, robot telemetry every 0.5 s, mesh boolean timings, font coverage, editor scrolling and typing costs, a simulated tab drag) and seven screenshots next to it, and quits. Other programs using the CPU change the numbers noticeably on a laptop; compare the "emulator alone" line between runs.
+Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about a minute. It goes through the Garage (customize, a modelled motor burn-out and repair, a real upload), presses START, measures the arena (emulator speed, frame rate, emulator cost per physics step, robot telemetry, mesh booleans, fonts, editor scrolling and typing, a simulated tab drag), returns to the Garage, writes `report.txt` and about fifteen screenshots next to it, and quits. Other programs using the CPU change the numbers noticeably on a laptop; compare the "emulator alone" line between runs.

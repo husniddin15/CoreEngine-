@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using CoreEngine.Sim.Avr;
 using CoreEngine.Sim.Components;
+using CoreEngine.Spike.Garage;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -27,6 +28,12 @@ namespace CoreEngine.Spike
         public Material sensorMaterial = null!;
         public Material rayMaterial = null!;
         public string firmwareFile = "ObstacleAvoider.hex";
+
+        // The robot from the Garage (ADR-0009): its look, firmware, battery and motor windings.
+        RobotProject project = null!;
+        RobotVisuals? visuals;
+        double batteryAmps;
+        const double ElectronicsAmps = 0.075; // Uno ≈ 50 mA, L298N logic ≈ 10 mA, HC-SR04 ≈ 15 mA
 
         const float WheelRadius = 0.0325f;           // 65 mm TT-motor wheel
         const float TrackHalfWidth = 0.095f;
@@ -68,6 +75,8 @@ namespace CoreEngine.Spike
         readonly Queue<string> serialLines = new Queue<string>();
 
         public double EmulatorMsPerFixedStep => emulatorMsAverage;
+        public RobotProject Project => project;
+        public string FirmwareName => firmwareFile;
 
         // Live values for the UI spike's panels.
         public event Action<string>? SerialLine;
@@ -92,7 +101,8 @@ namespace CoreEngine.Spike
             return $"t={mcu.Seconds:F2} pos=({p.x:F2},{p.y:F3},{p.z:F2}) rot=({e.x:F0},{e.y:F0},{e.z:F0}) " +
                    $"wheels=({leftWheel.jointVelocity[0]:F1},{rightWheel.jointVelocity[0]:F1}) rad/s " +
                    $"volts=({Volts(leftVolts)},{Volts(rightVolts)}) amps=({leftAmps:F2},{rightAmps:F2}) " +
-                   $"pins IN1-4={pins} sonar={distanceCm:F1}cm n={sonar.Measurements} serial={last}";
+                   $"pins IN1-4={pins} sonar={distanceCm:F1}cm n={sonar.Measurements} " +
+                   $"battery={project.Battery.StateOfCharge * 100:F2}% motors=({project.LeftMotor.TemperatureC:F1},{project.RightMotor.TemperatureC:F1})C serial={last}";
         }
 
         static char Bit(AvrPort port, int bit) => port.GetDrive(bit) == PinDrive.High ? '1' : '0';
@@ -113,6 +123,10 @@ namespace CoreEngine.Spike
 
         void Start()
         {
+            SpikeReport.Init();
+            GarageState.Load(SpikeReport.Active);
+            project = GarageState.Current;
+            if (!project.Electronics) project = GarageState.Robots.Find(r => r.Electronics) ?? new RobotProject();
             BuildArena();
             BuildRobot();
             BuildSonar();
@@ -174,12 +188,10 @@ namespace CoreEngine.Spike
             var root = new GameObject("Robot");
             root.transform.position = new Vector3(0, 0.05f, 0);
 
-            var chassisVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            chassisVisual.name = "Chassis";
-            chassisVisual.transform.SetParent(root.transform, false);
-            chassisVisual.transform.localScale = new Vector3(0.12f, 0.03f, 0.16f);
-            chassisVisual.GetComponent<Renderer>().sharedMaterial = chassisMaterial;
-            chassisVisual.GetComponent<Collider>().material = new PhysicsMaterial("Plastic") { staticFriction = 0.4f, dynamicFriction = 0.35f };
+            var chassisCollider = new GameObject("ChassisCollider").AddComponent<BoxCollider>();
+            chassisCollider.transform.SetParent(root.transform, false);
+            chassisCollider.size = new Vector3(0.12f, 0.03f, 0.16f);
+            chassisCollider.material = new PhysicsMaterial("Plastic") { staticFriction = 0.4f, dynamicFriction = 0.35f };
 
             var caster = root.AddComponent<SphereCollider>();
             caster.center = new Vector3(0, -0.04f, 0.065f);
@@ -199,15 +211,12 @@ namespace CoreEngine.Spike
             leftWheel = BuildWheel(root.transform, -TrackHalfWidth);
             rightWheel = BuildWheel(root.transform, TrackHalfWidth);
 
-            sonarMount = new GameObject("HC-SR04").transform;
+            sonarMount = new GameObject("SonarMount").transform;
             sonarMount.SetParent(root.transform, false);
             sonarMount.localPosition = new Vector3(0, 0.03f, 0.085f);
-            var sensorVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            sensorVisual.name = "SensorBoard";
-            Destroy(sensorVisual.GetComponent<Collider>());
-            sensorVisual.transform.SetParent(sonarMount, false);
-            sensorVisual.transform.localScale = new Vector3(0.045f, 0.02f, 0.015f);
-            sensorVisual.GetComponent<Renderer>().sharedMaterial = sensorMaterial;
+
+            // The same model as on the Garage turntable, with the wheel parts on the turning wheel bodies.
+            visuals = RobotVisuals.Build(root.transform, leftWheel.transform, rightWheel.transform, project, chassisMaterial);
         }
 
         ArticulationBody BuildWheel(Transform parent, float x)
@@ -215,13 +224,6 @@ namespace CoreEngine.Spike
             var wheel = new GameObject(x < 0 ? "LeftWheel" : "RightWheel");
             wheel.transform.SetParent(parent, false);
             wheel.transform.localPosition = new Vector3(x, WheelRadius - 0.05f, -0.03f);
-
-            var visual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            Destroy(visual.GetComponent<Collider>());
-            visual.transform.SetParent(wheel.transform, false);
-            visual.transform.localRotation = Quaternion.Euler(0, 0, 90f);
-            visual.transform.localScale = new Vector3(2 * WheelRadius, 0.013f, 2 * WheelRadius);
-            visual.GetComponent<Renderer>().sharedMaterial = wheelMaterial;
 
             var collider = wheel.AddComponent<SphereCollider>();
             collider.radius = WheelRadius;
@@ -319,7 +321,8 @@ namespace CoreEngine.Spike
         void StartEmulator()
         {
             mcu = new Atmega328P();
-            string path = Path.Combine(Application.streamingAssetsPath, "Firmware", firmwareFile);
+            string path = project.FirmwareFullPath;
+            firmwareFile = Path.GetFileName(path);
             mcu.LoadHex(File.ReadAllText(path));
             mcu.Cpu.Diagnostic += message => Debug.LogWarning("Emulator: " + message);
 
@@ -366,11 +369,24 @@ namespace CoreEngine.Spike
             bool in2 = mcu.PortD.GetDrive(6) == PinDrive.High;
             bool in3 = mcu.PortD.GetDrive(7) == PinDrive.High;
             bool in4 = mcu.PortB.GetDrive(0) == PinDrive.High;
-            leftVolts = bridge.ChannelVolts(true, in1, in2);
-            rightVolts = bridge.ChannelVolts(true, in3, in4);
+            // The 4×AA pack feeds the bridge (docs/06 §4.1); a burnt winding is an open circuit (F18).
+            bridge.SupplyVolts = project.Battery.TerminalVolts(batteryAmps);
+            leftVolts = project.LeftMotor.Burnt ? double.NaN : bridge.ChannelVolts(true, in1, in2);
+            rightVolts = project.RightMotor.Burnt ? double.NaN : bridge.ChannelVolts(true, in3, in4);
             ApplyMotor(leftWheel, motor.OutputTorque(leftVolts, leftSpeed, out leftAmps));
             ApplyMotor(rightWheel, motor.OutputTorque(rightVolts, rightSpeed, out rightAmps));
+
+            // 4. Heat and charge: winding temperatures (docs/06 §5.10) and the battery drain.
+            double dt = Time.fixedDeltaTime;
+            project.LeftMotor.Update(Math.Abs(leftAmps), motor.ResistanceOhm, dt);
+            project.RightMotor.Update(Math.Abs(rightAmps), motor.ResistanceOhm, dt);
+            batteryAmps = ElectronicsAmps + Drawn(leftVolts, leftAmps) + Drawn(rightVolts, rightAmps);
+            project.Battery.Drain(batteryAmps, dt);
         }
+
+        /// <summary>Current taken from the battery by one driven channel; braking and coasting take none.</summary>
+        static double Drawn(double volts, double amps) =>
+            double.IsNaN(volts) || volts == 0 || Math.Sign(volts) != Math.Sign(amps) ? 0 : Math.Abs(amps);
 
         void ApplyMotor(ArticulationBody wheel, double torque)
         {

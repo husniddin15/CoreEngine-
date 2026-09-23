@@ -131,7 +131,7 @@ GameObject:
   - component: {fileID: 251854266}
   - component: {fileID: 251854265}
   m_Layer: 0
-  m_Name: UI
+  m_Name: Garage
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -146,12 +146,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 251854264}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d16d378e81914b742a734beb395654c3, type: 3}
+  m_Script: {fileID: 11500000, guid: 44c1164d348b44443964ce8e1c6dbb8c, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: CoreEngine.Spike::CoreEngine.Spike.UiSpike
-  styleSheet: {fileID: 7433441132597879392, guid: 7ed933822454a814ba85e378bdb6541f, type: 3}
-  robot: {fileID: 1985078456}
-  sketchFile: ObstacleAvoider.ino
+  m_EditorClassIdentifier: CoreEngine.Spike::CoreEngine.Spike.Garage.GarageSpike
+  litMaterial: {fileID: 2100000, guid: 7894d827bd8bfaa48b8b958a8d7826e3, type: 2}
+  styleSheet: {fileID: 7433441132597879392, guid: ad50e73cea9cf8a41bf9634476c782b6, type: 3}
+  editorStyleSheet: {fileID: 7433441132597879392, guid: 7ed933822454a814ba85e378bdb6541f, type: 3}
+  arenaScene: RobotSpike
 --- !u!114 &251854266
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -190,88 +191,8 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1985078455
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1985078459}
-  - component: {fileID: 1985078456}
-  - component: {fileID: 1985078458}
-  - component: {fileID: 1985078457}
-  m_Layer: 0
-  m_Name: Spike
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1985078456
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1985078455}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3ceb2ddf08044f94b80a8504c7a28a67, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: CoreEngine.Spike::CoreEngine.Spike.RobotSpike
-  floorMaterial: {fileID: 2100000, guid: ecce065bb4886d9469b9aaceeebf46fb, type: 2}
-  wallMaterial: {fileID: 2100000, guid: c995db346c122d54c983c16794dd59b8, type: 2}
-  obstacleMaterial: {fileID: 2100000, guid: 666bb6e31ad049740be541a5aa8795d5, type: 2}
-  chassisMaterial: {fileID: 2100000, guid: 52159e12708bbb14aa27cf8362df333a, type: 2}
-  wheelMaterial: {fileID: 2100000, guid: 642ad7792d36526459f82c814e23fb0d, type: 2}
-  sensorMaterial: {fileID: 2100000, guid: 77ab3b919ef121244b2a359495dfc431, type: 2}
-  rayMaterial: {fileID: 2100000, guid: febe6b7d075cee646a8558e840005690, type: 2}
-  firmwareFile: ObstacleAvoider.hex
---- !u!114 &1985078457
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1985078455}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 75488ea7d7cd89d40a0e946c52445b00, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: CoreEngine.Spike::CoreEngine.Spike.SpikeBenchmark
---- !u!114 &1985078458
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1985078455}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1b62540e9f9c7a488c7e1ae2e12202d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: CoreEngine.Spike::CoreEngine.Spike.CsgSpike
-  bodyMaterial: {fileID: 2100000, guid: e8ad9e5269d83444da2b75f3990641f1, type: 2}
---- !u!4 &1985078459
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1985078455}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 1985078459}
   - {fileID: 251854267}

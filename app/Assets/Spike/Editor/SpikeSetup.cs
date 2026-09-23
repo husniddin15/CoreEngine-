@@ -1,4 +1,5 @@
 using System.IO;
+using CoreEngine.Spike.Garage;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -18,6 +19,10 @@ namespace CoreEngine.Spike.Editor
     {
         const string SpikeFolder = "Assets/Spike";
         const string ScenePath = "Assets/Spike/RobotSpike.unity";
+        const string GarageScenePath = "Assets/Spike/Garage.unity";
+
+        // The Garage is the main screen (ADR-0009), so it is the first scene of the build.
+        static readonly string[] Scenes = { GarageScenePath, ScenePath };
 
         [MenuItem("CoreEngine/Spike/Configure Project")]
         public static void ConfigureProject()
@@ -28,6 +33,12 @@ namespace CoreEngine.Spike.Editor
             ConfigurePlugins();
             CopyStreamingAssets();
             CreateScene();
+            CreateGarageScene();
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(GarageScenePath, true),
+                new EditorBuildSettingsScene(ScenePath, true),
+            };
             AssetDatabase.SaveAssets();
             Debug.Log($"SpikeSetup: project configured, render pipeline {pipeline.name}");
         }
@@ -38,7 +49,7 @@ namespace CoreEngine.Spike.Editor
             string exe = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "Spike", "CoreEngineSpike.exe"));
             var options = new BuildPlayerOptions
             {
-                scenes = new[] { ScenePath },
+                scenes = Scenes,
                 locationPathName = exe,
                 target = BuildTarget.StandaloneWindows64,
                 options = BuildOptions.None,
@@ -61,7 +72,7 @@ namespace CoreEngine.Spike.Editor
                 string exe = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "Builds", "SpikeMono", "CoreEngineSpike.exe"));
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
-                    scenes = new[] { ScenePath },
+                    scenes = Scenes,
                     locationPathName = exe,
                     target = BuildTarget.StandaloneWindows64,
                     options = BuildOptions.None,
@@ -223,7 +234,22 @@ namespace CoreEngine.Spike.Editor
             ui.robot = spike;
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+        }
+
+        static void CreateGarageScene()
+        {
+            string materials = EnsureFolder(SpikeFolder + "/Materials");
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
+            RenderSettings.ambientMode = AmbientMode.Skybox;
+
+            var go = new GameObject("Garage");
+            go.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
+            var garage = go.AddComponent<GarageSpike>();
+            garage.litMaterial = Lit(materials, "GarageLit", Color.white, 0.5f); // template for runtime materials
+            garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
+            garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
+            EditorSceneManager.SaveScene(scene, GarageScenePath);
         }
 
         static Material Lit(string folder, string name, Color color, float smoothness)

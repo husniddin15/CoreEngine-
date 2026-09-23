@@ -54,6 +54,26 @@ namespace CoreEngine.Spike
             return report.ToString();
         }
 
+        /// <summary>
+        /// The 48-hole chassis plate (Manifold's default 20-sided holes) as a Unity mesh in metres, bottom at
+        /// y = 0; the Garage uses it as a Body Studio result. Null when manifoldc.dll cannot be loaded.
+        /// </summary>
+        public static Mesh? ChassisMesh()
+        {
+            try
+            {
+                using var solid = BuildChassis(Native.manifold_get_circular_segments(3));
+                var mesh = solid.ToMeshData().ToUnityMesh(0.001f);
+                mesh.name = "HoledChassis";
+                return mesh;
+            }
+            catch (Exception e) when (e is DllNotFoundException || e is EntryPointNotFoundException)
+            {
+                UnityEngine.Debug.LogWarning("CsgSpike: Manifold is not available: " + e.Message);
+                return null;
+            }
+        }
+
         void Measure(StringBuilder report, string name, Func<Solid> build, double expectedVolume, int expectedGenus, int runs, bool keep)
         {
             var times = new List<double>();

@@ -4,32 +4,26 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using CoreEngine.Sim.Avr;
+using CoreEngine.Spike.Garage;
 using UnityEngine;
 
 namespace CoreEngine.Spike
 {
     /// <summary>
-    /// Automated measurements for Phase 0.4/0.5. Run the player with
-    /// <c>-spikeBench &lt;report file&gt;</c>: it benchmarks the emulator alone, then measures frame rate
-    /// and emulator cost while the robot drives, writes the report and quits.
+    /// The arena part of a <c>-spikeBench &lt;report file&gt;</c> run (Phases 0.4–0.6): the emulator alone,
+    /// frame rate and emulator cost while the robot drives, mesh booleans and the UI panels. When the run
+    /// started in the Garage (the first scene), it then returns there; otherwise it writes the report and quits.
     /// </summary>
     public sealed class SpikeBenchmark : MonoBehaviour
     {
         IEnumerator Start()
         {
-            string? reportPath = ArgumentAfter("-spikeBench");
-            if (reportPath == null) yield break;
-
-            var report = new StringBuilder();
-            report.AppendLine($"unity: {Application.unityVersion}");
-#if ENABLE_IL2CPP
-            report.AppendLine("scripting backend: IL2CPP");
-#else
-            report.AppendLine("scripting backend: Mono");
-#endif
-            report.AppendLine($"cpu: {SystemInfo.processorType} ({SystemInfo.processorCount} threads)");
-            report.AppendLine($"gpu: {SystemInfo.graphicsDeviceName} ({SystemInfo.graphicsDeviceType})");
-            report.AppendLine($"resolution: {Screen.width}x{Screen.height}, vsync {QualitySettings.vSyncCount}");
+            SpikeReport.Init();
+            if (!SpikeReport.Active) yield break;
+            var report = SpikeReport.Text;
+            bool fromGarage = SpikeReport.Stage == 1;
+            if (SpikeReport.Transition != null)
+                report.AppendLine($"arena scene loaded in {SpikeReport.Transition.Elapsed.TotalMilliseconds:F0} ms");
 
             // 1. Emulator alone: 10 emulated seconds of Blink after 1 s of warm-up.
             var mcu = new Atmega328P();
@@ -42,15 +36,12 @@ namespace CoreEngine.Spike
             double rate = (mcu.Cpu.Cycles - startCycles) / watch.Elapsed.TotalSeconds;
             report.AppendLine($"emulator alone (Blink): {rate / 1e6:F1} M cycles/s = {rate / Atmega328P.ClockHz:F1}x real time");
 
-            // Screenshots go next to the report: <report>-follow.png, -top.png and -csg.png.
-            string shots = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(reportPath)) ?? ".",
-                                        Path.GetFileNameWithoutExtension(reportPath));
-
             // 2. The robot scene: settle for 3 s, then measure for 10 s. The UI panels stay hidden here,
             //    so the numbers compare with earlier runs; they are measured in step 4.
             var ui = FindAnyObjectByType<UiSpike>();
             if (ui != null) ui.Visible = false;
             var spike = GetComponent<RobotSpike>();
+            report.AppendLine($"robot: {spike.Project.Name}, firmware {spike.FirmwareName}, battery {spike.Project.Battery.StateOfCharge * 100:F1} % at the start");
             yield return new WaitForSecondsRealtime(3f);
             var startPosition = spike.RobotPosition;
             double startEmulated = spike.Mcu.Seconds;
@@ -82,7 +73,7 @@ namespace CoreEngine.Spike
                 if (!followShot && elapsed >= 5f)
                 {
                     followShot = true;
-                    yield return Capture(shots + "-follow.png");
+                    yield return SpikeReport.Capture(SpikeReport.Shot("follow"));
                     afterCapture = true;
                 }
             }
@@ -98,7 +89,7 @@ namespace CoreEngine.Spike
 
             spike.TopView = true;
             yield return null;
-            yield return Capture(shots + "-top.png");
+            yield return SpikeReport.Capture(SpikeReport.Shot("top"));
 
             // 3. Mesh booleans, then a close-up of the chassis they produced.
             var csg = GetComponent<CsgSpike>();
@@ -115,7 +106,7 @@ namespace CoreEngine.Spike
                     camera.transform.position = target + new Vector3(0.17f, 0.2f, -0.26f);
                     camera.transform.LookAt(target);
                     yield return null;
-                    yield return Capture(shots + "-csg.png");
+                    yield return SpikeReport.Capture(SpikeReport.Shot("csg"));
                     Destroy(camera.gameObject);
                 }
             }
@@ -124,28 +115,20 @@ namespace CoreEngine.Spike
             if (ui != null)
             {
                 spike.TopView = false;
-                yield return ui.RunBenchmark(report, shots, Capture);
+                yield return ui.RunBenchmark(report, SpikeReport.ShotPrefix, SpikeReport.Capture);
             }
 
-            File.WriteAllText(reportPath, report.ToString());
-            UnityEngine.Debug.Log("SpikeBenchmark report:\n" + report);
-            Application.Quit();
-        }
-
-        static IEnumerator Capture(string path)
-        {
-            yield return new WaitForEndOfFrame();
-            var texture = ScreenCapture.CaptureScreenshotAsTexture();
-            File.WriteAllBytes(path, texture.EncodeToPNG());
-            Destroy(texture);
-        }
-
-        static string? ArgumentAfter(string name)
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i < args.Length - 1; i++)
-                if (args[i] == name) return args[i + 1];
-            return null;
+            report.AppendLine($"after the arena run: battery {spike.Project.Battery.StateOfCharge * 100:F2} %, " +
+                              $"motor peaks {spike.Project.LeftMotor.PeakC:F1} / {spike.Project.RightMotor.PeakC:F1} °C");
+            if (fromGarage && ui != null)
+            {
+                SpikeReport.Stage = 2;
+                ui.ReturnToGarage();
+            }
+            else
+            {
+                SpikeReport.Finish();
+            }
         }
     }
 }
