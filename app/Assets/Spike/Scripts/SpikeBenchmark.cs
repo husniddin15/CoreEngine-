@@ -46,7 +46,10 @@ namespace CoreEngine.Spike
             string shots = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(reportPath)) ?? ".",
                                         Path.GetFileNameWithoutExtension(reportPath));
 
-            // 2. The robot scene: settle for 3 s, then measure for 10 s.
+            // 2. The robot scene: settle for 3 s, then measure for 10 s. The UI panels stay hidden here,
+            //    so the numbers compare with earlier runs; they are measured in step 4.
+            var ui = FindAnyObjectByType<UiSpike>();
+            if (ui != null) ui.Visible = false;
             var spike = GetComponent<RobotSpike>();
             yield return new WaitForSecondsRealtime(3f);
             var startPosition = spike.RobotPosition;
@@ -113,7 +116,15 @@ namespace CoreEngine.Spike
                     camera.transform.LookAt(target);
                     yield return null;
                     yield return Capture(shots + "-csg.png");
+                    Destroy(camera.gameObject);
                 }
+            }
+
+            // 4. UI Toolkit panels over the running robot scene.
+            if (ui != null)
+            {
+                spike.TopView = false;
+                yield return ui.RunBenchmark(report, shots, Capture);
             }
 
             File.WriteAllText(reportPath, report.ToString());

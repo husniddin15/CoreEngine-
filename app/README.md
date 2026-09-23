@@ -16,6 +16,8 @@ The simulation core is not copied into the project: `Packages/manifest.json` loa
 
 `CsgSpike` cuts holes with Manifold through P/Invoke: two boxes and a cylinder hole, and a chassis plate with 48 holes.
 
+`UiSpike` (Phase 0.6) docks UI Toolkit panels around the 3D view: the code editor (`Scripts/UI/CodeEditor.cs`, a 522-line sketch), an inspector with live sensor and motor values, a console with an error card, the Serial Monitor with the robot's output, and an event log. Drag a tab onto another area to move its panel; **EN / OʻZ / RU** switch the language; **F1** hides the panels. Fonts are Segoe UI and Consolas from Windows. `SpikeSetup` copies the sketch and firmware from `core/CoreEngine.Sim.Tests/Golden` into `Assets/StreamingAssets`.
+
 Builds (menu or batch mode):
 
 ```powershell
@@ -26,4 +28,4 @@ $unity = "C:\Program Files\Unity\Hub\Editor\6000.6.2f1\Editor\Unity.exe"
 
 The IL2CPP build (`Builds/Spike/`) is the reference for speed and takes about 12 minutes from clean; the Mono build (`Builds/SpikeMono/`) takes under a minute and is for debugging.
 
-Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about 20 seconds, then writes `report.txt` (emulator speed, frame rate, emulator cost per physics step, robot telemetry every 0.5 s, mesh boolean timings) and three screenshots next to it, and quits.
+Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about 35 seconds, then writes `report.txt` (emulator speed, frame rate, emulator cost per physics step, robot telemetry every 0.5 s, mesh boolean timings, font coverage, editor scrolling and typing costs, a simulated tab drag) and seven screenshots next to it, and quits. Other programs using the CPU change the numbers noticeably on a laptop; compare the "emulator alone" line between runs.

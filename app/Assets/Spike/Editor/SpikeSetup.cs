@@ -6,6 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
+using UnityEngine.UIElements;
 
 namespace CoreEngine.Spike.Editor
 {
@@ -25,6 +26,7 @@ namespace CoreEngine.Spike.Editor
             ConfigurePhysics();
             ConfigurePlayer();
             ConfigurePlugins();
+            CopyStreamingAssets();
             CreateScene();
             AssetDatabase.SaveAssets();
             Debug.Log($"SpikeSetup: project configured, render pipeline {pipeline.name}");
@@ -156,6 +158,44 @@ namespace CoreEngine.Spike.Editor
             importer.SaveAndReimport();
         }
 
+        /// <summary>Firmware and sketch files come from the golden tests in core/, so there is one source of truth.</summary>
+        static void CopyStreamingAssets()
+        {
+            string golden = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "core", "CoreEngine.Sim.Tests", "Golden"));
+            string firmware = Path.Combine(Application.streamingAssetsPath, "Firmware");
+            string sketches = Path.Combine(Application.streamingAssetsPath, "Sketches");
+            Directory.CreateDirectory(firmware);
+            Directory.CreateDirectory(sketches);
+            foreach (string name in new[] { "Blink", "ObstacleAvoider" })
+                File.Copy(Path.Combine(golden, "Hex", name + ".hex"), Path.Combine(firmware, name + ".hex"), true);
+            File.Copy(Path.Combine(golden, "Sketches", "ObstacleAvoider", "ObstacleAvoider.ino"), Path.Combine(sketches, "ObstacleAvoider.ino"), true);
+            AssetDatabase.Refresh();
+        }
+
+        /// <summary>Runtime theme and panel settings for the UI Toolkit spike.</summary>
+        static PanelSettings CreatePanelSettings()
+        {
+            string folder = EnsureFolder(SpikeFolder + "/UI");
+            string themePath = folder + "/SpikeTheme.tss";
+            if (!File.Exists(themePath))
+            {
+                File.WriteAllText(themePath, "@import url(\"unity-theme://default\");\n");
+                AssetDatabase.ImportAsset(themePath);
+            }
+            string settingsPath = folder + "/SpikePanel.asset";
+            var settings = AssetDatabase.LoadAssetAtPath<PanelSettings>(settingsPath);
+            if (settings == null)
+            {
+                settings = ScriptableObject.CreateInstance<PanelSettings>();
+                AssetDatabase.CreateAsset(settings, settingsPath);
+            }
+            settings.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(themePath);
+            settings.scaleMode = PanelScaleMode.ConstantPixelSize;
+            settings.scale = 1f;
+            EditorUtility.SetDirty(settings);
+            return settings;
+        }
+
         static void CreateScene()
         {
             string materials = EnsureFolder(SpikeFolder + "/Materials");
@@ -175,6 +215,12 @@ namespace CoreEngine.Spike.Editor
             var csg = go.AddComponent<CsgSpike>();
             csg.bodyMaterial = Lit(materials, "Body", new Color(0.95f, 0.45f, 0.1f), 0.35f); // orange PLA
             go.AddComponent<SpikeBenchmark>();
+
+            var uiObject = new GameObject("UI");
+            uiObject.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
+            var ui = uiObject.AddComponent<UiSpike>();
+            ui.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
+            ui.robot = spike;
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };

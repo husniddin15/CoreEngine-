@@ -69,6 +69,18 @@ namespace CoreEngine.Spike
 
         public double EmulatorMsPerFixedStep => emulatorMsAverage;
 
+        // Live values for the UI spike's panels.
+        public event Action<string>? SerialLine;
+        public double DistanceCm => distanceCm;
+        public int SonarMeasurements => sonar != null ? sonar.Measurements : 0;
+        public double SupplyVolts => bridge.SupplyVolts;
+        public double LeftVolts => leftVolts;
+        public double RightVolts => rightVolts;
+        public double LeftAmps => leftAmps;
+        public double RightAmps => rightAmps;
+        public double LeftWheelSpeed => leftWheel != null ? leftWheel.jointVelocity[0] : 0;
+        public double RightWheelSpeed => rightWheel != null ? rightWheel.jointVelocity[0] : 0;
+
         /// <summary>One line of state for the benchmark log.</summary>
         public string Telemetry()
         {
@@ -318,9 +330,11 @@ namespace CoreEngine.Spike
             {
                 if (value == '\n')
                 {
-                    serialLines.Enqueue(serialLine.ToString().TrimEnd('\r'));
+                    string line = serialLine.ToString().TrimEnd('\r');
+                    serialLines.Enqueue(line);
                     while (serialLines.Count > 6) serialLines.Dequeue();
                     serialLine.Clear();
+                    SerialLine?.Invoke(line);
                 }
                 else if (serialLine.Length < 80)
                 {
@@ -377,7 +391,7 @@ namespace CoreEngine.Spike
 
         void LateUpdate()
         {
-            if (Input.GetKeyDown(KeyCode.C)) topView = !topView;
+            if (Input.GetKeyDown(KeyCode.C) && !UI.CodeEditor.HasTypingFocus) topView = !topView;
             if (chassis == null) return;
             CastSonar(true);
 
@@ -404,9 +418,12 @@ namespace CoreEngine.Spike
             }
         }
 
+        /// <summary>The IMGUI overlay; hidden while the UI Toolkit panels are shown.</summary>
+        public bool ShowHud { get; set; } = true;
+
         void OnGUI()
         {
-            if (mcu == null) return;
+            if (mcu == null || !ShowHud) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, richText = true };
             var text = new StringBuilder();
             text.AppendLine("<b>CoreEngine Phase 0 spike</b>  (C: camera)");

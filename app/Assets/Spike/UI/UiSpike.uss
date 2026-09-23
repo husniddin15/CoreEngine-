@@ -1,0 +1,308 @@
+/* Phase 0.6 UI spike: dark IDE-style panels over the 3D view (docs/03 §12.1). */
+
+.spike-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    color: rgb(212, 212, 212);
+    font-size: 13px;
+}
+
+/* ---- top bar ---- */
+.top-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 34px;
+    padding-left: 10px;
+    padding-right: 10px;
+    background-color: rgb(31, 36, 48);
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(17, 21, 28);
+}
+.app-title {
+    -unity-font-style: bold;
+    font-size: 14px;
+    color: rgb(230, 230, 230);
+    margin-right: 18px;
+}
+.mode-tab {
+    color: rgb(154, 164, 178);
+    padding: 4px 12px;
+    margin-right: 2px;
+    border-radius: 4px;
+}
+.mode-tab--active {
+    background-color: rgb(45, 52, 68);
+    color: rgb(255, 255, 255);
+}
+.spacer {
+    flex-grow: 1;
+}
+.hint {
+    color: rgb(120, 130, 145);
+    font-size: 11px;
+    margin-right: 14px;
+}
+.lang-button {
+    margin: 0 1px;
+    padding: 2px 8px;
+    min-width: 38px;
+    border-width: 0;
+    border-radius: 3px;
+    background-color: rgb(45, 52, 68);
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+}
+.lang-button--active {
+    background-color: rgb(79, 193, 255);
+    color: rgb(17, 21, 28);
+}
+.fps {
+    min-width: 76px;
+    margin-left: 12px;
+    -unity-text-align: middle-right;
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+}
+
+/* ---- split views and dock areas ---- */
+.main-split {
+    flex-grow: 1;
+}
+.viewport {
+    flex-grow: 1;
+}
+.dock-area {
+    flex-grow: 1;
+    background-color: rgb(24, 28, 36);
+    border-width: 1px;
+    border-color: rgb(17, 21, 28);
+}
+.dock-area--drop-target {
+    border-width: 2px;
+    border-color: rgb(79, 193, 255);
+}
+.dock-tabs {
+    flex-direction: row;
+    flex-shrink: 0;
+    height: 27px;
+    background-color: rgb(26, 30, 39);
+}
+.dock-tab {
+    padding: 5px 12px;
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+    -unity-text-align: middle-center;
+    border-top-width: 2px;
+    border-top-color: rgba(0, 0, 0, 0);
+}
+.dock-tab:hover {
+    color: rgb(230, 230, 230);
+}
+.dock-tab--active {
+    color: rgb(255, 255, 255);
+    background-color: rgba(24, 28, 36, 1);
+    border-top-color: rgb(79, 193, 255);
+}
+.dock-body {
+    flex-grow: 1;
+}
+.dock-panel {
+    flex-grow: 1;
+}
+.dock-empty {
+    flex-grow: 1;
+    -unity-text-align: middle-center;
+    color: rgb(100, 110, 125);
+    font-size: 12px;
+}
+.dock-ghost {
+    position: absolute;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background-color: rgb(45, 52, 68);
+    color: rgb(255, 255, 255);
+    font-size: 12px;
+    opacity: 0.92;
+}
+
+/* ---- code editor ---- */
+.code-panel {
+    flex-grow: 1;
+}
+.code-header {
+    flex-direction: row;
+    flex-shrink: 0;
+    height: 22px;
+    padding-left: 8px;
+    padding-right: 8px;
+    align-items: center;
+    background-color: rgb(30, 30, 30);
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(40, 44, 52);
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+}
+.code-editor {
+    flex-grow: 1;
+    background-color: rgb(30, 30, 30);
+    overflow: hidden;
+}
+.code-editor:focus {
+    border-left-width: 0;
+}
+.code-lines {
+    flex-grow: 1;
+}
+.code-lines .unity-collection-view__item {
+    padding: 0;
+    margin: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+.code-lines .unity-collection-view__item:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+.code-row {
+    flex-direction: row;
+    height: 18px;
+    overflow: hidden;
+}
+.code-gutter {
+    width: 48px;
+    flex-shrink: 0;
+    padding: 0 8px 0 0;
+    margin: 0;
+    -unity-text-align: middle-right;
+    color: rgb(110, 118, 129);
+    font-size: 13px;
+}
+.code-text {
+    flex-grow: 1;
+    padding: 0 0 0 6px;
+    margin: 0;
+    -unity-text-align: middle-left;
+    white-space: pre;
+    color: rgb(212, 212, 212);
+    font-size: 13px;
+}
+.code-measure {
+    position: absolute;
+    visibility: hidden;
+    padding: 0;
+}
+.code-caret {
+    position: absolute;
+    width: 2px;
+    height: 18px;
+    background-color: rgb(174, 175, 173);
+}
+.code-status {
+    flex-shrink: 0;
+    height: 20px;
+    padding-left: 8px;
+    -unity-text-align: middle-left;
+    background-color: rgb(0, 122, 204);
+    color: rgb(255, 255, 255);
+    font-size: 11px;
+}
+
+/* ---- inspector ---- */
+.inspector {
+    padding: 8px 10px;
+}
+.insp-section {
+    margin-top: 6px;
+    margin-bottom: 4px;
+    -unity-font-style: bold;
+    color: rgb(230, 230, 230);
+}
+.insp-row {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(34, 39, 49);
+}
+.insp-label {
+    color: rgb(154, 164, 178);
+    flex-shrink: 1;
+    white-space: normal;
+    margin-right: 8px;
+}
+.insp-value {
+    color: rgb(230, 230, 230);
+    -unity-text-align: middle-right;
+    flex-shrink: 0;
+}
+
+/* ---- console, serial monitor, event log ---- */
+.panel-toolbar {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    height: 26px;
+    padding-left: 8px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(34, 39, 49);
+    color: rgb(154, 164, 178);
+    font-size: 12px;
+}
+.panel-toolbar .unity-toggle {
+    margin: 0 0 0 14px;
+    height: 20px;
+    align-items: center;
+}
+.panel-toolbar .unity-toggle__checkmark {
+    width: 14px;
+    height: 14px;
+}
+.panel-toolbar .unity-toggle__label {
+    color: rgb(154, 164, 178);
+    min-width: 0;
+}
+.mono-list {
+    flex-grow: 1;
+}
+.mono-list .unity-collection-view__item,
+.mono-list .unity-collection-view__item:hover {
+    background-color: rgba(0, 0, 0, 0);
+}
+.mono-line {
+    padding: 0 8px;
+    margin: 0;
+    height: 16px;
+    font-size: 12px;
+    -unity-text-align: middle-left;
+    white-space: pre;
+    color: rgb(212, 212, 212);
+}
+.console {
+    padding: 8px 10px;
+}
+.console-line {
+    white-space: normal;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+.console-error {
+    color: rgb(244, 135, 113);
+}
+.help-card {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    border-left-width: 3px;
+    border-left-color: rgb(79, 193, 255);
+    background-color: rgb(32, 38, 50);
+}
+.help-title {
+    -unity-font-style: bold;
+    margin-bottom: 4px;
+    color: rgb(230, 230, 230);
+}
+.help-text {
+    white-space: normal;
+    color: rgb(200, 205, 212);
+}
