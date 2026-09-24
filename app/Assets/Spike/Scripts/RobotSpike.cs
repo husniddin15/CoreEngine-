@@ -30,6 +30,7 @@ namespace CoreEngine.Spike
         public Material chassisMaterial = null!;
         public Material wheelMaterial = null!;
         public Material sensorMaterial = null!;
+        public Material? acrylicMaterial; // transparent URP Lit for acrylic body shapes (BodyLook)
         public Material rayMaterial = null!;
         public string firmwareFile = "ObstacleAvoider.hex";
 
@@ -58,8 +59,9 @@ namespace CoreEngine.Spike
         readonly DcMotorModel motor = DcMotorModel.TtGearMotor148();
 
         ArticulationBody chassis = null!;
-        ArticulationBody? leftWheel;
+        ArticulationBody? leftWheel;   // the motor whose wheel is on the left, and the one on the right (the winding models follow them)
         ArticulationBody? rightWheel;
+        string leftMotorId = "", rightMotorId = "";
         Transform? sonarMount;
         Camera followCamera = null!;
         bool topView;
@@ -150,6 +152,7 @@ namespace CoreEngine.Spike
             GarageState.Load(SpikeReport.Active);
             project = GarageState.Current;
             pinHigh = pin => boardRunning && PinHigh(pin); // an unpowered board drives nothing
+            BodyLook.Init(chassisMaterial, acrylicMaterial);
             BuildArena();
             BuildRobot();
             BuildSonar();
@@ -265,35 +268,17 @@ namespace CoreEngine.Spike
             var body = design.Body;
             circuit = CircuitAnalysis.Analyse(design);
 
+            // The frame's origin is on the floor under the robot; it stands where its lowest point is (a wheel, the
+            // caster, or anything hanging lower), half a millimetre up so it settles rather than starting inside.
             var root = new GameObject("Robot");
-            root.transform.position = new Vector3(0, 0.05f, 0);
-
-            // The plates and walls as one collider: a box, or a convex disc for a round body.
-            float bottom = DesignGeometry.BottomPlateBottom(body);
-            float top = DesignGeometry.DeckTop(body) + (body.Shape == BodyShape.Round ? 0 : body.WallHeightMm);
-            var plates = new GameObject("ChassisCollider");
-            plates.transform.SetParent(root.transform, false);
-            plates.transform.localPosition = new Vector3(0, (top + bottom) / 2 * Mm, 0);
+            root.transform.position = new Vector3(0, (0.5f - DesignGeometry.LowestPoint(design)) * Mm, 0);
             var plastic = new PhysicsMaterial("Plastic") { staticFriction = 0.4f, dynamicFriction = 0.35f };
-            if (body.Shape == BodyShape.Round)
-            {
-                plates.transform.localScale = new Vector3(body.WidthMm * Mm, (top - bottom) * Mm / 2, body.WidthMm * Mm);
-                var disc = plates.AddComponent<MeshCollider>();
-                disc.sharedMesh = RobotVisuals.CylinderMesh; // 1 unit across, 2 units tall
-                disc.convex = true;
-                disc.material = plastic;
-            }
-            else
-            {
-                var box = plates.AddComponent<BoxCollider>();
-                box.size = new Vector3(body.WidthMm, top - bottom, body.EffectiveLength) * Mm;
-                box.material = plastic;
-            }
 
-            // The Body Studio's solid shapes collide too: a convex hull around each (holes are left out).
+            // Every solid piece of the body collides as its convex hull (holes are left out), and so does an
+            // imported mesh that is not closed.
             var bodyMeshes = BodyBuilder.Build(body, project.ImportFolder);
             var shapes = new List<Mesh>(bodyMeshes.Loose);
-            foreach (var feature in bodyMeshes.Features) if (!feature.hole) shapes.Add(feature.mesh);
+            foreach (var solid in bodyMeshes.Solids) shapes.Add(solid.Mesh);
             foreach (var mesh in shapes)
             {
                 var shape = new GameObject("ShapeCollider");
@@ -304,60 +289,92 @@ namespace CoreEngine.Spike
                 hull.material = plastic;
             }
 
-            if (design.Count(PartCatalog.Caster) > 0)
+            // Parts collide as their boxes where they were put; the caster as its 20 mm ball, which barely rubs.
+            var casterMaterial = new PhysicsMaterial("Caster")
             {
-                var c = DesignGeometry.CasterCentre(body);
-                var caster = root.AddComponent<SphereCollider>();
-                caster.center = new Vector3(c.x, c.y, c.z) * Mm;
-                caster.radius = 0.01f; // the 20 mm ball touches the floor
-                caster.material = new PhysicsMaterial("Caster")
+                staticFriction = 0.02f,
+                dynamicFriction = 0.02f,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+            };
+            foreach (var part in design.Parts)
+            {
+                var def = PartCatalog.Get(part.Part);
+                if (def == null) continue;
+                if (def.Kind == PartKind.Caster)
                 {
-                    staticFriction = 0.02f,
-                    dynamicFriction = 0.02f,
-                    frictionCombine = PhysicsMaterialCombine.Minimum,
-                };
+                    var c = DesignGeometry.CasterBall(part);
+                    var ball = root.AddComponent<SphereCollider>();
+                    ball.center = new Vector3(c.x, c.y, c.z) * Mm;
+                    ball.radius = DesignGeometry.CasterBallRadius * Mm;
+                    ball.material = casterMaterial;
+                    continue;
+                }
+                var holder = new GameObject("PartCollider " + part.Id);
+                holder.transform.SetParent(root.transform, false);
+                holder.transform.localPosition = new Vector3(part.X, part.Y, part.Z) * Mm;
+                holder.transform.localRotation = Quaternion.Euler(part.RotX, part.Rotation, part.RotZ);
+                var box = holder.AddComponent<BoxCollider>();
+                box.center = new Vector3(def.BoxCentre.x, def.BoxCentre.y, def.BoxCentre.z) * Mm;
+                box.size = new Vector3(def.SizeX, def.SizeY, def.SizeZ) * Mm;
+                box.material = plastic;
             }
 
-            // Mass and centre of mass from the parts (docs/09 masses) and the body's exact volume from Manifold;
-            // the wheels are bodies of their own.
+            // Mass and centre of mass from the parts (docs/09 masses) and the body's exact volumes from Manifold,
+            // each of its own material; the wheels are bodies of their own.
             chassis = root.AddComponent<ArticulationBody>();
-            double bodyGrams = bodyMeshes.VolumeMm3 / 1000.0 * BodyDesign.DensityGPerCm3(body.Material);
             double partsGrams = design.MassKg() * 1000 - DesignGeometry.BodyMassG(body);
-            chassis.mass = Mathf.Max(0.02f, (float)((partsGrams + bodyGrams) / 1000) - design.Count(PartCatalog.TtMotor) * WheelMass);
+            chassis.mass = Mathf.Max(0.02f, (float)((partsGrams + bodyMeshes.MassG) / 1000) - design.Count(PartCatalog.TtMotor) * WheelMass);
             var com = DesignGeometry.CentreOfMass(design, wheels: false);
             chassis.automaticCenterOfMass = false;
             chassis.centerOfMass = new Vector3(com.x, com.y, com.z) * Mm;
             chassis.linearDamping = 0f;
             chassis.angularDamping = 0.05f;
 
-            // A wheel on every motor that was placed; with one motor the robot can only turn.
+            // A wheel on every motor's shaft, turning about the shaft; with one motor the robot can only turn.
+            // The motor with its wheel on the left drives the left winding model, the other the right one.
+            var wheels = new Dictionary<string, Transform>();
             foreach (var part in design.Parts)
             {
                 if (PartCatalog.Get(part.Part)?.Kind != PartKind.Motor) continue;
-                var w = DesignGeometry.WheelCentre(body, part.Slot);
-                var wheel = BuildWheel(root.transform, new Vector3(w.x, w.y, w.z) * Mm, part.Slot);
-                if (part.Slot == "right") rightWheel = wheel;
-                else leftWheel = wheel;
+                var w = DesignGeometry.WheelCentre(part);
+                var wheel = BuildWheel(root.transform, new Vector3(w.x, w.y, w.z) * Mm, Quaternion.Euler(part.RotX, part.Rotation, part.RotZ), part.Id);
+                wheels[part.Id] = wheel.transform;
+                // Two motors on one side share the two winding models in turn.
+                string side = DesignGeometry.SideOf(part);
+                if ((side == "left" && leftWheel == null) || (side == "right" && rightWheel != null && leftWheel == null))
+                {
+                    leftWheel = wheel;
+                    leftMotorId = part.Id;
+                }
+                else if (rightWheel == null)
+                {
+                    rightWheel = wheel;
+                    rightMotorId = part.Id;
+                }
             }
 
             var sensor = design.Parts.Find(p => p.Part == PartCatalog.HcSr04);
             if (sensor != null)
             {
-                var s = DesignGeometry.Place(design, sensor);
+                var face = DesignGeometry.SonarFace(sensor);
+                var aim = DesignGeometry.SonarAim(sensor);
                 sonarMount = new GameObject("SonarMount").transform;
                 sonarMount.SetParent(root.transform, false);
-                sonarMount.localPosition = new Vector3(s.x, s.y, s.z + 13) * Mm; // the transducers' front faces
+                sonarMount.localPosition = new Vector3(face.x, face.y, face.z) * Mm; // the transducers' front faces
+                sonarMount.localRotation = Quaternion.LookRotation(new Vector3(aim.x, aim.y, aim.z), Vector3.up);
             }
 
-            // The same model as on the Garage turntable, with the wheel parts on the turning wheel bodies.
-            visuals = RobotVisuals.Build(root.transform, leftWheel?.transform, rightWheel?.transform, project, chassisMaterial, prebuiltBody: bodyMeshes);
+            // The same model as on the Garage turntable, with each wheel on its turning wheel body.
+            visuals = RobotVisuals.Build(root.transform, wheels, project, chassisMaterial, prebuiltBody: bodyMeshes);
         }
 
-        ArticulationBody BuildWheel(Transform parent, Vector3 position, string slot)
+        /// <summary>A wheel body on a motor's shaft: its joint turns about its own x axis, which is the shaft.</summary>
+        ArticulationBody BuildWheel(Transform parent, Vector3 position, Quaternion motorTurn, string motorId)
         {
-            var wheel = new GameObject(slot == "right" ? "RightWheel" : "LeftWheel");
+            var wheel = new GameObject("Wheel " + motorId);
             wheel.transform.SetParent(parent, false);
             wheel.transform.localPosition = position;
+            wheel.transform.localRotation = motorTurn;
 
             var collider = wheel.AddComponent<SphereCollider>();
             collider.radius = WheelRadius;
@@ -552,10 +569,10 @@ namespace CoreEngine.Spike
             // 3. Outputs: pins -> the L298N inputs the wires reach -> motor lead voltages -> wheel torque.
             //    The 4×AA pack feeds the bridge (docs/06 §4.1); a burnt winding is an open circuit (F18).
             bridge.SupplyVolts = project.Battery.TerminalVolts(batteryAmps);
-            leftVolts = leftWheel == null || project.LeftMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, "left", pinHigh, bridge);
-            rightVolts = rightWheel == null || project.RightMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, "right", pinHigh, bridge);
-            leftAmps = DriveWheel(leftWheel, "left", leftVolts);
-            rightAmps = DriveWheel(rightWheel, "right", rightVolts);
+            leftVolts = leftWheel == null || project.LeftMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, leftMotorId, pinHigh, bridge);
+            rightVolts = rightWheel == null || project.RightMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, rightMotorId, pinHigh, bridge);
+            leftAmps = DriveWheel(leftWheel, leftVolts);
+            rightAmps = DriveWheel(rightWheel, rightVolts);
 
             // 4. Heat and charge: winding temperatures (docs/06 §5.10) and the battery drain.
             double dt = Time.fixedDeltaTime;
@@ -575,15 +592,15 @@ namespace CoreEngine.Spike
 
         /// <summary>
         /// Torque of one motor on its wheel, with the reaction on the chassis. The motor model works in the
-        /// motor's own frame; the mirrored right motor turns its wheel the other way (<see cref="DriveMap.MountSign"/>).
-        /// Returns the winding current.
+        /// motor's own frame: a positive voltage turns the shaft about its own x, which is the wheel joint's axis,
+        /// so a motor turned round (the kit's right one) turns its wheel the other way by itself. Returns the
+        /// winding current.
         /// </summary>
-        double DriveWheel(ArticulationBody? wheel, string slot, double volts)
+        double DriveWheel(ArticulationBody? wheel, double volts)
         {
             if (wheel == null) return 0;
-            int sign = DriveMap.MountSign(slot);
-            double torque = motor.OutputTorque(volts, wheel.jointVelocity[0] * sign, out double amps) * sign;
-            var axis = chassis.transform.right * (float)torque;
+            double torque = motor.OutputTorque(volts, wheel.jointVelocity[0], out double amps);
+            var axis = wheel.transform.right * (float)torque;
             wheel.AddTorque(axis);
             chassis.AddTorque(-axis);
             return amps;

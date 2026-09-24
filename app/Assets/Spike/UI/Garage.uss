@@ -1024,7 +1024,7 @@
     overflow: hidden;
 }
 .studio-palette {
-    width: 200px;
+    width: 214px;
     padding: 12px 12px 4px 12px;
     background-color: rgba(10, 13, 19, 0.88);
     border-right-width: 1px;
@@ -1281,4 +1281,135 @@
     border-radius: 3px;
     background-color: rgb(30, 36, 48);
     -unity-background-image-tint-color: rgb(79, 193, 255);
+}
+
+/* ---- Body Studio library: tabs, materials, colours, parts ---- */
+.studio-palette {
+    flex-direction: column;
+}
+.library-tabs {
+    flex-direction: row;
+    margin-bottom: 8px;
+}
+.library-tab {
+    flex-grow: 1;
+    flex-basis: 0;
+    height: 30px;
+    margin: 0 2px;
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-bottom-color: rgba(0, 0, 0, 0);
+    border-radius: 0;
+    background-color: rgba(255, 255, 255, 0.03);
+    color: rgb(160, 170, 185);
+    font-size: 12px;
+    -unity-font-style: bold;
+}
+.library-tab:hover {
+    color: rgb(255, 255, 255);
+}
+.library-tab--active {
+    border-bottom-color: rgb(79, 193, 255);
+    color: rgb(255, 255, 255);
+}
+.library-scroll {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+}
+.material-picker {
+    margin-bottom: 8px;
+}
+.material-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+.material-button {
+    width: 84px;
+    height: 28px;
+    margin: 0 0 4px 0;
+    padding: 0 5px;
+    flex-direction: row;
+    align-items: center;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.08);
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+.material-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.material-button--active {
+    border-color: rgb(79, 193, 255);
+    background-color: rgba(79, 193, 255, 0.18);
+}
+.material-chip {
+    width: 14px;
+    height: 14px;
+    margin-right: 5px;
+    flex-shrink: 0;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+}
+.material-chip--clear {
+    opacity: 0.6;
+}
+.material-name {
+    flex-shrink: 1;
+    font-size: 10px;
+    color: rgb(220, 224, 230);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.colour-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 2px 0 2px 0;
+}
+.colour-swatch {
+    width: 18px;
+    height: 18px;
+    margin: 0 4px 4px 0;
+    padding: 0;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 9px;
+}
+.colour-swatch--active {
+    border-color: rgb(79, 193, 255);
+}
+.colour-clear {
+    height: 18px;
+    margin: 0 4px 4px 0;
+    padding: 0 6px;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 9px;
+    background-color: rgba(255, 255, 255, 0.06);
+    color: rgb(220, 224, 230);
+    font-size: 10px;
+}
+.material-note {
+    font-size: 10px;
+    color: rgb(130, 140, 155);
+}
+.part-count {
+    margin-top: 1px;
+    font-size: 10px;
+    color: rgb(130, 140, 155);
+    -unity-text-align: middle-center;
+}
+.shape-button:disabled {
+    opacity: 0.45;
+}
+.part-button {
+    height: auto;
+    min-height: 92px;
+    flex-shrink: 0;
+    justify-content: flex-start;
+    padding-top: 8px;
 }

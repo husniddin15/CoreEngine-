@@ -41,8 +41,12 @@ namespace CoreEngine.Spike.Garage
         public const string CarbonMetalPack = "pack.carbonMetal";
         public const string NeonPack = "pack.neon";
 
+        /// <summary>The body as built: every shape in its own material and colour, no paint over it.</summary>
+        public const string AsBuilt = "as-built";
+
         public static readonly IReadOnlyList<Finish> All = new List<Finish>
         {
+            new Finish(AsBuilt, FinishTarget.Body, new Color(0.86f, 0.73f, 0.54f), 0.40f, 0f, null, "As built", "Oʻz materiallarida", "Свои материалы"),
             new Finish("blue-acrylic", FinishTarget.Body, new Color(0.13f, 0.33f, 0.78f), 0.80f, 0f, null, "Blue acrylic", "Koʻk akril", "Синий акрил"),
             new Finish("smoked-acrylic", FinishTarget.Body, new Color(0.22f, 0.24f, 0.27f), 0.85f, 0f, null, "Smoked acrylic", "Tutunli akril", "Дымчатый акрил"),
             new Finish("white-pla", FinishTarget.Body, new Color(0.82f, 0.82f, 0.80f), 0.30f, 0f, null, "White PLA", "Oq PLA", "Белый PLA"),

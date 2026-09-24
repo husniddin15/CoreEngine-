@@ -40,6 +40,7 @@ namespace CoreEngine.Spike.Garage
         Camera view = null!;
         Transform turntable = null!;
         Transform robotAnchor = null!;
+        float turntableTop;       // the turntable's top above its base, where the robot's floor (y = 0) is
         RobotVisuals? shown;
         float yaw = 215f, pitch = 14f, distance = 0.62f;
         float idleSeconds = 10f;
@@ -85,6 +86,7 @@ namespace CoreEngine.Spike.Garage
         {
             SpikeReport.Init();
             GarageState.Load(SpikeReport.Active);
+            BodyLook.Init(litMaterial, acrylicMaterial);
             BuildRoom();
             BuildCamera();
             ShowRobot();
@@ -143,7 +145,8 @@ namespace CoreEngine.Spike.Garage
             }
             robotAnchor = new GameObject("RobotAnchor").transform;
             robotAnchor.SetParent(turntable, false);
-            robotAnchor.localPosition = new Vector3(0, 0.0215f + 0.05f, 0); // chassis origin is 5 cm above the wheels' contact
+            turntableTop = 0.0215f;
+            robotAnchor.localPosition = new Vector3(0, turntableTop, 0); // the robot's floor is the turntable's top
         }
 
         void BuildRoom()
@@ -215,7 +218,8 @@ namespace CoreEngine.Spike.Garage
             Cylinder("Top", turntable, new Vector3(0, 0.0325f, 0), 0.37f, 0.005f, Mat(new Color(0.16f, 0.17f, 0.19f), 0.55f), Quaternion.identity);
             robotAnchor = new GameObject("RobotAnchor").transform;
             robotAnchor.SetParent(turntable, false);
-            robotAnchor.localPosition = new Vector3(0, 0.035f + 0.05f, 0); // chassis origin is 5 cm above the wheels' contact
+            turntableTop = 0.035f;
+            robotAnchor.localPosition = new Vector3(0, turntableTop, 0); // the robot's floor is the turntable's top
 
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -251,12 +255,17 @@ namespace CoreEngine.Spike.Garage
             UpdateCamera();
         }
 
-        /// <summary>Builds the robot's model on the turntable: with part colliders in Build, with pin markers in Wire.</summary>
+        /// <summary>
+        /// Builds the robot's model on the turntable: with part colliders in the Body Studio, with pin markers in Wire.
+        /// Outside the Studio the robot stands on its lowest point (a wheel, the caster, a part hanging lower), as it
+        /// would on a real turntable; in the Studio the workplane stays put at the turntable's top.
+        /// </summary>
         void ShowRobot(BodyMeshes? body = null)
         {
             shown?.Destroy();
-            shown = RobotVisuals.Build(robotAnchor, null, null, Robot, litMaterial, pickable: mode == EditMode.Build, pins: mode == EditMode.Wire, prebuiltBody: body);
-            if (mode == EditMode.Build) shown.Highlight(selectedPart);
+            float lift = mode == EditMode.Body ? 0 : Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f;
+            robotAnchor.localPosition = new Vector3(0, turntableTop + lift, 0);
+            shown = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
             if (mode == EditMode.Wire)
             {
                 shown.HighlightWire(selectedWire);
@@ -632,9 +641,9 @@ namespace CoreEngine.Spike.Garage
         {
             switch (key)
             {
-                case "act.build": EnterMode(EditMode.Build, key, RenderBuild); break;
+                case "act.build": EnterMode(EditMode.Body, "act.body", RenderStudio, LibraryTab.Parts); break;
                 case "act.wire": EnterMode(EditMode.Wire, key, RenderWire); break;
-                case "act.body": EnterMode(EditMode.Body, key, RenderStudio); break;
+                case "act.body": EnterMode(EditMode.Body, key, RenderStudio, LibraryTab.Shapes); break;
                 case "act.code":
                     LeaveMode();
                     OpenCode();
@@ -1064,8 +1073,9 @@ namespace CoreEngine.Spike.Garage
             while (thumbnails.Count <= index) thumbnails.Add(null);
             var target = RenderTexture.GetTemporary(width, height, 24);
             var stage = new GameObject("ThumbnailStage");
-            stage.transform.position = new Vector3(40f + index * 3f, 0.05f, 0);
-            var visual = RobotVisuals.Build(stage.transform, null, null, GarageState.Robots[index], litMaterial);
+            var design = GarageState.Robots[index].Design;
+            stage.transform.position = new Vector3(40f + index * 3f, Mathf.Max(0, -DesignGeometry.LowestPoint(design)) * 0.001f, 0);
+            var visual = RobotVisuals.Build(stage.transform, null, GarageState.Robots[index], litMaterial);
             var camera = new GameObject("ThumbnailCamera").AddComponent<Camera>();
             camera.enabled = false;
             camera.targetTexture = target;
@@ -1075,8 +1085,9 @@ namespace CoreEngine.Spike.Garage
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.17f, 0.19f, 0.23f);
             camera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
-            camera.transform.position = stage.transform.position + Quaternion.Euler(24f, 215f, 0) * new Vector3(0, 0, -0.5f);
-            camera.transform.LookAt(stage.transform.position);
+            var middle = new Vector3(stage.transform.position.x, 0.05f, 0); // about half way up a small robot
+            camera.transform.position = middle + Quaternion.Euler(24f, 215f, 0) * new Vector3(0, 0, -0.5f);
+            camera.transform.LookAt(middle);
 
             // A render request draws the camera into the texture right now. During the first frames after
             // start-up URP drops such requests silently, so check the result (the clear colour is opaque)
@@ -1154,7 +1165,7 @@ namespace CoreEngine.Spike.Garage
             Choose(Finishes.Get("chrome-hubs", FinishTarget.Wheels));
             yield return Frames(4);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-customize"));
-            bool tryKept = Robot.IsTrying && Robot.BodyFinish == "blue-acrylic" && Robot.WheelFinish == "yellow-hubs";
+            bool tryKept = Robot.IsTrying && Robot.BodyFinish == Finishes.AsBuilt && Robot.WheelFinish == "yellow-hubs";
             StopTrying();
             report.AppendLine($"  customize: trying carbon fibre and chrome hubs leaves the saved finishes unchanged: {(tryKept ? "OK" : "WRONG")}");
 

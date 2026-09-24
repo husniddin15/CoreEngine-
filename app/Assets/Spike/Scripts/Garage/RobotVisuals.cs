@@ -11,11 +11,11 @@ namespace CoreEngine.Spike.Garage
     }
 
     /// <summary>
-    /// The robot's look, built from its <see cref="RobotDesign"/>: the Body Studio plates, every part where it
-    /// was placed, wheels on the motors and each jumper wire between its two pins, in the chassis frame of
-    /// RobotSpike (origin at the chassis centre, 5 cm above the floor, +z forward). Used by the Garage
-    /// turntable, its thumbnails, its edit modes and the arena robot. Real proportions from docs/09; details
-    /// such as header holes, male pins, terminal screws and Dupont housings show where wires go.
+    /// The robot's look, built from its <see cref="RobotDesign"/>: the body's shapes in their materials, every
+    /// part where the player put it and turned it, each motor's wheel on its shaft, and each jumper wire between
+    /// its two pins, in the chassis frame (y up from the floor the robot stands on, +z forward). Used by the
+    /// Garage turntable, its thumbnails, its edit modes and the arena robot. Real proportions from docs/09;
+    /// details such as header holes, male pins, terminal screws and Dupont housings show where wires go.
     /// Jumpers are smooth tubes that leave each pin the way a real wire does (up from a header, sideways
     /// out of a screw terminal, along a lead).
     /// </summary>
@@ -52,6 +52,7 @@ namespace CoreEngine.Spike.Garage
         readonly List<MeshRenderer?> wireRenderers = new List<MeshRenderer?>();
         readonly List<Mesh?> wireMeshes = new List<Mesh?>();
         readonly Dictionary<string, PinKind> pinKinds = new Dictionary<string, PinKind>();
+        readonly List<(MeshRenderer renderer, BodyMaterial material, string colour)> bodyRenderers = new List<(MeshRenderer, BodyMaterial, string)>();
         BodyMeshes? body;
         Material black = null!, holes = null!, metal = null!, darkMetal = null!, gold = null!, tin = null!, activePin = null!, selectedWire = null!;
         Transform wiresRoot = null!, pinsRoot = null!;
@@ -90,14 +91,15 @@ namespace CoreEngine.Spike.Garage
             hubMaterial = Mat(Color.white, 0.3f, 0f);
         }
 
-        /// <param name="leftWheel">Wheel bodies of the physics robot; null puts the wheels on the chassis (Garage).</param>
-        /// <param name="pickable">Colliders on the parts, for the Garage's Build mode.</param>
+        /// <param name="wheels">The physics robot's wheel bodies by motor id; null puts each wheel on its motor (Garage).</param>
+        /// <param name="pickable">Colliders on the parts, for the Garage's Body Studio.</param>
         /// <param name="pins">Pin markers, for the Wire mode.</param>
-        /// <param name="prebuiltBody">Plates already built (the Body Studio's worker); the visual owns them from now on.</param>
-        public static RobotVisuals Build(Transform chassis, Transform? leftWheel, Transform? rightWheel, RobotProject project, Material template,
+        /// <param name="prebuiltBody">A body already built (the Body Studio's worker); the visual owns it from now on.</param>
+        public static RobotVisuals Build(Transform chassis, IReadOnlyDictionary<string, Transform>? wheels, RobotProject project, Material template,
             bool pickable = false, bool pins = false, BodyMeshes? prebuiltBody = null)
         {
             EnsureMeshes();
+            BodyLook.EnsureInit(template);
             var v = new RobotVisuals(chassis, template);
             v.design = project.Design;
             v.importFolder = project.ImportFolder;
@@ -112,22 +114,21 @@ namespace CoreEngine.Spike.Garage
             v.pinsRoot = Group(v.Root.transform, "Pins", Vector3.zero);
             var design = project.Design;
             v.BuildBody(design.Body, prebuiltBody);
-            foreach (var part in design.Parts) v.BuildPart(design, part, part.Slot == "right" ? rightWheel : leftWheel, pickable);
+            foreach (var part in design.Parts) v.BuildPart(design, part, wheels != null && wheels.TryGetValue(part.Id, out var wheel) ? wheel : null, pickable);
             v.BuildWires(design);
             if (pins) v.BuildPinMarkers(design);
             v.ApplyFinishes(project);
             return v;
         }
 
-        /// <summary>Moves a deck part to its place in the design and redraws the wires (Build mode drag).</summary>
+        /// <summary>Moves a part to its place and turn in the design and redraws its wires (a drag in the Body Studio).</summary>
         public void MovePart(RobotDesign design, string partId)
         {
             this.design = design;
             var part = design.Find(partId);
             if (part == null || !Parts.TryGetValue(partId, out var go)) return;
-            var place = DesignGeometry.Place(design, part);
-            go.transform.localPosition = new Vector3(place.x, place.y, place.z) * Mm;
-            go.transform.localRotation = Quaternion.Euler(0, place.rotation, 0);
+            go.transform.localPosition = new Vector3(part.X, part.Y, part.Z) * Mm;
+            go.transform.localRotation = Quaternion.Euler(part.RotX, part.Rotation, part.RotZ);
             for (int i = 0; i < design.Wires.Count; i++)
             {
                 var w = design.Wires[i];
@@ -181,9 +182,15 @@ namespace CoreEngine.Spike.Garage
             return Parts.TryGetValue(partId, out var go) ? go.transform.position : Root.transform.position;
         }
 
+        /// <summary>
+        /// The wheels' finish, and the body's: as built (each shape in its own material) or one paint over all of it.
+        /// </summary>
         public void ApplyFinishes(RobotProject project)
         {
-            Apply(bodyMaterial, Finishes.Get(project.ActiveBodyFinish, FinishTarget.Body));
+            bool asBuilt = project.ActiveBodyFinish == Finishes.AsBuilt;
+            if (!asBuilt) Apply(bodyMaterial, Finishes.Get(project.ActiveBodyFinish, FinishTarget.Body));
+            foreach (var (renderer, material, colour) in bodyRenderers)
+                renderer.sharedMaterial = asBuilt ? BodyLook.Get(material, colour) : bodyMaterial;
             Apply(hubMaterial, Finishes.Get(project.ActiveWheelFinish, FinishTarget.Wheels));
         }
 
@@ -229,40 +236,20 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ body
 
+        /// <summary>Each solid piece of the body in its material; open imported meshes as PLA.</summary>
         void BuildBody(BodyDesign design, BodyMeshes? prebuilt)
         {
             body = prebuilt ?? BodyBuilder.Build(design, importFolder);
-            MeshObject("Body", Root.transform, body.Body, Vector3.zero, bodyMaterial);
-            foreach (var loose in body.Loose) MeshObject("Imported", Root.transform, loose, Vector3.zero, bodyMaterial);
-            if (design.Decks >= 2)
+            foreach (var solid in body.Solids)
             {
-                var brass = Mat(new Color(0.78f, 0.62f, 0.25f), 0.7f, 1f);
-                float height = (DesignGeometry.TopDeckBottom - DesignGeometry.BottomPlateTop) * Mm;
-                foreach (var (x, z) in StandoffPlaces(design))
-                {
-                    var standoff = MeshObject("Standoff", Root.transform, ProceduralMeshes.Hub, new Vector3(x * Mm, 0, z * Mm), brass);
-                    standoff.transform.localRotation = Quaternion.Euler(0, 0, 90); // the hub mesh turns about x; stand it up
-                    standoff.transform.localScale = new Vector3(height / 0.024f, 0.0025f / 0.021f, 0.0025f / 0.021f);
-                }
+                var go = MeshObject("Body " + solid.Id, Root.transform, solid.Mesh, Vector3.zero, BodyLook.Get(solid.Material, solid.Colour));
+                bodyRenderers.Add((go.GetComponent<MeshRenderer>(), solid.Material, solid.Colour));
             }
-        }
-
-        static IEnumerable<(float x, float z)> StandoffPlaces(BodyDesign b)
-        {
-            if (b.Shape == BodyShape.Round)
+            foreach (var loose in body.Loose)
             {
-                float r = b.WidthMm / 2 - 10;
-                for (int i = 0; i < 4; i++)
-                {
-                    float angle = (45 + 90 * i) * Mathf.Deg2Rad;
-                    yield return (r * Mathf.Cos(angle), r * Mathf.Sin(angle));
-                }
-                yield break;
+                var go = MeshObject("Imported", Root.transform, loose, Vector3.zero, BodyLook.Get(BodyMaterial.Pla, ""));
+                bodyRenderers.Add((go.GetComponent<MeshRenderer>(), BodyMaterial.Pla, ""));
             }
-            float inset = b.Shape == BodyShape.Rounded ? Mathf.Max(10, b.CornerRadiusMm * 0.6f) : 10;
-            foreach (float sx in new[] { -1f, 1f })
-                foreach (float sz in new[] { -1f, 1f })
-                    yield return (sx * (b.WidthMm / 2 - inset), sz * (b.EffectiveLength / 2 - inset));
         }
 
         // ------------------------------------------------------------------ parts
@@ -271,16 +258,15 @@ namespace CoreEngine.Spike.Garage
         {
             var def = PartCatalog.Get(part.Part);
             if (def == null) return;
-            var place = DesignGeometry.Place(design, part);
-            var root = Group(Root.transform, part.Id, new Vector3(place.x, place.y, place.z) * Mm);
-            root.localRotation = Quaternion.Euler(0, place.rotation, 0);
+            var root = Group(Root.transform, part.Id, new Vector3(part.X, part.Y, part.Z) * Mm);
+            root.localRotation = Quaternion.Euler(part.RotX, part.Rotation, part.RotZ);
             Parts[part.Id] = root.gameObject;
             switch (def.Kind)
             {
                 case PartKind.Board: BuildUno(root, def); break;
                 case PartKind.MotorDriver: BuildL298N(design, part, root, def); break;
                 case PartKind.Ultrasonic: BuildSonar(root, def); break;
-                case PartKind.Motor: BuildMotor(design, part, root, wheelBody); break;
+                case PartKind.Motor: BuildMotor(part, root, wheelBody); break;
                 case PartKind.Battery: BuildBattery(root); break;
                 case PartKind.Caster: BuildCaster(root); break;
             }
@@ -288,7 +274,7 @@ namespace CoreEngine.Spike.Garage
             {
                 var collider = root.gameObject.AddComponent<BoxCollider>();
                 collider.size = new Vector3(def.SizeX, def.SizeY, def.SizeZ) * Mm;
-                collider.center = new Vector3(0, def.Mount == MountKind.Deck ? def.SizeY / 2000f : 0, 0);
+                collider.center = new Vector3(def.BoxCentre.x, def.BoxCentre.y, def.BoxCentre.z) * Mm;
                 root.gameObject.AddComponent<Pickable>().PartId = part.Id;
             }
         }
@@ -390,8 +376,8 @@ namespace CoreEngine.Spike.Garage
             Box(t, new Vector3(0, -0.0125f, -0.004f), new Vector3(0.03f, 0.007f, 0.010f), darkMetal, "Bracket");
         }
 
-        /// <summary>TT gear motor on its mount, with the 65 mm wheel on the shaft and its red and black leads.</summary>
-        void BuildMotor(RobotDesign design, PartInstance part, Transform t, Transform? wheelBody)
+        /// <summary>TT gear motor, with the 65 mm wheel on its shaft (−x side) and its red and black leads (+z end).</summary>
+        void BuildMotor(PartInstance part, Transform t, Transform? wheelBody)
         {
             var yellow = Mat(new Color(0.98f, 0.76f, 0.10f), 0.35f, 0f);
             Box(t, Vector3.zero, new Vector3(0.019f, 0.022f, 0.037f), yellow, "Gearbox");
@@ -401,12 +387,10 @@ namespace CoreEngine.Spike.Garage
             Box(t, new Vector3(0, 0.002f, 0.0448f), new Vector3(0.012f, 0.012f, 0.0012f), black, "EndCap");
             foreach (float y in new[] { 0.004f, -0.004f })
                 Box(t, new Vector3(0, y, 0.0452f), new Vector3(0.0022f, 0.0012f, 0.0012f), tin, "Tab");
-            var wheelCentre = DesignGeometry.WheelCentre(design.Body, part.Slot);
-            var motorCentre = DesignGeometry.MotorCentre(design.Body, part.Slot);
-            float shaftLength = Mathf.Abs(wheelCentre.x - motorCentre.x) * Mm;
-            float side = part.Slot == "right" ? 1 : -1;
-            Cylinder(t, new Vector3(side * shaftLength / 2, 0.0085f, 0), 0.0054f, shaftLength, Axis.X, black, "Shaft");
-            var wheel = wheelBody ?? Group(Root.transform, part.Id + ".wheel", new Vector3(wheelCentre.x, wheelCentre.y, wheelCentre.z) * Mm);
+            var hub = DesignGeometry.WheelInMotor;
+            float shaftLength = Mathf.Abs(hub.x) * Mm;
+            Cylinder(t, new Vector3(hub.x / 2, hub.y, hub.z) * Mm, 0.0054f, shaftLength, Axis.X, black, "Shaft");
+            var wheel = wheelBody ?? Group(t, part.Id + ".wheel", new Vector3(hub.x, hub.y, hub.z) * Mm);
             BuildWheel(wheel);
         }
 

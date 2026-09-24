@@ -30,7 +30,11 @@ namespace CoreEngine.Spike
             return positions;
         }
 
-        public Mesh ToUnityMesh(float scale)
+        /// <param name="withUv">
+        /// Box-mapped texture coordinates: each vertex takes the two coordinates across its normal's main axis, one
+        /// unit per 100 mm, so wood grain or cardboard flutes lie flat on every face without a hand-made layout.
+        /// </param>
+        public Mesh ToUnityMesh(float scale, bool withUv = false)
         {
             // Manifold keeps triangles counter-clockwise about outward normals in its right-handed
             // frame. Read unchanged in Unity's left-handed frame they appear clockwise from outside,
@@ -38,14 +42,20 @@ namespace CoreEngine.Spike
             int count = Properties.Length / NumProp;
             var vertices = new Vector3[count];
             var normals = new Vector3[count];
+            var uvs = withUv ? new Vector2[count] : null;
             for (int i = 0, o = 0; i < count; i++, o += NumProp)
             {
                 vertices[i] = new Vector3(Properties[o], Properties[o + 1], Properties[o + 2]) * scale;
                 normals[i] = new Vector3(Properties[o + 3], Properties[o + 4], Properties[o + 5]);
+                if (uvs == null) continue;
+                float ax = Mathf.Abs(normals[i].x), ay = Mathf.Abs(normals[i].y), az = Mathf.Abs(normals[i].z);
+                float px = Properties[o] * 0.01f, py = Properties[o + 1] * 0.01f, pz = Properties[o + 2] * 0.01f;
+                uvs[i] = ay >= ax && ay >= az ? new Vector2(px, pz) : ax >= az ? new Vector2(pz, py) : new Vector2(px, py);
             }
             var mesh = new Mesh { indexFormat = count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };
             mesh.SetVertices(vertices);
             mesh.SetNormals(normals);
+            if (uvs != null) mesh.SetUVs(0, uvs);
             mesh.SetTriangles(Triangles, 0);
             mesh.RecalculateBounds();
             return mesh;

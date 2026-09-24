@@ -24,7 +24,7 @@ namespace CoreEngine.Spike.Garage
         public string UploadedText = "";  // the source of the loaded firmware; empty means the file
         public string FirmwarePath = "";  // a hex uploaded from the Garage; empty means the golden hex
         public int ProgramBytes = 2954;
-        public string BodyFinish = "blue-acrylic";
+        public string BodyFinish = Finishes.AsBuilt; // each shape in its own material; a paint finish covers them all
         public string WheelFinish = "yellow-hubs";
         [NonSerialized] public string TriedBodyFinish = "";   // pack finishes being tried: shown everywhere, never saved
         [NonSerialized] public string TriedWheelFinish = "";
@@ -99,8 +99,8 @@ namespace CoreEngine.Spike.Garage
             }
         }
 
-        /// <summary>Parts, wheels (one per motor) and the plates.</summary>
-        public int PartCount => Design.Parts.Count + Design.Count(PartCatalog.TtMotor) + Math.Max(1, Design.Body.Decks);
+        /// <summary>Parts, wheels (one per motor) and the body's shapes and groups.</summary>
+        public int PartCount => Design.Parts.Count + Design.Count(PartCatalog.TtMotor) + Design.Body.Members(null).Count;
 
         public double MassKg => Design.MassKg();
 
@@ -162,6 +162,8 @@ namespace CoreEngine.Spike.Garage
                     Selected = file?.Selected ?? 0;
                     Arena = file?.Arena ?? 0;
                     if ((file?.Version ?? 0) < 2) RestoreHoledChassis();
+                    if ((file?.Version ?? 0) < DesignMigration.Version)
+                        foreach (var robot in Robots) if (robot.Design != null) DesignMigration.Upgrade(robot.Design);
                 }
                 catch (Exception e)
                 {
@@ -171,10 +173,21 @@ namespace CoreEngine.Spike.Garage
             foreach (var robot in Robots) robot.Upgrade();
             if (Robots.Count == 0)
             {
-                Robots.Add(new RobotProject { Name = "Obstacle avoider" });
-                var holed = new BodyDesign { HoleGrid = true, WallHeightMm = 22 };
-                Robots.Add(new RobotProject { Name = "Holed chassis", Design = DesignPresets.ObstacleAvoiderKit(holed), BodyFinish = "orange-pla", WheelFinish = "black-hubs" });
+                // The test robots, in real materials: tinted acrylic decks, and orange PLA printed ones with walls.
+                var kit = DesignPresets.ObstacleAvoiderKit();
+                Tint(kit, "#2F6FD8");
+                Robots.Add(new RobotProject { Name = "Obstacle avoider", Design = kit });
+                var holed = DesignPresets.ObstacleAvoiderKit(new BodyDesign { HoleGrid = true, WallHeightMm = 22, Material = BodyMaterial.Pla });
+                Tint(holed, "#F07A1A");
+                Robots.Add(new RobotProject { Name = "Holed chassis", Design = holed, WheelFinish = "black-hubs" });
             }
+        }
+
+        /// <summary>Colours the plates and walls of a kit (not its aluminium standoffs).</summary>
+        static void Tint(RobotDesign design, string colour)
+        {
+            foreach (var shape in design.Body.Features)
+                if (shape.Material != BodyMaterial.Aluminium && shape.Kind != FeatureKind.Group) shape.Colour = colour;
         }
 
         /// <summary>
@@ -197,10 +210,10 @@ namespace CoreEngine.Spike.Garage
             var robot = new RobotProject
             {
                 Name = "Robot " + (Robots.Count + 1),
-                Design = DesignPresets.EmptyChassis(),
+                Design = DesignPresets.Empty(),
                 SketchFile = "",
                 ProgramBytes = 0,
-                BodyFinish = "white-pla",
+                BodyFinish = Finishes.AsBuilt,
             };
             Robots.Add(robot);
             Selected = Robots.Count - 1;
@@ -214,7 +227,7 @@ namespace CoreEngine.Spike.Garage
             if (noSaving) return;
             try
             {
-                var file = new SaveFile { Version = 2, Robots = new List<RobotProject>(Robots), Selected = Selected, Arena = Arena };
+                var file = new SaveFile { Version = DesignMigration.Version, Robots = new List<RobotProject>(Robots), Selected = Selected, Arena = Arena };
                 File.WriteAllText(SavePath, JsonUtility.ToJson(file, true));
             }
             catch (Exception e)
@@ -226,7 +239,7 @@ namespace CoreEngine.Spike.Garage
         [Serializable]
         sealed class SaveFile
         {
-            public int Version; // 2 since the design model (2026-09-24); files without it read as 0
+            public int Version; // 2: the design model; 3: free shapes and parts (both 2026-09-24); files without it read as 0
             public List<RobotProject> Robots = new List<RobotProject>();
             public int Selected;
             public int Arena;

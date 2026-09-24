@@ -12,16 +12,16 @@ using Stopwatch = System.Diagnostics.Stopwatch;
 namespace CoreEngine.Spike.Garage
 {
     /// <summary>
-    /// The Garage's editing modes (docs/03 §5–7, docs/08, ADR-0009). Build places catalogue parts on the
-    /// chassis, Wire joins pins with jumper wires and checks the circuit as it grows, Body shapes the chassis
-    /// plates with Manifold and exports them as STL. Every change goes into the robot's <see cref="RobotDesign"/>,
+    /// The Garage's editing modes (docs/03 §5–7, docs/08, ADR-0009). The Body Studio (GarageStudio.cs) is where
+    /// the robot is built: its body from shapes and its real parts placed on it. Wire joins pins with jumper
+    /// wires and checks the circuit as it grows. Every change goes into the robot's <see cref="RobotDesign"/>,
     /// which the arena turns into the physics robot and its circuit.
     /// </summary>
     public sealed partial class GarageSpike
     {
-        enum EditMode { None, Build, Wire, Body }
+        enum EditMode { None, Wire, Body }
 
-        static readonly Vector3 DefaultTarget = new Vector3(0, 0.10f, 0);
+        static readonly Vector3 DefaultTarget = new Vector3(0, 0.08f, 0);
         static readonly string[] Palette = { "auto", "red", "black", "yellow", "green", "blue", "white", "orange", "purple", "grey", "brown" };
         static readonly string[] SignalColours = { "yellow", "green", "blue", "orange", "white", "purple", "grey", "brown" };
 
@@ -30,7 +30,6 @@ namespace CoreEngine.Spike.Garage
         Label hint = null!, tooltip = null!;
 
         // Selection and the wire being drawn
-        string? selectedPart;
         int selectedWire = -1;
         string? wireStart, hoveredPin;
         string wireColour = "auto";
@@ -50,10 +49,8 @@ namespace CoreEngine.Spike.Garage
         readonly Queue<PointerFrame> scriptedInput = new Queue<PointerFrame>();
         PointerFrame input;
         Vector2 pressPosition;
-        bool leftDown, rightDown, panning, dragging, dragMoved;
+        bool leftDown, rightDown, panning;
         bool wireGesture, wireStartedByPress; // a press on a pin: a drag to another pin makes a wire, a click starts one
-        Vector2 dragOffset;
-        RobotDesign? dragBefore;
 
         // "Look at" a part in Wire: the camera comes close and the pins show their names
         string? focusedPart;
@@ -63,12 +60,11 @@ namespace CoreEngine.Spike.Garage
         // Undo and redo, saving and the body rebuild, which runs on a worker thread so the sliders stay smooth
         readonly List<RobotDesign> undo = new List<RobotDesign>();
         readonly List<RobotDesign> redo = new List<RobotDesign>();
-        float saveAt = -1, lastBodyEdit = -10, bodyRebuildAt;
+        float saveAt = -1, bodyRebuildAt;
         bool bodyDirty;
         Task<BodyData>? bodyTask;
         int designEpoch, bodyTaskEpoch; // a build started before an undo must not replace the model after it
         int bodyBuildsShown;
-        VisualElement? bodyReadout;
         string lastExport = "";
 
         static RobotDesign Design => Robot.Design;
@@ -82,7 +78,6 @@ namespace CoreEngine.Spike.Garage
 
         void UpdateHint() => hint.text = Tr(mode switch
         {
-            EditMode.Build => "garage.hint.build",
             EditMode.Wire => "garage.hint.wire",
             EditMode.Body => "garage.hint.body",
             _ => "garage.hint",
@@ -90,7 +85,7 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ entering and leaving
 
-        void EnterMode(EditMode next, string titleKey, Action render)
+        void EnterMode(EditMode next, string titleKey, Action render, LibraryTab tab = LibraryTab.Shapes)
         {
             if (mode != next) LeaveMode(show: false);
             mode = next;
@@ -101,11 +96,10 @@ namespace CoreEngine.Spike.Garage
             distance = next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.52f : 0.50f;
             pitch = 42f;
             yaw = 200f;
-            selectedPart = null;
             selectedWire = -1;
             wireStart = null;
             focusedPart = null;
-            if (next == EditMode.Body) OpenStudio();
+            if (next == EditMode.Body) OpenStudio(tab);
             ShowRobot();
             OpenSide(titleKey, render);
             UpdateHint();
@@ -120,11 +114,9 @@ namespace CoreEngine.Spike.Garage
             bodyTask = null;
             bodyDirty = false;
             mode = EditMode.None;
-            selectedPart = null;
             selectedWire = -1;
             wireStart = null;
             hoveredPin = null;
-            dragging = false;
             tooltip.style.display = DisplayStyle.None;
             if (wirePreview != null) wirePreview.enabled = false;
             orbitTarget = DefaultTarget;
@@ -142,15 +134,14 @@ namespace CoreEngine.Spike.Garage
         /// <summary>Another robot was chosen while editing: its own selection and undo history start fresh.</summary>
         void ResetEditState()
         {
-            selectedPart = null;
             selectedWire = -1;
             wireStart = null;
             hoveredPin = null;
-            dragging = false;
             undo.Clear();
             redo.Clear();
-            selectedFeature = null;
+            CancelCarry();
             CancelDrawing();
+            selection.Clear();
         }
 
         // ------------------------------------------------------------------ changes, undo, saving
@@ -193,8 +184,7 @@ namespace CoreEngine.Spike.Garage
 
         void AfterHistoryStep()
         {
-            if (selectedPart != null && Design.Find(selectedPart) == null) selectedPart = null;
-            if (selectedFeature != null && Design.Body.Feature(selectedFeature) == null) selectedFeature = null;
+            selection.RemoveAll(p => !Exists(p));
             selectedWire = -1;
             wireStart = null;
             DesignChanged();
@@ -236,7 +226,6 @@ namespace CoreEngine.Spike.Garage
                     ShowRobot(task.IsFaulted ? null : BodyBuilder.ToMeshes(task.Result));
                     bodyBuildsShown++;
                     RefreshCard();
-                    FillBodyReadout();
                 }
             }
             if (bodyDirty && Time.unscaledTime >= bodyRebuildAt) FlushBody();
@@ -289,22 +278,19 @@ namespace CoreEngine.Spike.Garage
                 leftDown = true;
                 pressPosition = mouse;
                 lastMouse = mouse;
-                if (mode == EditMode.Build) BeginPartDrag(mouse);
                 if (mode == EditMode.Wire) BeginWireGesture(mouse);
                 if (mode == EditMode.Body) BeginStudioPress(mouse);
             }
             if (leftDown && input.LeftHeld)
             {
-                if (dragging) UpdatePartDrag(mouse);
-                else if (drag.grip != Grip.None) UpdateStudioDrag(mouse);
+                if (drag.grip != Grip.None) UpdateStudioDrag(mouse);
                 else if (!wireGesture && (mouse - pressPosition).magnitude > 4) Orbit(mouse);
             }
             if (leftDown && !input.LeftHeld)
             {
                 leftDown = false;
                 bool click = (mouse - pressPosition).magnitude <= 4;
-                if (dragging) EndPartDrag();
-                else if (drag.grip != Grip.None) EndStudioDrag();
+                if (drag.grip != Grip.None) EndStudioDrag();
                 else if (wireGesture) EndWireGesture(mouse, click);
                 else if (click) SceneClick(mouse);
             }
@@ -339,7 +325,7 @@ namespace CoreEngine.Spike.Garage
             {
                 float old = distance;
                 distance = Mathf.Clamp(distance * (1f - input.Scroll * 0.12f), 0.12f, 1.3f);
-                if (distance < old && DeckPointWorld(mouse, out var point)) MoveTarget(orbitTarget + (point - orbitTarget) * (1 - distance / old));
+                if (distance < old && WorkplanePoint(mouse, out var mm)) MoveTarget(orbitTarget + (WorldOf(mm) - orbitTarget) * (1 - distance / old));
                 else if (distance > old) MoveTarget(orbitTarget + (DefaultTarget - orbitTarget) * (1 - old / distance));
             }
 
@@ -397,18 +383,11 @@ namespace CoreEngine.Spike.Garage
             if (KeyPressed(KeyCode.Escape))
             {
                 if (wireStart != null) CancelWire();
-                else if (selectedPart != null || selectedWire >= 0) SelectNothing();
+                else if (selectedWire >= 0) SelectNothing();
                 else CloseSide();
                 return;
             }
             bool delete = KeyPressed(KeyCode.Delete) || KeyPressed(KeyCode.Backspace);
-            if (mode == EditMode.Build)
-            {
-                if (KeyPressed(KeyCode.R)) RotateSelected();
-                if (delete) RemoveSelectedPart();
-                if (KeyPressed(KeyCode.F) && selectedPart != null && shown != null && shown.Parts.TryGetValue(selectedPart, out var go))
-                    MoveTarget(go.transform.position);
-            }
             if (mode == EditMode.Wire && delete && selectedWire >= 0) RemoveWire(selectedWire);
         }
 
@@ -419,7 +398,6 @@ namespace CoreEngine.Spike.Garage
                 StudioClick(mouse);
                 return;
             }
-            if (mode == EditMode.Build && !PartUnder(mouse, out _)) SelectNothing();
             if (mode != EditMode.Wire) return;
             int wire = WireUnder(mouse);
             if (wire >= 0) SelectWire(wire);
@@ -459,7 +437,6 @@ namespace CoreEngine.Spike.Garage
 
         void SelectNothing()
         {
-            selectedPart = null;
             selectedWire = -1;
             shown?.Highlight(null);
             shown?.HighlightWire(-1);
@@ -478,11 +455,7 @@ namespace CoreEngine.Spike.Garage
             hoveredPin = null;
             if (!overUi && (!leftDown || wireGesture) && !rightDown && !panning)
             {
-                if (mode == EditMode.Build && PartUnder(mouse, out var partId))
-                {
-                    text = PartCatalog.Get(Design.Find(partId)?.Part ?? "")?.Name ?? partId;
-                }
-                else if (mode == EditMode.Wire)
+                if (mode == EditMode.Wire)
                 {
                     // While a wire is being dragged only pins count: it is dropped on one.
                     var (pin, wire) = wireGesture ? (PinUnder(mouse), -1) : WireModeTarget(mouse);
@@ -503,229 +476,6 @@ namespace CoreEngine.Spike.Garage
             tooltip.style.left = point.x + 16;
             tooltip.style.top = point.y + 12;
             tooltip.style.display = DisplayStyle.Flex;
-        }
-
-        // ------------------------------------------------------------------ Build
-
-        bool PartUnder(Vector2 mouse, out string partId)
-        {
-            partId = "";
-            Physics.SyncTransforms();
-            if (!Physics.Raycast(view.ScreenPointToRay(mouse), out var hit, 5f)) return false;
-            var pick = hit.collider.GetComponentInParent<Pickable>();
-            if (pick == null) return false;
-            partId = pick.PartId;
-            return true;
-        }
-
-        /// <summary>The point under the mouse on the plane of the top deck, in the chassis frame (mm).</summary>
-        bool DeckPoint(Vector2 mouse, out Vector2 mm)
-        {
-            mm = default;
-            if (!DeckPointWorld(mouse, out var world)) return false;
-            var local = robotAnchor.InverseTransformPoint(world) * 1000f;
-            mm = new Vector2(local.x, local.z);
-            return true;
-        }
-
-        bool DeckPointWorld(Vector2 mouse, out Vector3 world)
-        {
-            world = default;
-            float y = robotAnchor.position.y + DesignGeometry.DeckTop(Design.Body) * 0.001f;
-            var ray = view.ScreenPointToRay(mouse);
-            if (!new Plane(Vector3.up, new Vector3(0, y, 0)).Raycast(ray, out float enter) || enter > 5f) return false;
-            world = ray.GetPoint(enter);
-            return true;
-        }
-
-        void BeginPartDrag(Vector2 mouse)
-        {
-            if (!PartUnder(mouse, out var partId)) return;
-            SelectPart(partId);
-            var part = Design.Find(partId);
-            var def = part == null ? null : PartCatalog.Get(part.Part);
-            if (part == null || def == null || def.Mount != MountKind.Deck || !DeckPoint(mouse, out var p)) return;
-            dragging = true;
-            dragMoved = false;
-            dragOffset = new Vector2(part.X - p.x, part.Z - p.y);
-            dragBefore = Design.Clone();
-        }
-
-        void UpdatePartDrag(Vector2 mouse)
-        {
-            if (selectedPart == null || !DeckPoint(mouse, out var p)) return;
-            // 5 mm steps, like the holes of a real deck; the part stops at the deck's edge and at its neighbours.
-            if (TryMovePart(selectedPart, Mathf.Round((p.x + dragOffset.x) / 5) * 5, Mathf.Round((p.y + dragOffset.y) / 5) * 5))
-                dragMoved = true;
-        }
-
-        void EndPartDrag()
-        {
-            dragging = false;
-            if (dragMoved && dragBefore != null)
-            {
-                RecordUndo(dragBefore);
-                saveAt = Time.unscaledTime + 0.5f;
-                renderSide?.Invoke();
-            }
-            dragBefore = null;
-        }
-
-        /// <summary>Moves a deck part if the place is on the deck and free. Used by dragging and the benchmark.</summary>
-        bool TryMovePart(string partId, float x, float z)
-        {
-            var part = Design.Find(partId);
-            var def = part == null ? null : PartCatalog.Get(part.Part);
-            if (part == null || def == null || def.Mount != MountKind.Deck) return false;
-            (x, z) = DesignGeometry.ClampToDeck(Design.Body, def, x, z, part.Rotation);
-            if (Mathf.Approximately(x, part.X) && Mathf.Approximately(z, part.Z)) return false;
-            if (DesignGeometry.OverlapsDeckPart(Design, def, x, z, part.Rotation, part.Id)) return false;
-            part.X = x;
-            part.Z = z;
-            shown?.MovePart(Design, part.Id);
-            return true;
-        }
-
-        void SelectPart(string partId)
-        {
-            selectedPart = partId;
-            shown?.Highlight(partId);
-            renderSide?.Invoke();
-        }
-
-        void AddPart(string partId)
-        {
-            PushUndo();
-            var part = Design.AddPart(partId);
-            if (part == null)
-            {
-                undo.RemoveAt(undo.Count - 1);
-                ShowToast(Tr("build.full"));
-                return;
-            }
-            if (partId == PartCatalog.Uno && !Robot.HasSketch)
-            {
-                Robot.EnsureSketch();
-                ShowToast(Tr("build.newBoard"));
-            }
-            selectedPart = part.Id;
-            DesignChanged();
-        }
-
-        void RotateSelected()
-        {
-            var part = selectedPart == null ? null : Design.Find(selectedPart);
-            var def = part == null ? null : PartCatalog.Get(part.Part);
-            if (part == null || def == null || def.Mount != MountKind.Deck) return;
-            int next = (part.Rotation + 90) % 360;
-            var (x, z) = DesignGeometry.ClampToDeck(Design.Body, def, part.X, part.Z, next);
-            if (DesignGeometry.OverlapsDeckPart(Design, def, x, z, next, part.Id))
-            {
-                ShowToast(Tr("build.noRoom"));
-                return;
-            }
-            PushUndo();
-            part.Rotation = next;
-            part.X = x;
-            part.Z = z;
-            shown?.MovePart(Design, part.Id);
-            renderSide?.Invoke();
-            saveAt = Time.unscaledTime + 0.5f;
-        }
-
-        void RemoveSelectedPart()
-        {
-            if (selectedPart == null) return;
-            PushUndo();
-            Design.RemovePart(selectedPart);
-            selectedPart = null;
-            ShowToast(Tr("build.removed"));
-            DesignChanged();
-        }
-
-        void RenderBuild()
-        {
-            var design = Design;
-            Section("build.bin");
-            foreach (var def in PartCatalog.All)
-            {
-                string id = def.Id;
-                int count = design.Count(id);
-                var row = Layout("bin-row");
-                var text = Layout("bin-text");
-                text.Add(Classed(new Label(def.Name), "bin-name"));
-                text.Add(Classed(new Label(SpikeStrings.Format("build.count", count, def.MaxCount, def.MassG)), "bin-sub"));
-                row.Add(text);
-                var add = SmallButton("build.add", () => AddPart(id));
-                add.SetEnabled(count < def.MaxCount);
-                row.Add(add);
-                sideContent.Add(row);
-            }
-
-            Section("build.selected");
-            var part = selectedPart == null ? null : design.Find(selectedPart);
-            var partDef = part == null ? null : PartCatalog.Get(part.Part);
-            if (part == null || partDef == null)
-            {
-                Info("build.selectHint");
-            }
-            else
-            {
-                sideContent.Add(Classed(new Label(partDef.Name), "part-title"));
-                sideContent.Add(Classed(new Label(PlaceText(design, part, partDef)), "info-text"));
-                sideContent.Add(Classed(new Label($"{partDef.SizeX:0.#} × {partDef.SizeZ:0.#} × {partDef.SizeY:0.#} {Tr("unit.mm")} · {partDef.MassG:0.#} {Tr("unit.g")}"), "info-text"));
-                var buttons = Layout("repair-buttons");
-                if (partDef.Mount == MountKind.Deck) buttons.Add(SmallButton("build.rotate", RotateSelected));
-                buttons.Add(SmallButton("build.remove", RemoveSelectedPart));
-                sideContent.Add(buttons);
-            }
-
-            foreach (var (a, b) in Overlaps(design)) sideContent.Add(Classed(new Label(SpikeStrings.Format("build.overlap", a, b)), "warn-line"));
-            sideContent.Add(Classed(new Label(SpikeStrings.Format("build.mass", design.MassKg() * 1000)), "info-text"));
-            sideContent.Add(SmallButton("edit.undo", Undo));
-        }
-
-        string PlaceText(RobotDesign design, PartInstance part, PartDef def) => def.Mount switch
-        {
-            MountKind.Deck => SpikeStrings.Format("build.onDeck", part.X, part.Z, part.Rotation),
-            MountKind.Motor => Tr(part.Slot == "right" ? "build.place.right" : "build.place.left"),
-            MountKind.Front => Tr("build.place.front"),
-            MountKind.Caster => Tr("build.place.caster"),
-            _ => Tr(design.Body.Decks >= 2 ? "build.place.between" : "build.place.back"),
-        };
-
-        static List<(string, string)> Overlaps(RobotDesign design)
-        {
-            var found = new List<(string, string)>();
-            var parts = design.Parts;
-            for (int i = 0; i < parts.Count; i++)
-            {
-                var def = PartCatalog.Get(parts[i].Part);
-                if (def == null || !DesignGeometry.TakesDeckRoom(design.Body, def)) continue;
-                var place = DesignGeometry.Place(design, parts[i]);
-                for (int j = i + 1; j < parts.Count; j++)
-                {
-                    var other = PartCatalog.Get(parts[j].Part);
-                    if (other == null || !DesignGeometry.TakesDeckRoom(design.Body, other)) continue;
-                    var otherPlace = DesignGeometry.Place(design, parts[j]);
-                    var (hx, hz) = DesignGeometry.Footprint(def, place.rotation);
-                    var (ox, oz) = DesignGeometry.Footprint(other, otherPlace.rotation);
-                    if (Math.Abs(place.x - otherPlace.x) < hx + ox && Math.Abs(place.z - otherPlace.z) < hz + oz)
-                        found.Add((def.Name, other.Name));
-                }
-            }
-            return found;
-        }
-
-        /// <summary>Keeps every deck part on the deck after the body changed size or shape.</summary>
-        void ClampDeckParts()
-        {
-            foreach (var part in Design.Parts)
-            {
-                var def = PartCatalog.Get(part.Part);
-                if (def == null || def.Mount != MountKind.Deck) continue;
-                (part.X, part.Z) = DesignGeometry.ClampToDeck(Design.Body, def, part.X, part.Z, part.Rotation);
-            }
         }
 
         // ------------------------------------------------------------------ Wire
@@ -1205,111 +955,7 @@ namespace CoreEngine.Spike.Garage
             sideContent.Add(SmallButton("edit.undo", Undo));
         }
 
-        // ------------------------------------------------------------------ Body
-
-        void RenderBody()
-        {
-            var b = Design.Body;
-            Section("body.shape");
-            var shapes = Layout("seg-row");
-            shapes.Add(Segment("body.rect", b.Shape == BodyShape.Rectangle, () => b.Shape = BodyShape.Rectangle));
-            shapes.Add(Segment("body.rounded", b.Shape == BodyShape.Rounded, () => b.Shape = BodyShape.Rounded));
-            shapes.Add(Segment("body.round", b.Shape == BodyShape.Round, () => b.Shape = BodyShape.Round));
-            sideContent.Add(shapes);
-
-            bool round = b.Shape == BodyShape.Round;
-            if (!round) BodySlider("body.length", 100, 250, 5, b.LengthMm, v => b.LengthMm = v);
-            BodySlider(round ? "body.diameter" : "body.width", 80, 200, 5, b.WidthMm, v => b.WidthMm = v);
-            BodySlider("body.thickness", 2, 6, 0.5f, b.ThicknessMm, v => b.ThicknessMm = v);
-            if (b.Shape == BodyShape.Rounded) BodySlider("body.corner", 3, 40, 1, b.CornerRadiusMm, v => b.CornerRadiusMm = v);
-            if (!round) BodySlider("body.walls", 0, 40, 1, b.WallHeightMm, v => b.WallHeightMm = v);
-
-            Section("body.decks");
-            var decks = Layout("seg-row");
-            decks.Add(Segment("1", b.Decks == 1, () => b.Decks = 1, literal: true));
-            decks.Add(Segment("2", b.Decks >= 2, () => b.Decks = 2, literal: true));
-            sideContent.Add(decks);
-
-            var holes = new Toggle(Tr("body.holes")) { value = b.HoleGrid, focusable = false };
-            holes.AddToClassList("body-toggle");
-            holes.RegisterValueChangedCallback(e => BodyEdit(() => b.HoleGrid = e.newValue, rerender: true));
-            sideContent.Add(holes);
-            if (b.HoleGrid) BodySlider("body.pitch", 10, 30, 1, b.HolePitchMm, v => b.HolePitchMm = v);
-
-            Section("body.material");
-            var materials = Layout("seg-row");
-            materials.Add(Segment("body.acrylic", b.Material == BodyMaterial.Acrylic, () => b.Material = BodyMaterial.Acrylic));
-            materials.Add(Segment("body.pla", b.Material == BodyMaterial.Pla, () => b.Material = BodyMaterial.Pla));
-            materials.Add(Segment("body.plywood", b.Material == BodyMaterial.Plywood, () => b.Material = BodyMaterial.Plywood));
-            sideContent.Add(materials);
-
-            bodyReadout = Layout("body-readout");
-            sideContent.Add(bodyReadout);
-            FillBodyReadout();
-
-            var buttons = Layout("repair-buttons");
-            buttons.Add(SmallButton("body.export", () => ExportStl(null)));
-            if (lastExport.Length > 0) buttons.Add(SmallButton("body.openFolder", OpenExportFolder));
-            buttons.Add(SmallButton("edit.undo", Undo));
-            sideContent.Add(buttons);
-            Info("body.stlNote");
-        }
-
-        Button Segment(string key, bool active, Action apply, bool literal = false)
-        {
-            var button = new Button(() => BodyEdit(apply, rerender: true)) { text = literal ? key : Tr(key), focusable = false };
-            button.AddToClassList("seg-button");
-            button.EnableInClassList("seg-button--active", active);
-            return button;
-        }
-
-        void BodySlider(string key, float low, float high, float step, float value, Action<float> set)
-        {
-            var slider = new Slider(Tr(key), low, high) { value = value, showInputField = true, focusable = false };
-            slider.AddToClassList("body-slider");
-            slider.RegisterValueChangedCallback(e =>
-            {
-                float v = Mathf.Clamp(Mathf.Round(e.newValue / step) * step, low, high);
-                if (!Mathf.Approximately(v, e.newValue)) slider.SetValueWithoutNotify(v);
-                BodyEdit(() => set(v), rerender: false);
-            });
-            sideContent.Add(slider);
-        }
-
-        /// <summary>
-        /// One body change. Slider moves close together make one undo step; the rebuild is throttled; the panel
-        /// is redrawn only for changes that show or hide controls (redrawing would stop a slider being dragged).
-        /// </summary>
-        void BodyEdit(Action apply, bool rerender)
-        {
-            if (rerender || Time.unscaledTime - lastBodyEdit > 0.6f) PushUndo();
-            lastBodyEdit = Time.unscaledTime;
-            apply();
-            ClampDeckParts();
-            bodyDirty = true;
-            saveAt = Time.unscaledTime + 0.8f;
-            if (rerender)
-            {
-                FlushBody();
-                renderSide?.Invoke();
-            }
-        }
-
-        void FillBodyReadout()
-        {
-            if (bodyReadout == null || mode != EditMode.Body) return;
-            bodyReadout.Clear();
-            var b = Design.Body;
-            var meshes = shown?.Body;
-            int plates = Math.Max(1, b.Decks);
-            double volumeCm3 = (meshes?.VolumeMm3 ?? 0) / 1000.0;
-            string material = Tr(b.Material switch { BodyMaterial.Pla => "body.pla", BodyMaterial.Plywood => "body.plywood", _ => "body.acrylic" });
-            bodyReadout.Add(Classed(new Label(SpikeStrings.Format("body.size", b.WidthMm, b.EffectiveLength, b.ThicknessMm)), "info-text"));
-            bodyReadout.Add(Classed(new Label(SpikeStrings.Format("body.plates", plates, meshes?.Holes ?? 0)), "info-text"));
-            bodyReadout.Add(Classed(new Label(SpikeStrings.Format("body.mass", volumeCm3 * BodyDesign.DensityGPerCm3(b.Material), volumeCm3, material)), "info-text"));
-            if (meshes != null) bodyReadout.Add(Classed(new Label(SpikeStrings.Format("body.kernel", meshes.BuildMs)), "bin-sub"));
-            foreach (var (a, c) in Overlaps(Design)) bodyReadout.Add(Classed(new Label(SpikeStrings.Format("build.overlap", a, c)), "warn-line"));
-        }
+        // ------------------------------------------------------------------ STL export
 
         static string ExportFolder()
         {
@@ -1349,78 +995,121 @@ namespace CoreEngine.Spike.Garage
         // ------------------------------------------------------------------ benchmark: a robot from scratch
 
         /// <summary>
-        /// Builds a robot the way a player would, through the same functions the mouse uses: a new chassis in
-        /// Body, parts from the bin in Build, every wire pin by pin in Wire, with two wiring mistakes checked
-        /// and undone. START then drives this robot in the arena.
+        /// Builds a robot the way a player would, through the same mouse, key and UI Toolkit paths: a new robot is
+        /// empty; in the Body Studio the kit's body is made from the library (blue acrylic plates with M3 holes,
+        /// aluminium standoffs) and every part is carried from the library to its place with the mouse, in the order
+        /// a real kit goes together: motors and the caster hang under the bottom plate, the battery stands on it,
+        /// then the top deck, the boards on it and the sensor at its front edge. Every wire follows pin by pin in
+        /// Wire, with two wiring mistakes checked and undone. START then drives this robot in the arena.
         /// </summary>
         IEnumerator BuildFromScratch()
         {
             var report = SpikeReport.Text;
-            report.AppendLine("robot built from scratch in the Garage (Body, Build and Wire modes):");
+            report.AppendLine("robot built from scratch in the Body Studio and Wire:");
             NewRobot();
             var robot = Robot;
-
+            bool startsEmpty = Design.Body.Features.Count == 0 && Design.Parts.Count == 0;
             OnAction("act.body");
-            var b = Design.Body;
-            BodyEdit(() =>
-            {
-                b.Shape = BodyShape.Rounded;
-                b.LengthMm = 170;
-                b.WidthMm = 125;
-                b.CornerRadiusMm = 18;
-                b.HoleGrid = true;
-                b.HolePitchMm = 15;
-                b.Material = BodyMaterial.Pla;
-            }, rerender: true);
-            var sliderWatch = Stopwatch.StartNew();
-            yield return WaitForBody();
-            double firstBuildMs = sliderWatch.Elapsed.TotalMilliseconds;
-
-            // A slider dragged for one second: the rebuilds run on the worker while frames keep coming.
-            var frames = new List<double>();
-            int buildsBefore = bodyBuildsShown;
-            float start = Time.realtimeSinceStartup;
-            while (Time.realtimeSinceStartup - start < 1f)
-            {
-                float t = (Time.realtimeSinceStartup - start) / 1f;
-                BodyEdit(() => b.LengthMm = Mathf.Round((150 + 40 * Mathf.Sin(t * Mathf.PI)) / 5) * 5, rerender: false);
-                yield return null;
-                frames.Add(Time.unscaledDeltaTime * 1000.0);
-            }
-            int builds = bodyBuildsShown - buildsBefore;
-            BodyEdit(() => b.LengthMm = 170, rerender: true);
-            yield return WaitForBody();
             yield return Frames(3);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+
+            // The bottom plate: blue acrylic from the picker, the plate tile, set down on the workplane, then
+            // lifted to 35 mm, where the motors' tops will be.
+            yield return ClickElement(MaterialButton(BodyMaterial.Acrylic));
+            yield return ClickElement(SwatchButton("#2F6FD8"));
+            yield return ClickElement(paletteButtons[0]);
+            yield return CarryTo(new Vector3(0, 0, 0));
+            var bottom = SelectedFeature!;
+            bool onWorkplane = bottom.Kind == FeatureKind.Plate && Mathf.Abs(bottom.Y - bottom.SizeY / 2) < 0.01f && bottom.Material == BodyMaterial.Acrylic;
+            yield return Type(1, 36.5f);
+            yield return WaitForBody();
+            yield return Frames(2);
+
+            // Under the plate: two motors (the second turned round, so its wheel is on the right) and the caster;
+            // on it, the battery holder. Each rides the mouse from its tile and lands where the mouse points.
+            yield return ClickElement(tabButtons[LibraryTab.Parts]);
+            yield return ClickElement(partButtons[PartCatalog.TtMotor]);
+            yield return CarryTo(new Vector3(-50, 38, -30));
+            var left = SelectedPart!;
+            yield return ClickElement(partButtons[PartCatalog.TtMotor]);
+            yield return CarryTo(new Vector3(50, 38, -30));
+            var right = SelectedPart!;
+            yield return Type(4, 180);
+            yield return ClickElement(partButtons[PartCatalog.Caster]);
+            yield return CarryTo(new Vector3(0, 38, 65));
+            yield return ClickElement(partButtons[PartCatalog.Battery4AA]);
+            yield return CarryTo(new Vector3(0, 38, -5));
+            var battery = SelectedPart!;
+            var leftWheel = DesignGeometry.WheelCentre(left);
+            var rightWheel = DesignGeometry.WheelCentre(right);
+            bool hung = Mathf.Abs(leftWheel.x + 77.5f) < 0.1f && Mathf.Abs(leftWheel.y - 32.5f) < 0.2f && Mathf.Abs(rightWheel.x - 77.5f) < 0.1f
+                        && DesignGeometry.SideOf(right) == "right" && Mathf.Abs(DesignGeometry.LowestPoint(Design)) < 0.2f;
+            bool onPlate = Mathf.Abs(battery.Y - 45.5f) < 0.2f;
+
+            // Four aluminium standoffs and the top deck, typed in where the kit has them.
+            yield return ClickElement(tabButtons[LibraryTab.Shapes]);
+            yield return ClickElement(MaterialButton(BodyMaterial.Aluminium));
+            foreach (var (x, z) in new[] { (-50f, -70f), (50f, -70f), (-50f, 70f), (50f, 70f) })
+            {
+                yield return ClickElement(paletteButtons[3]); // cylinder
+                yield return CarryTo(new Vector3(x, 0, z));
+                yield return Type(6, 5);
+                yield return Type(7, 24);
+                yield return Type(8, 5);
+                yield return Type(0, x); // the mouse lands it on the plate in front; typing puts it exactly
+                yield return Type(1, 50);
+                yield return Type(2, z);
+            }
+            yield return ClickElement(MaterialButton(BodyMaterial.Acrylic));
+            yield return ClickElement(SwatchButton("#2F6FD8"));
+            yield return ClickElement(paletteButtons[0]);
+            yield return CarryTo(new Vector3(0, 0, 0));
+            yield return Type(0, 0);
+            yield return Type(1, 63.5f);
+            yield return Type(2, 0);
+            yield return WaitForBody();
+            yield return Frames(2);
+
+            // On the top deck: the Uno (turned a quarter), the L298N, and the sensor on its bracket at the front.
+            yield return ClickElement(tabButtons[LibraryTab.Parts]);
+            yield return ClickElement(partButtons[PartCatalog.Uno]);
+            yield return CarryTo(new Vector3(-28, 65, -35));
+            yield return Type(4, 270);
+            yield return ClickElement(partButtons[PartCatalog.L298N]);
+            yield return CarryTo(new Vector3(30, 65, 22));
+            yield return ClickElement(partButtons[PartCatalog.HcSr04]);
+            yield return CarryTo(new Vector3(0, 65, 75));
+            var uno = Design.Parts.Find(p => p.Part == PartCatalog.Uno);
+            bool onDeck = uno != null && Mathf.Abs(uno.Y - 65.05f) < 0.2f && Mathf.Abs(Mathf.DeltaAngle(uno.Rotation, 270)) < 0.01f;
+            var sensor = Design.Parts.Find(p => p.Part == PartCatalog.HcSr04);
+            bool facing = sensor != null && DesignGeometry.SonarAim(sensor).z > 0.99f && Mathf.Abs(sensor.Y - 81.05f) < 0.2f;
+            bool refused = Design.AddPart(PartCatalog.TtMotor) == null; // an L298N drives two motors
+            selection.Clear();
+            SelectionChanged();
+            yield return WaitForBody();
+            yield return Frames(4);
+            double buildSeconds = watch.Elapsed.TotalSeconds;
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-body"));
-            report.AppendLine($"  body slider dragged for 1 s: {SpikeReport.FrameStats(frames)}; the model was rebuilt about {builds} times " +
-                              $"(first build seen after {firstBuildMs:F0} ms)");
-            string stl = ExportStl(Path.GetDirectoryName(SpikeReport.Shot("x")));
             var meshes = shown?.Body;
+            var shapes = new System.Text.StringBuilder();
+            foreach (var f in Design.Body.Features)
+                shapes.Append($" {f.Kind} {f.Material}{(f.Colour.Length > 0 ? " " + f.Colour : "")} at ({f.X:0.#}, {f.Y:0.#}, {f.Z:0.#}) {f.SizeX:0.#}×{f.SizeY:0.#}×{f.SizeZ:0.#};");
+            var parts = new System.Text.StringBuilder();
+            foreach (var part in Design.Parts) parts.Append($" {part.Id} ({part.X:0.#}, {part.Y:0.#}, {part.Z:0.#}) turned ({part.RotX:0}, {part.Rotation:0}, {part.RotZ:0});");
+            report.AppendLine("  shapes:" + shapes);
+            report.AppendLine("  parts:" + parts);
+            int overlaps = 0;
+            foreach (var part in Design.Parts) if (DesignGeometry.Overlaps(Design, part)) overlaps++;
+            report.AppendLine($"  a new robot is empty: {Yes(startsEmpty)}; plate set down on the workplane in blue acrylic: {Yes(onWorkplane)}; " +
+                              $"motors hung under it with wheels at x = {leftWheel.x:0.#} and {rightWheel.x:0.#} mm, on the floor: {Yes(hung)}; battery on the plate: {Yes(onPlate)}; " +
+                              $"Uno on the top deck, turned 270°: {Yes(onDeck)}; sensor on its bracket looking forward: {Yes(facing)}; a third motor refused: {Yes(refused)}; parts touching: {overlaps}");
+            report.AppendLine($"  body: {Design.Body.Members(null).Count} shapes, {meshes?.VolumeMm3 / 1000 ?? 0:F1} cm³, {meshes?.MassG ?? 0:F0} g, built by Manifold in {meshes?.BuildMs ?? 0:F1} ms; " +
+                              $"robot {Design.MassKg() * 1000:F0} g; everything placed with the mouse in {buildSeconds:F1} s");
+            string stl = ExportStl(Path.GetDirectoryName(SpikeReport.Shot("x")));
             long expected = 84 + 50L * ((meshes?.StlTriangles.Length ?? 0) / 3);
             long actual = stl.Length > 0 && File.Exists(stl) ? new FileInfo(stl).Length : -1;
-            report.AppendLine($"  body: rounded 170 × 125 × 3 mm PLA, two decks, M3 grid of {meshes?.Holes ?? 0} holes per plate, " +
-                              $"{(meshes?.VolumeMm3 ?? 0) / 1000:F1} cm³, rebuilt by Manifold in {meshes?.BuildMs ?? 0:F1} ms");
             report.AppendLine($"  STL export: {Path.GetFileName(stl)}, {actual} bytes for {(meshes?.StlTriangles.Length ?? 0) / 3} triangles " +
                               $"(expected {expected}): {(actual == expected ? "OK" : "WRONG")}");
-
-            yield return StudioByMouse();
-
-            OnAction("act.build");
-            foreach (string part in new[] { PartCatalog.Uno, PartCatalog.L298N, PartCatalog.HcSr04, PartCatalog.TtMotor, PartCatalog.TtMotor, PartCatalog.Battery4AA, PartCatalog.Caster })
-                AddPart(part);
-            bool fullRefused = Design.AddPart(PartCatalog.TtMotor) == null; // a third motor has no mount
-            bool driverMoved = TryMovePart("driver1", 30, 25);
-            SelectPart("uno1");
-            for (int i = 0; i < 3; i++) RotateSelected();
-            bool unoMoved = TryMovePart("uno1", -28, -40);
-            bool blocked = !TryMovePart("driver1", -28, -40); // onto the Uno
-            ShowRobot();
-            renderSide?.Invoke();
-            yield return Frames(4);
-            yield return SpikeReport.Capture(SpikeReport.Shot("garage-build"));
-            report.AppendLine($"  build: {Design.Parts.Count} parts from the bin, {Design.MassKg() * 1000:F0} g; a third motor refused: {(fullRefused ? "yes" : "NO")}; " +
-                              $"Uno turned to {Design.Find("uno1")?.Rotation}° and moved: {unoMoved}; L298N moved: {driverMoved}; " +
-                              $"dropping it on the Uno refused: {(blocked ? "yes" : "NO")}; overlaps: {Overlaps(Design).Count}");
 
             // The kit's sixteen connections, made pin by pin as a player clicks them.
             OnAction("act.wire");
@@ -1466,14 +1155,14 @@ namespace CoreEngine.Spike.Garage
             CloseSide();
             yield return Frames(6);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-scratch"));
-            report.AppendLine($"  back on the turntable: {robot.PartCount} parts, {robot.MassKg * 1000:F0} g; screenshots -garage-body, -garage-build, " +
-                              "-garage-wire, -garage-wire-warning, -garage-wire-mouse, -garage-look, -garage-scratch");
+            report.AppendLine($"  back on the turntable: {robot.PartCount} parts, {robot.MassKg * 1000:F0} g; screenshots -garage-body, " +
+                              "-garage-wire, -garage-wire-warning, -garage-wire-mouse, -garage-look, -garage-studio-drag, -garage-scratch");
         }
 
         /// <summary>
         /// Wiring and building as a player does it, through the same mouse and key code: a drag from pin to pin,
-        /// two clicks, a drag onto a pin that already has its jumper, a click on a wire, Del and Ctrl+Z, a part
-        /// dragged in Build, "Look at" with the pin names, and a Body slider dragged with UI Toolkit events.
+        /// two clicks, a drag onto a pin that already has its jumper, a click on a wire, Del and Ctrl+Z, "Look at"
+        /// with the pin names, and in the Body Studio the L298N dragged across the deck with the mouse.
         /// </summary>
         IEnumerator WireByMouse()
         {
@@ -1510,44 +1199,57 @@ namespace CoreEngine.Spike.Garage
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-look"));
             ViewWholeRobot();
 
-            // Build: drag the L298N 20 mm to the left with the mouse.
+            // The Body Studio: drag the L298N 20 mm to the left over the deck with the mouse; it stays on the deck.
             OnAction("act.build");
             yield return Frames(3);
-            float before = Design.Find("driver1")!.X;
-            var part = shown!.Parts["driver1"].transform;
-            var grab = part.position + part.up * 0.012f;
-            var dropAt = grab + robotAnchor.TransformDirection(Vector3.left) * 0.020f;
-            yield return MouseDrag(view.WorldToScreenPoint(grab), view.WorldToScreenPoint(dropAt));
-            float moved = Design.Find("driver1")!.X - before;
-
-            // Body: drag the length slider's handle 40 pixels to the right with UI Toolkit pointer events.
-            OnAction("act.body");
-            yield return Frames(3);
-            float length = Design.Body.LengthMm;
-            var slider = sideContent.Q<Slider>();
-            var handle = slider?.Q("unity-dragger");
-            if (handle != null)
-            {
-                Vector2 from = handle.worldBound.center, to = from + new Vector2(40, 0);
-                SendPointer(EventType.MouseDown, from);
-                for (int i = 1; i <= 8; i++)
-                {
-                    SendPointer(EventType.MouseDrag, Vector2.Lerp(from, to, i / 8f));
-                    yield return null;
-                }
-                SendPointer(EventType.MouseUp, to);
-            }
+            var driver = Design.Find("driver1")!;
+            float x0 = driver.X, y0 = driver.Y;
+            var grab = new Vector3(driver.X, driver.Y + 26, driver.Z - 8); // on the heatsink's top
+            yield return MouseDrag(Screen2(WorldOf(grab)), Screen2(WorldOf(grab + new Vector3(-20, 0, 0))));
+            float moved = driver.X - x0;
+            bool stayed = Mathf.Abs(driver.Y - y0) < 0.2f;
+            bool wiresFollow = CircuitAnalysis.Analyse(Design) is { HasProblems: false };
             yield return WaitForBody();
-            float lengthAfter = Design.Body.LengthMm;
+            yield return Frames(3);
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-studio-drag"));
             Undo();
             yield return WaitForBody();
+            bool back = Mathf.Abs(Design.Find("driver1")!.X - x0) < 0.01f;
             OnAction("act.wire");
 
             report.AppendLine($"  by mouse: drag from D9 to TRIG made a wire: {Yes(dragged)}; click ECHO then D10: {Yes(waiting && clicked)}; " +
                               $"a drag from D4 onto IN1, which has its jumper, refused: {Yes(refused)}; click on a wire selected it: {Yes(selected)}, " +
                               $"Del removed it: {Yes(deleted)}, Ctrl+Z brought it back: {Yes(undone)}; Look at Uno showed {tags} pin names; " +
-                              $"Build drag moved the L298N by {moved:F0} mm; the Body slider went from {length:F0} to {lengthAfter:F0} mm");
+                              $"in the Studio the L298N dragged {moved:0.#} mm along the deck, on the deck: {Yes(stayed)}, wiring still right: {Yes(wiresFollow)}, undone: {Yes(back)}");
         }
+
+        /// <summary>Carries the item riding the mouse to a point (mm, chassis frame) and clicks it down there.</summary>
+        IEnumerator CarryTo(Vector3 mm)
+        {
+            var at = Screen2(WorldOf(mm));
+            yield return Play(new List<PointerFrame>
+            {
+                new PointerFrame { Position = at },
+                new PointerFrame { Position = at },
+                new PointerFrame { Position = at, LeftPressed = true, LeftHeld = true },
+                new PointerFrame { Position = at },
+                new PointerFrame { Position = at },
+            });
+        }
+
+        /// <summary>Types a number into one of the inspector's position, rotation or size boxes (0-8).</summary>
+        IEnumerator Type(int slot, float value)
+        {
+            var field = vecFields[slot];
+            if (field != null) field.value = value;
+            yield return null;
+        }
+
+        Button MaterialButton(BodyMaterial material) =>
+            libraryBody.Query<Button>(className: "material-button").AtIndex(Array.IndexOf(MaterialOrder, material));
+
+        Button SwatchButton(string hex) =>
+            libraryBody.Query<Button>(className: "colour-swatch").AtIndex(Array.IndexOf(ColourSwatches, hex));
 
         static string Yes(bool ok) => ok ? "yes" : "NO";
 

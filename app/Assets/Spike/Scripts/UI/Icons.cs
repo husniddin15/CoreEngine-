@@ -9,6 +9,7 @@ namespace CoreEngine.Spike.UI
         Chip, Weight, Parts, Battery, Warning, Check, Plus, Back,
         ShapeBox, ShapeRounded, ShapeCylinder, ShapeCone, ShapeSphere, ShapeWedge, ShapeTube, Draw, Import, Export,
         Move, Rotate, Size, Undo, Redo, Duplicate, Mirror, Trash, Eye, Drop, Solid, Hole, Frame,
+        Plate, Driver, Sonar, Motor, Caster,
     }
 
     /// <summary>
@@ -372,6 +373,30 @@ namespace CoreEngine.Spike.UI
                     Line(5, 12, 12, 5);
                     Line(5, 19, 19, 5);
                     Line(12, 19, 19, 12);
+                    break;
+                case Icon.Plate: // a sheet with a grid of holes
+                    Poly(true, false, 3, 8, 21, 8, 21, 16, 3, 16);
+                    for (int i = 0; i < 4; i++) Circle(6 + i * 4, 12, 0.9f, true);
+                    break;
+                case Icon.Driver: // a board with a finned heatsink
+                    Poly(true, false, 3, 13, 21, 13, 21, 20, 3, 20);
+                    for (int i = 0; i < 4; i++) Line(8 + i * 2.7f, 5, 8 + i * 2.7f, 13);
+                    Line(6.5f, 5, 17.5f, 5);
+                    break;
+                case Icon.Sonar: // two round transducers on a board
+                    Poly(true, false, 2.5f, 7, 21.5f, 7, 21.5f, 17, 2.5f, 17);
+                    Circle(7.5f, 12, 3.5f);
+                    Circle(16.5f, 12, 3.5f);
+                    break;
+                case Icon.Motor: // a gearbox with its wheel
+                    Circle(8.5f, 12, 6.5f);
+                    Circle(8.5f, 12, 2);
+                    Poly(true, false, 13, 8.5f, 21, 8.5f, 21, 15.5f, 13, 15.5f);
+                    break;
+                case Icon.Caster: // a ball under its holder
+                    Poly(false, false, 5, 6, 19, 6);
+                    Poly(false, false, 7.5f, 6, 7.5f, 10, 16.5f, 10, 16.5f, 6);
+                    Circle(12, 15, 5);
                     break;
                 case Icon.Frame:
                     Poly(false, false, 4, 9, 4, 4, 9, 4);

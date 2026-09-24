@@ -317,6 +317,7 @@ namespace CoreEngine.Spike.Editor
             spike.chassisMaterial = Lit(materials, "Chassis", new Color(0.15f, 0.35f, 0.75f), 0.6f);
             spike.wheelMaterial = Lit(materials, "Wheel", new Color(0.08f, 0.08f, 0.08f), 0.1f);
             spike.sensorMaterial = Lit(materials, "Sensor", new Color(0.1f, 0.55f, 0.85f), 0.5f);
+            spike.acrylicMaterial = Transparent(materials, "BodyAcrylic");
             spike.rayMaterial = Unlit(materials, "SonarRay");
             var csg = go.AddComponent<CsgSpike>();
             csg.bodyMaterial = Lit(materials, "Body", new Color(0.95f, 0.45f, 0.1f), 0.35f); // orange PLA
@@ -357,6 +358,7 @@ namespace CoreEngine.Spike.Editor
             garage.litMaterial = Lit(materials, "GarageLit", Color.white, 0.5f); // template for runtime materials
             // The Body Studio's see-through shapes, handles and grid (Shaders/): referenced here so that the build has them.
             garage.overlayMaterial = LoadOrCreate(materials, "StudioOverlay", "CoreEngine/StudioOverlay");
+            garage.acrylicMaterial = Transparent(materials, "BodyAcrylic");
             garage.gridMaterial = LoadOrCreate(materials, "StudioGrid", "CoreEngine/StudioGrid");
             garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
             garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
@@ -373,6 +375,31 @@ namespace CoreEngine.Spike.Editor
             var material = LoadOrCreate(folder, name, "Universal Render Pipeline/Lit");
             material.SetColor("_BaseColor", color);
             material.SetFloat("_Smoothness", smoothness);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>
+        /// URP Lit set to transparent, premultiplied as glass is (its reflections stay bright): acrylic body shapes
+        /// copy it, and being in a scene it keeps the transparent shader variant in the build.
+        /// </summary>
+        static Material Transparent(string folder, string name)
+        {
+            var material = LoadOrCreate(folder, name, "Universal Render Pipeline/Lit");
+            material.SetFloat("_Surface", 1);
+            material.SetFloat("_Blend", 1);
+            material.SetFloat("_AlphaClip", 0);
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            material.SetColor("_BaseColor", new Color(0.86f, 0.93f, 1f, 0.3f));
+            material.SetFloat("_Smoothness", 0.93f);
             EditorUtility.SetDirty(material);
             return material;
         }
