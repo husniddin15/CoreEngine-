@@ -45,12 +45,16 @@ namespace CoreEngine.Spike.Parts
         public static Material Textured(string key, System.Func<Raster> paint, float bumps = 1, bool repeat = false)
         {
             if (cache.TryGetValue(key, out var material) && material != null) return material;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             var raster = paint();
+            double painted = watch.Elapsed.TotalMilliseconds;
             material = new Material(textured != null ? textured : lit) { name = "Part " + key };
             var wrap = repeat ? TextureWrapMode.Repeat : TextureWrapMode.Clamp;
             var colourMap = raster.ColourTexture(key + " colour");
             var metalMap = raster.MetalTexture(key + " metal");
             var normalMap = raster.NormalTexture(key + " normal", bumps);
+            if (raster.Width * raster.Height >= 65536)
+                Debug.Log($"PartLooks: {key} painted in {painted:F0} ms, maps in {watch.Elapsed.TotalMilliseconds - painted:F0} ms ({raster.Width}×{raster.Height})");
             colourMap.wrapMode = metalMap.wrapMode = normalMap.wrapMode = wrap;
             material.SetColor("_BaseColor", Color.white);
             material.SetTexture("_BaseMap", colourMap);

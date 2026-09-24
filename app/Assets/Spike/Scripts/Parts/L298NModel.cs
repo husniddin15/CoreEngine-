@@ -290,7 +290,7 @@ namespace CoreEngine.Spike.Parts
             r.Text("MAR 21", c.x, c.y - 3.2f, 0.85f, laser, Align.Centre);
             r.Rect(RegulatorMark.xMin, RegulatorMark.yMin, RegulatorMark.xMax, RegulatorMark.yMax, epoxy);
             r.Text("78M05", RegulatorMark.center.x, RegulatorMark.center.y - 0.1f, 1.0f, laser, Align.Centre);
-            r.Text("ST 142", RegulatorMark.center.x, RegulatorMark.center.y - 1.7f, 0.7f, laser, Align.Centre);
+            r.Text("142  G4", RegulatorMark.center.x, RegulatorMark.center.y - 1.7f, 0.7f, laser, Align.Centre);
         }
     }
 }

@@ -11,8 +11,11 @@ namespace CoreEngine.Spike.Parts
     /// </summary>
     static class ServoModel
     {
-        const float CaseLength = 22.8f, CaseWidth = 12.2f, CaseHeight = 22.7f, TabBottom = 15.9f, TabTop = 18.4f;
-        static readonly Color Blue = new Color(0.12f, 0.32f, 0.80f);
+        const float CaseLength = 22.8f, CaseWidth = 12.2f, CaseHeight = 22.7f, TabBottom = 15.9f, TabTop = 18.4f, CoverTop = 3.0f;
+        const float TabHalfLength = 16.1f, TabHole = 13.8f, TabHoleRadius = 1.0f, SlitHalfWidth = 0.45f;
+
+        /// <summary>The moulded case's blue: deep and glossy, as the translucent plastic looks over the dark parts inside.</summary>
+        static readonly Color Blue = new Color(0.13f, 0.27f, 0.66f);
 
         /// <summary>Where the horn sits, in the part's frame (mm): on top of the output spline.</summary>
         public static readonly Vector3 HornPivot = new Vector3(5.3f, 29.2f, 0);
@@ -32,24 +35,21 @@ namespace CoreEngine.Spike.Parts
         {
             var b = new Bench();
             var k = b.Kit;
-            int blue = b[PartLooks.Solid("sg90 blue", Blue, 0.55f)];
+            int blue = b[PartLooks.Solid("sg90 blue", Blue, 0.72f)];
             int label = b[Label];
-            k.Box(blue, new Vector3(0, TabBottom / 2, 0), new Vector3(CaseLength, TabBottom, CaseWidth), 0.8f);
-            k.Box(blue, new Vector3(0, (TabTop + CaseHeight) / 2, 0), new Vector3(CaseLength, CaseHeight - TabTop, CaseWidth), 0.8f);
-            k.Box(blue, new Vector3(0, (TabBottom + TabTop) / 2, 0), new Vector3(32.2f, TabTop - TabBottom, CaseWidth), 0.5f);
-            foreach (int side in new[] { -1, 1 })
-            {
-                var hole = new Vector3(side * 13.8f, TabTop + 0.01f, 0);
-                Pieces.Disc(b, b[PartLooks.Hole], hole, Vector3.up, 1.0f, 0.1f, 16);
-                k.Box(b[PartLooks.Hole], new Vector3(side * 15.6f, (TabBottom + TabTop) / 2, 0), new Vector3(1.2f, TabTop - TabBottom + 0.02f, 1.0f));
-            }
+            // Three mouldings, as on the real case: the bottom cover, the body with the mounting tabs, the top
+            // cover. Their small rounded edges leave a fine seam where they meet.
+            k.Box(blue, new Vector3(0, CoverTop / 2, 0), new Vector3(CaseLength, CoverTop, CaseWidth), 0.45f);
+            k.Box(blue, new Vector3(0, (CoverTop + TabBottom) / 2, 0), new Vector3(CaseLength, TabBottom - CoverTop, CaseWidth), 0.45f);
+            k.Box(blue, new Vector3(0, (TabTop + CaseHeight) / 2, 0), new Vector3(CaseLength, CaseHeight - TabTop, CaseWidth), 0.45f);
+            k.Extrude(TabOutline(), TabBottom, TabTop, blue, blue, blue, null, 40);
             // The paper label wrapped on the long side facing -z.
             k.Box(label, new Vector3(0, 7.4f, -CaseWidth / 2 - 0.02f), new Vector3(20.5f, 8.6f, 0.05f), 0, 0.1f,
                 new Rect(0, 0, 1, 1), label, MeshKit.Face.MinusZ);
             // The gear housing: a big boss round the output shaft and a smaller one beside it.
-            k.Cylinder(blue, new Vector3(HornPivot.x, CaseHeight - 0.1f, 0), new Vector3(HornPivot.x, CaseHeight + 4.0f, 0), 5.9f, 40, 0.6f);
-            k.Cylinder(blue, new Vector3(-1.2f, CaseHeight - 0.1f, 0), new Vector3(-1.2f, CaseHeight + 3.2f, 0), 3.2f, 28, 0.5f);
-            k.Box(blue, new Vector3(2.0f, CaseHeight + 1.5f, 0), new Vector3(6.4f, 3.2f, 6.4f), 0.5f);
+            k.Cylinder(blue, new Vector3(HornPivot.x, CaseHeight - 0.1f, 0), new Vector3(HornPivot.x, CaseHeight + 4.0f, 0), 5.9f, 48, 0.35f);
+            k.Cylinder(blue, new Vector3(-1.2f, CaseHeight - 0.1f, 0), new Vector3(-1.2f, CaseHeight + 3.2f, 0), 3.2f, 32, 0.3f);
+            k.Box(blue, new Vector3(2.0f, CaseHeight + 1.5f, 0), new Vector3(6.4f, 3.2f, 6.4f), 0.3f);
             int nylon = b[PartLooks.Solid("sg90 spline", new Color(0.93f, 0.92f, 0.86f), 0.4f)];
             k.Cylinder(nylon, new Vector3(HornPivot.x, CaseHeight + 3.9f, 0), new Vector3(HornPivot.x, HornPivot.y, 0), 2.4f, 20, 0.2f);
 
@@ -81,6 +81,42 @@ namespace CoreEngine.Spike.Parts
             foreach (float z in new[] { -8.46f, -11f, -13.54f })
                 k.Box(b[PartLooks.Hole], new Vector3(2.22f, 1.3f, z), new Vector3(0.06f, 1.1f, 1.1f));
             return b.Finish("SG90 micro servo");
+        }
+
+        /// <summary>
+        /// The mounting tabs seen from above (x, z): 32.2 × 12.2 mm with rounded corners, and at each end the screw
+        /// hole with the slit that runs from it out to the end, cut through as on the real case.
+        /// </summary>
+        static List<Vector2> TabOutline()
+        {
+            const float corner = 0.8f, halfWidth = CaseWidth / 2;
+            float slitEnd = TabHole + Mathf.Sqrt(TabHoleRadius * TabHoleRadius - SlitHalfWidth * SlitHalfWidth);
+            float meet = Mathf.Asin(SlitHalfWidth / TabHoleRadius) * Mathf.Rad2Deg;
+            var outline = new List<Vector2>();
+            foreach (float s in new[] { 1f, -1f })
+            {
+                // Round the corner onto this end, along the end to the slit, in along it, clockwise round the
+                // hole's far side, back out along the slit and on round the next corner.
+                Arc(outline, new Vector2(s * (TabHalfLength - corner), -s * (halfWidth - corner)), corner, s > 0 ? -90 : 90, s > 0 ? 0 : 180, 4, true);
+                outline.Add(new Vector2(s * TabHalfLength, -s * SlitHalfWidth));
+                outline.Add(new Vector2(s * slitEnd, -s * SlitHalfWidth));
+                float from = s > 0 ? -meet : 180 - meet;
+                Arc(outline, new Vector2(s * TabHole, 0), TabHoleRadius, from, from - (360 - 2 * meet), 20, false);
+                outline.Add(new Vector2(s * slitEnd, s * SlitHalfWidth));
+                outline.Add(new Vector2(s * TabHalfLength, s * SlitHalfWidth));
+                Arc(outline, new Vector2(s * (TabHalfLength - corner), s * (halfWidth - corner)), corner, s > 0 ? 0 : 180, s > 0 ? 90 : 270, 4, true);
+            }
+            return outline;
+        }
+
+        /// <summary>Points round an arc from <paramref name="from"/> to <paramref name="to"/> degrees, with or without its two ends.</summary>
+        static void Arc(List<Vector2> points, Vector2 centre, float radius, float from, float to, int steps, bool ends)
+        {
+            for (int i = ends ? 0 : 1; i <= (ends ? steps : steps - 1); i++)
+            {
+                float a = (from + (to - from) * i / steps) * Mathf.Deg2Rad;
+                points.Add(centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius);
+            }
         }
 
         /// <summary>The double-arm horn: a hub on the spline, two tapering arms with their holes and the screw.</summary>
@@ -128,7 +164,8 @@ namespace CoreEngine.Spike.Parts
             r.Text("-", 15.2f, D / 2 + 1.27f - 0.45f, 0.9f, silk, Align.Centre);
             r.Text("LED", 3.0f, 1.2f, 1.0f, silk, Align.Centre);
             foreach (float z in new[] { -1.27f, 1.27f }) r.Circle(17.46f, D / 2 + z, 0.9f, Ink.Solid(new Color32(206, 206, 201, 255), 1, 0.55f, 0.06f));
-            r.Grain(0.03f, 0.05f, 0.6f, 41);
+            // Solder mask cures almost even: a strong grain on a black board reads as stone.
+            r.Grain(0.015f, 0.015f, 0.3f, 41);
             return r;
         }, 1.1f);
 

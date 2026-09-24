@@ -74,12 +74,34 @@ namespace CoreEngine.Spike.Parts
 
         // ------------------------------------------------------------------ painting
 
-        void Put(int index, Ink ink, float coverage)
+        /// <summary>
+        /// A shape as the painter sees it: its signed distance (mm, negative inside), and the stretch of a row of
+        /// pixels it can reach, so a long slanted trace does not measure every pixel of its box. Shapes are structs
+        /// so each kind gets its own compiled loop, without a delegate call per pixel.
+        /// </summary>
+        interface IShape
+        {
+            float Distance(float x, float y);
+
+            /// <summary>Narrows [x0, x1] (mm) on the row at <paramref name="y"/> to where the shape can reach; false if nowhere.</summary>
+            bool Narrow(float y, ref float x0, ref float x1);
+        }
+
+        void Put(int index, in Ink ink, float coverage)
         {
             if (coverage <= 0) return;
             if (ink.Paints)
             {
                 float a = coverage * ink.Colour.a / 255f;
+                if (a >= 1)
+                {
+                    // Fully covered by an opaque ink, as most pixels of a big shape are: no blending.
+                    colour[index] = ink.Colour;
+                    metal[index] = ink.Metal;
+                    smooth[index] = ink.Smooth;
+                    if (ink.SetsHeight) height[index] = ink.Height;
+                    return;
+                }
                 var c = colour[index];
                 colour[index] = new Color32(
                     (byte)(c.r + (ink.Colour.r - c.r) * a),
@@ -93,81 +115,66 @@ namespace CoreEngine.Spike.Parts
             else if (ink.AddsHeight) height[index] += ink.Height * coverage;
         }
 
-        /// <summary>Paints every pixel whose centre is within the box (mm) by the coverage the distance function gives.</summary>
-        void Shape(float x0, float y0, float x1, float y1, Ink ink, System.Func<float, float, float> distance)
+        /// <summary>
+        /// Paints every pixel whose centre is within the box (mm), row by row within the stretch the shape can
+        /// reach, by the coverage its distance gives: shapes are anti-aliased over one pixel.
+        /// </summary>
+        void Shape<T>(float x0, float y0, float x1, float y1, in Ink ink, T shape) where T : struct, IShape
         {
-            int px0 = Mathf.Max(0, Mathf.FloorToInt(x0 * PxPerMm) - 1), px1 = Mathf.Min(Width - 1, Mathf.CeilToInt(x1 * PxPerMm) + 1);
             int py0 = Mathf.Max(0, Mathf.FloorToInt(y0 * PxPerMm) - 1), py1 = Mathf.Min(Height - 1, Mathf.CeilToInt(y1 * PxPerMm) + 1);
             float inv = 1f / PxPerMm;
             for (int py = py0; py <= py1; py++)
             {
-                float y = (py + 0.5f) * inv;
+                float y = (py + 0.5f) * inv, rowX0 = x0, rowX1 = x1;
+                if (!shape.Narrow(y, ref rowX0, ref rowX1)) continue;
+                int px0 = Mathf.Max(0, Mathf.FloorToInt(rowX0 * PxPerMm) - 1), px1 = Mathf.Min(Width - 1, Mathf.CeilToInt(rowX1 * PxPerMm) + 1);
                 int row = py * Width;
                 for (int px = px0; px <= px1; px++)
                 {
-                    float d = distance((px + 0.5f) * inv, y);
-                    float coverage = Mathf.Clamp01(0.5f - d * PxPerMm);
-                    if (coverage > 0) Put(row + px, ink, coverage);
+                    float coverage = 0.5f - shape.Distance((px + 0.5f) * inv, y) * PxPerMm;
+                    if (coverage > 0) Put(row + px, ink, coverage < 1 ? coverage : 1);
                 }
             }
         }
 
-        public void Fill(Ink ink) => Rect(-1, -1, WidthMm + 1, HeightMm + 1, ink);
+        /// <summary>Covers the whole picture, every pixel at once.</summary>
+        public void Fill(Ink ink)
+        {
+            for (int i = 0; i < colour.Length; i++) Put(i, ink, 1);
+        }
 
         public void Rect(float x0, float y0, float x1, float y1, Ink ink)
         {
             float cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hx = Mathf.Abs(x1 - x0) / 2, hy = Mathf.Abs(y1 - y0) / 2;
-            Shape(cx - hx, cy - hy, cx + hx, cy + hy, ink, (x, y) => BoxDistance(x - cx, y - cy, hx, hy, 0));
+            Shape(cx - hx, cy - hy, cx + hx, cy + hy, ink, new BoxShape(cx, cy, hx, hy, 0, 0));
         }
 
         /// <summary>A rectangle with rounded corners, turned by <paramref name="degrees"/> about its middle.</summary>
         public void RoundRect(float cx, float cy, float width, float heightMm, float radius, Ink ink, float degrees = 0)
         {
-            float hx = width / 2, hy = heightMm / 2, reach = Mathf.Sqrt(hx * hx + hy * hy);
-            float cos = Mathf.Cos(-degrees * Mathf.Deg2Rad), sin = Mathf.Sin(-degrees * Mathf.Deg2Rad);
-            Shape(cx - reach, cy - reach, cx + reach, cy + reach, ink, (x, y) =>
-            {
-                float dx = x - cx, dy = y - cy;
-                return BoxDistance(dx * cos - dy * sin, dx * sin + dy * cos, hx, hy, radius);
-            });
-        }
-
-        static float BoxDistance(float x, float y, float hx, float hy, float radius)
-        {
-            float qx = Mathf.Abs(x) - hx + radius, qy = Mathf.Abs(y) - hy + radius;
-            float outside = Mathf.Sqrt(Mathf.Max(qx, 0) * Mathf.Max(qx, 0) + Mathf.Max(qy, 0) * Mathf.Max(qy, 0));
-            return outside + Mathf.Min(Mathf.Max(qx, qy), 0) - radius;
+            float hx = width / 2, hy = heightMm / 2;
+            float cos = Mathf.Abs(Mathf.Cos(degrees * Mathf.Deg2Rad)), sin = Mathf.Abs(Mathf.Sin(degrees * Mathf.Deg2Rad));
+            float ex = cos * hx + sin * hy, ey = sin * hx + cos * hy;
+            Shape(cx - ex, cy - ey, cx + ex, cy + ey, ink, new BoxShape(cx, cy, hx, hy, radius, degrees));
         }
 
         public void Circle(float cx, float cy, float radius, Ink ink) =>
-            Shape(cx - radius, cy - radius, cx + radius, cy + radius, ink, (x, y) => Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) - radius);
+            Shape(cx - radius, cy - radius, cx + radius, cy + radius, ink, new CircleShape(cx, cy, radius, 0, 1 / PxPerMm));
 
         public void Ring(float cx, float cy, float outer, float inner, Ink ink) =>
-            Shape(cx - outer, cy - outer, cx + outer, cy + outer, ink, (x, y) =>
-            {
-                float r = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
-                return Mathf.Max(r - outer, inner - r);
-            });
+            Shape(cx - outer, cy - outer, cx + outer, cy + outer, ink, new CircleShape(cx, cy, outer, inner, 1 / PxPerMm));
 
         /// <summary>A line with round ends, <paramref name="width"/> mm wide.</summary>
         public void Line(float x0, float y0, float x1, float y1, float width, Ink ink)
         {
             float h = width / 2;
             Shape(Mathf.Min(x0, x1) - h, Mathf.Min(y0, y1) - h, Mathf.Max(x0, x1) + h, Mathf.Max(y0, y1) + h, ink,
-                (x, y) => SegmentDistance(x, y, x0, y0, x1, y1) - h);
+                new SegmentShape(x0, y0, x1, y1, h, 1 / PxPerMm));
         }
 
         public void Polyline(IList<Vector2> points, float width, Ink ink)
         {
             for (int i = 0; i + 1 < points.Count; i++) Line(points[i].x, points[i].y, points[i + 1].x, points[i + 1].y, width, ink);
-        }
-
-        static float SegmentDistance(float px, float py, float ax, float ay, float bx, float by)
-        {
-            float dx = bx - ax, dy = by - ay;
-            float t = dx * dx + dy * dy < 1e-12f ? 0 : Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
-            float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
-            return Mathf.Sqrt(ex * ex + ey * ey);
         }
 
         /// <summary>A filled polygon (any winding, no holes).</summary>
@@ -181,7 +188,125 @@ namespace CoreEngine.Spike.Parts
                 x1 = Mathf.Max(x1, p.x);
                 y1 = Mathf.Max(y1, p.y);
             }
-            Shape(x0, y0, x1, y1, ink, (x, y) =>
+            Shape(x0, y0, x1, y1, ink, new PolygonShape(points));
+        }
+
+        static float SegmentDistance(float px, float py, float ax, float ay, float bx, float by)
+        {
+            float dx = bx - ax, dy = by - ay;
+            float t = dx * dx + dy * dy < 1e-12f ? 0 : Mathf.Clamp01(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy));
+            float ex = px - (ax + t * dx), ey = py - (ay + t * dy);
+            return Mathf.Sqrt(ex * ex + ey * ey);
+        }
+
+        /// <summary>A box with rounded corners, turned about its middle.</summary>
+        readonly struct BoxShape : IShape
+        {
+            readonly float cx, cy, hx, hy, radius, cos, sin;
+
+            public BoxShape(float cx, float cy, float hx, float hy, float radius, float degrees)
+            {
+                this.cx = cx;
+                this.cy = cy;
+                this.hx = hx;
+                this.hy = hy;
+                this.radius = radius;
+                cos = Mathf.Cos(-degrees * Mathf.Deg2Rad);
+                sin = Mathf.Sin(-degrees * Mathf.Deg2Rad);
+            }
+
+            public float Distance(float x, float y)
+            {
+                float dx = x - cx, dy = y - cy;
+                float qx = Mathf.Abs(dx * cos - dy * sin) - hx + radius, qy = Mathf.Abs(dx * sin + dy * cos) - hy + radius;
+                float ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0, inside = qx > qy ? qx : qy;
+                return Mathf.Sqrt(ox * ox + oy * oy) + (inside < 0 ? inside : 0) - radius;
+            }
+
+            public bool Narrow(float y, ref float x0, ref float x1) => true;
+        }
+
+        /// <summary>A disc, or with an inner radius above zero a ring. Each row reaches across its chord only.</summary>
+        readonly struct CircleShape : IShape
+        {
+            readonly float cx, cy, outer, inner, reach;
+
+            /// <param name="margin">One pixel (mm), kept beyond the edge for the anti-aliasing.</param>
+            public CircleShape(float cx, float cy, float outer, float inner, float margin)
+            {
+                this.cx = cx;
+                this.cy = cy;
+                this.outer = outer;
+                this.inner = inner;
+                reach = outer + margin;
+            }
+
+            public float Distance(float x, float y)
+            {
+                float r = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+                return inner > 0 && inner - r > r - outer ? inner - r : r - outer;
+            }
+
+            public bool Narrow(float y, ref float x0, ref float x1)
+            {
+                float dy = y - cy, square = reach * reach - dy * dy;
+                if (square <= 0) return false;
+                float half = Mathf.Sqrt(square);
+                if (cx - half > x0) x0 = cx - half;
+                if (cx + half < x1) x1 = cx + half;
+                return x0 <= x1;
+            }
+        }
+
+        /// <summary>
+        /// A line with round ends. A row meets it only near where the line crosses the row: within the half width
+        /// (and a pixel) divided by the sine of its slant, which keeps a long diagonal trace from filling its box.
+        /// </summary>
+        readonly struct SegmentShape : IShape
+        {
+            readonly float ax, ay, dx, dy, lengthSquared, half, slope, spread;
+
+            /// <param name="margin">One pixel (mm), kept beyond the edge for the anti-aliasing.</param>
+            public SegmentShape(float x0, float y0, float x1, float y1, float half, float margin)
+            {
+                ax = x0;
+                ay = y0;
+                dx = x1 - x0;
+                dy = y1 - y0;
+                lengthSquared = dx * dx + dy * dy;
+                this.half = half;
+                // Nearly level lines keep their box, which is tight for them anyway.
+                float rise = lengthSquared > 1e-12f ? Mathf.Abs(dy) / Mathf.Sqrt(lengthSquared) : 0;
+                slope = rise > 0.05f ? dx / dy : 0;
+                spread = rise > 0.05f ? (half + margin) / rise : -1;
+            }
+
+            public float Distance(float x, float y)
+            {
+                float t = lengthSquared < 1e-12f ? 0 : ((x - ax) * dx + (y - ay) * dy) / lengthSquared;
+                t = t < 0 ? 0 : t > 1 ? 1 : t;
+                float ex = x - (ax + t * dx), ey = y - (ay + t * dy);
+                return Mathf.Sqrt(ex * ex + ey * ey) - half;
+            }
+
+            public bool Narrow(float y, ref float x0, ref float x1)
+            {
+                if (spread < 0) return true;
+                float centre = ax + (y - ay) * slope;
+                if (centre - spread > x0) x0 = centre - spread;
+                if (centre + spread < x1) x1 = centre + spread;
+                return x0 <= x1;
+            }
+        }
+
+        /// <summary>A filled polygon: the distance to its nearest edge, negative inside (even-odd).</summary>
+        readonly struct PolygonShape : IShape
+        {
+            readonly IList<Vector2> points;
+
+            public PolygonShape(IList<Vector2> points) => this.points = points;
+
+            public float Distance(float x, float y)
             {
                 float nearest = float.MaxValue;
                 bool inside = false;
@@ -193,7 +318,9 @@ namespace CoreEngine.Spike.Parts
                     if ((a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
                 }
                 return inside ? -nearest : nearest;
-            });
+            }
+
+            public bool Narrow(float y, ref float x0, ref float x1) => true;
         }
 
         // ------------------------------------------------------------------ text
@@ -240,28 +367,40 @@ namespace CoreEngine.Spike.Parts
             int gw = Width / cells + 2, gh = Height / cells + 2;
             var grid = new float[gw * gh];
             for (int i = 0; i < grid.Length; i++) grid[i] = (float)random.NextDouble() * 2 - 1;
+            // Where each column falls between the grid's points, worked out once for every row.
+            var columns = new int[Width];
+            var blends = new float[Width];
+            for (int px = 0; px < Width; px++)
+            {
+                float fx = (float)px / cells;
+                columns[px] = (int)fx;
+                blends[px] = Smooth01(fx - columns[px]);
+            }
             for (int py = 0; py < Height; py++)
             {
                 float fy = (float)py / cells;
-                int gy = (int)fy;
+                int gy = (int)fy, below = gy * gw, above = below + gw, row = py * Width;
                 float ty = Smooth01(fy - gy);
                 for (int px = 0; px < Width; px++)
                 {
-                    float fx = (float)px / cells;
-                    int gx = (int)fx;
-                    float tx = Smooth01(fx - gx);
-                    float a = grid[gy * gw + gx], b = grid[gy * gw + gx + 1], c = grid[(gy + 1) * gw + gx], d = grid[(gy + 1) * gw + gx + 1];
-                    float n = Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), ty);
-                    int index = py * Width + px;
+                    int gx = columns[px];
+                    float tx = blends[px];
+                    float low = grid[below + gx] + (grid[below + gx + 1] - grid[below + gx]) * tx;
+                    float high = grid[above + gx] + (grid[above + gx + 1] - grid[above + gx]) * tx;
+                    float n = low + (high - low) * ty;
+                    int index = row + px;
                     float f = 1 + n * colourAmount;
                     var col = colour[index];
-                    colour[index] = new Color32((byte)Mathf.Clamp(col.r * f, 0, 255), (byte)Mathf.Clamp(col.g * f, 0, 255), (byte)Mathf.Clamp(col.b * f, 0, 255), 255);
-                    smooth[index] = Mathf.Clamp01(smooth[index] + n * smoothAmount);
+                    colour[index] = new Color32(Byte(col.r * f), Byte(col.g * f), Byte(col.b * f), 255);
+                    float s = smooth[index] + n * smoothAmount;
+                    smooth[index] = s < 0 ? 0 : s > 1 ? 1 : s;
                 }
             }
         }
 
         static float Smooth01(float t) => t * t * (3 - 2 * t);
+
+        static byte Byte(float value) => value <= 0 ? (byte)0 : value >= 255 ? (byte)255 : (byte)value;
 
         public Texture2D ColourTexture(string name)
         {
@@ -289,40 +428,34 @@ namespace CoreEngine.Spike.Parts
         /// </summary>
         public Texture2D NormalTexture(string name, float strength = 1)
         {
+            // Soften by a 3 × 3 box, as a pass across and a pass down; the edge pixels repeat.
+            var across = new float[Width * Height];
+            for (int py = 0; py < Height; py++)
+            {
+                int row = py * Width;
+                for (int px = 0; px < Width; px++)
+                {
+                    int left = px > 0 ? px - 1 : px, right = px < Width - 1 ? px + 1 : px;
+                    across[row + px] = (height[row + left] + height[row + px] + height[row + right]) * (1f / 3);
+                }
+            }
             var soft = new float[Width * Height];
             for (int py = 0; py < Height; py++)
             {
-                for (int px = 0; px < Width; px++)
-                {
-                    float sum = 0;
-                    int n = 0;
-                    for (int dy = -1; dy <= 1; dy++)
-                    {
-                        int y = py + dy;
-                        if (y < 0 || y >= Height) continue;
-                        for (int dx = -1; dx <= 1; dx++)
-                        {
-                            int x = px + dx;
-                            if (x < 0 || x >= Width) continue;
-                            sum += height[y * Width + x];
-                            n++;
-                        }
-                    }
-                    soft[py * Width + px] = sum / n;
-                }
+                int row = py * Width, up = (py < Height - 1 ? py + 1 : py) * Width, down = (py > 0 ? py - 1 : py) * Width;
+                for (int px = 0; px < Width; px++) soft[row + px] = (across[down + px] + across[row + px] + across[up + px]) * (1f / 3);
             }
             var pixels = new Color32[Width * Height];
             float k = strength * PxPerMm / 2;
             for (int py = 0; py < Height; py++)
             {
-                int up = Mathf.Min(py + 1, Height - 1), down = Mathf.Max(py - 1, 0);
+                int row = py * Width, up = (py < Height - 1 ? py + 1 : py) * Width, down = (py > 0 ? py - 1 : py) * Width;
                 for (int px = 0; px < Width; px++)
                 {
-                    int right = Mathf.Min(px + 1, Width - 1), left = Mathf.Max(px - 1, 0);
-                    float sx = (soft[py * Width + right] - soft[py * Width + left]) * k;
-                    float sy = (soft[up * Width + px] - soft[down * Width + px]) * k;
-                    var normal = new Vector3(-sx, -sy, 1).normalized;
-                    pixels[py * Width + px] = new Color32((byte)((normal.x * 0.5f + 0.5f) * 255), (byte)((normal.y * 0.5f + 0.5f) * 255), (byte)((normal.z * 0.5f + 0.5f) * 255), 255);
+                    int right = px < Width - 1 ? px + 1 : px, left = px > 0 ? px - 1 : px;
+                    float nx = -(soft[row + right] - soft[row + left]) * k, ny = -(soft[up + px] - soft[down + px]) * k;
+                    float scale = 1f / Mathf.Sqrt(nx * nx + ny * ny + 1);
+                    pixels[row + px] = new Color32((byte)((nx * scale * 0.5f + 0.5f) * 255), (byte)((ny * scale * 0.5f + 0.5f) * 255), (byte)((scale * 0.5f + 0.5f) * 255), 255);
                 }
             }
             var texture = new Texture2D(Width, Height, TextureFormat.RGBA32, true, true) { name = name, wrapMode = TextureWrapMode.Clamp, anisoLevel = 8 };

@@ -114,6 +114,8 @@ namespace CoreEngine.Spike.Editor
             SetBool(quality, "m_AnyShadowsSupported", true);
             SetInt(quality, "m_AdditionalLightsShadowmapResolution", 2048);
             SetInt(quality, "m_ColorGradingMode", 1);                 // grading in HDR, before tonemapping
+            SetBool(quality, "m_ReflectionProbeBlending", true);      // the lab's probe blends into the sky's
+            SetBool(quality, "m_ReflectionProbeBoxProjection", true); // reflections of the room where they are
             quality.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(pipeline);
             ConfigureRenderer(AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath));
@@ -339,19 +341,9 @@ namespace CoreEngine.Spike.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.ambientMode = AmbientMode.Skybox;
-            // The photographed robotics lab when its CC0 files are there (tools/fetch-lab-assets.ps1), else the drawn room.
-            bool lab = SpikeLab.AssetsPresent;
-            if (lab)
-            {
-                SpikeLab.ConfigureImports();
-                SpikeLab.Build(materials);
-                AddPostProcessing(SpikeLab.PostProfile(EnsureFolder(SpikeFolder + "/Rendering")));
-            }
-            else
-            {
-                AddPostProcessing(CreatePostProfile());
-                Debug.LogWarning("SpikeSetup: the lab files are missing (tools/fetch-lab-assets.ps1); the Garage keeps its drawn room");
-            }
+            // The bright engineering lab, modelled here and baked below (WhiteLab, D20): nothing to download.
+            WhiteLab.Build();
+            AddPostProcessing(WhiteLab.PostProfile(EnsureFolder(SpikeFolder + "/Rendering")));
 
             var go = new GameObject("Garage");
             go.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
@@ -365,11 +357,8 @@ namespace CoreEngine.Spike.Editor
             garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
             garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
             EditorSceneManager.SaveScene(scene, GarageScenePath);
-            if (lab)
-            {
-                SpikeLab.BakeLighting(EnsureFolder(SpikeFolder + "/Rendering"));
-                EditorSceneManager.SaveScene(scene, GarageScenePath);
-            }
+            WhiteLab.Bake(EnsureFolder(SpikeFolder + "/Rendering"));
+            EditorSceneManager.SaveScene(scene, GarageScenePath);
         }
 
         static Material Lit(string folder, string name, Color color, float smoothness)

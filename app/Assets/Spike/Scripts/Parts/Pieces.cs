@@ -86,6 +86,7 @@ namespace CoreEngine.Spike.Parts
         public static PartModel? Get(string partId)
         {
             if (models.TryGetValue(partId, out var model)) return model;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             model = partId switch
             {
                 PartCatalog.Uno => UnoModel.Make(),
@@ -98,7 +99,11 @@ namespace CoreEngine.Spike.Parts
                 PartCatalog.Led => LedModel.Make(),
                 _ => null,
             };
-            if (model != null) models[partId] = model;
+            if (model != null)
+            {
+                models[partId] = model;
+                Debug.Log($"PartModels: {partId} made in {watch.Elapsed.TotalMilliseconds:F0} ms ({model.Mesh.vertexCount} vertices, {model.Materials.Length} materials)");
+            }
             return model;
         }
 

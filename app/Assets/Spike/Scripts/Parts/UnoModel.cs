@@ -422,8 +422,6 @@ namespace CoreEngine.Spike.Parts
             r.Text("+", Caps[0].x - 4.2f, Caps[0].y + 2.6f, 1.0f, silk, Align.Centre);
             r.Text("+", Caps[1].x - 4.2f, Caps[1].y + 2.6f, 1.0f, silk, Align.Centre);
             r.Text("16.000", Xtal.x, Xtal.y - 3.8f, 0.8f, silk, Align.Centre);
-            r.Text("MADE IN ITALY", 60.8f, 14.6f, 0.75f, silk, Align.Centre);
-            r.Text("TM", 58.4f, 29.9f, 0.7f, silk, Align.Left);
             r.Text("1", Chip.x + 18.8f, Chip.y - 3.9f, 0.8f, silk, Align.Centre);
         }
 

@@ -110,20 +110,20 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ room, turntable, camera
 
-        /// <summary>The photographed lab of the editor setup, when its files were fetched (tools/fetch-lab-assets.ps1).</summary>
+        /// <summary>The white lab the editor setup models and bakes into the scene (WhiteLab's "LabSet").</summary>
         bool labMode;
         DepthOfField? depthOfField;
 
         /// <summary>
-        /// In the lab the room, its lights and its camera look come from the scene (SpikeLab); the Garage adds a
-        /// display turntable: a brushed aluminium disc with a black rubber top, 30 cm across and 2 cm high, standing
-        /// on the bench's anti-static mat.
+        /// In the lab the room, its lights and its camera look come from the scene (WhiteLab); the Garage adds a
+        /// display turntable: a brushed aluminium disc with a grey rubber top, 30 cm across and 2 cm high, standing
+        /// on the bench's measuring mat.
         /// </summary>
         void BuildLabTurntable()
         {
             var aluminium = Mat(new Color(0.78f, 0.79f, 0.80f), 0.58f);
             aluminium.SetFloat("_Metallic", 1f);
-            var rubber = Mat(new Color(0.035f, 0.035f, 0.04f), 0.32f);
+            var rubber = Mat(new Color(0.16f, 0.165f, 0.175f), 0.3f); // mid grey: the robot's shadow shows on it
             turntable = new GameObject("Turntable").transform;
             turntable.position = new Vector3(0, 0.003f, 0);
             var disc = ProceduralMeshes.Lathe(new[]

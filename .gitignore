@@ -17,6 +17,9 @@ app/Assets/ThirdParty.meta
 # the Garage lab's baked light and reflection probes; Configure Project bakes them again
 app/Assets/Spike/Garage/
 app/Assets/Spike/Garage.meta
+# the lab's room, bench and instruments (meshes, painted textures, materials); Configure Project models them again (WhiteLab)
+app/Assets/Spike/Lab/
+app/Assets/Spike/Lab.meta
 
 # ---- Unity project (app/), added in Phase 0.4 ----
 app/[Ll]ibrary/

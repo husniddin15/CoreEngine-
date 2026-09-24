@@ -49,6 +49,26 @@ namespace CoreEngine.Spike.Garage
                 }
                 visual.Destroy();
             }
+            // The room: from where someone would stand, looking at the bench, the shelves, the window, the door.
+            var views = new (string name, Vector3 target, float up, float around, float away)[]
+            {
+                ("room-bench", new Vector3(0, 0.25f, -0.3f), 12, 180, 2.2f),
+                ("room-shelves", new Vector3(-2.0f, 0.3f, 1.2f), 8, 250, 2.6f),
+                ("room-window", new Vector3(2.2f, 0.4f, 0.6f), 6, 95, 2.8f),
+                ("room-door", new Vector3(0.2f, 0.4f, 2.8f), 6, 10, 3.2f),
+                ("room-pegboard", new Vector3(0, 0.75f, -0.72f), 4, 180, 1.1f),
+            };
+            foreach (var (name, target, up, around, away) in views)
+            {
+                orbitTarget = target;
+                pitch = up;
+                yaw = around;
+                distance = away;
+                view.fieldOfView = 55f;
+                yield return null;
+                yield return null;
+                yield return SpikeReport.Capture(Path.Combine(folder, name + ".png"));
+            }
             Application.Quit();
         }
 
