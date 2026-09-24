@@ -93,6 +93,36 @@ namespace CoreEngine.Sim.Design
         public int Polarity { get; }
     }
 
+    /// <summary>An LED module: the Uno pin on its S input (null when none) and whether it can light (ground and a running board).</summary>
+    public sealed class LedLink
+    {
+        public LedLink(string partId, string? pin, bool live)
+        {
+            PartId = partId;
+            Pin = pin;
+            Live = live;
+        }
+
+        public string PartId { get; }
+        public string? Pin { get; }
+        public bool Live { get; }
+    }
+
+    /// <summary>A servo: the Uno pin on its signal lead (null when none) and whether it has power and ground.</summary>
+    public sealed class ServoLink
+    {
+        public ServoLink(string partId, string? pin, bool powered)
+        {
+            PartId = partId;
+            Pin = pin;
+            Powered = powered;
+        }
+
+        public string PartId { get; }
+        public string? Pin { get; }
+        public bool Powered { get; }
+    }
+
     /// <summary>A finding of the wiring check (docs/03 §6.3). Code and arguments are localised by the UI.</summary>
     public sealed class CircuitWarning
     {
@@ -129,6 +159,8 @@ namespace CoreEngine.Sim.Design
         public string? Trig { get; internal set; }
         public string? Echo { get; internal set; }
         public List<MotorLink> Motors { get; } = new List<MotorLink>();
+        public List<LedLink> Leds { get; } = new List<LedLink>();
+        public List<ServoLink> Servos { get; } = new List<ServoLink>();
         public List<CircuitWarning> Warnings { get; } = new List<CircuitWarning>();
 
         /// <summary>The motor on that side ("left" or "right"), or with that part id.</summary>
@@ -264,6 +296,28 @@ namespace CoreEngine.Sim.Design
                 string? gpio = UnoPin(motor, "M+") ?? UnoPin(motor, "M-");
                 if (gpio != null) Warn("motorOnGpio", side, gpio);
                 else Warn("motorNotConnected", side);
+            }
+
+            // LED modules light from an Uno pin through their resistor; servos want 4.8–6 V and ground, and pulses.
+            foreach (var part in design.Parts)
+            {
+                var kind = PartCatalog.Get(part.Part)?.Kind;
+                if (kind == PartKind.Led)
+                {
+                    bool grounded = LogicGround(part, "GND");
+                    string? pin = UnoPin(part, "S");
+                    if (!grounded) Warn("ledNoGround", part.Id);
+                    if (pin == null) Warn("ledPin", part.Id);
+                    circuit.Leds.Add(new LedLink(part.Id, pin, grounded && circuit.BoardPowered));
+                }
+                else if (kind == PartKind.Servo)
+                {
+                    bool powered = (FiveVolt(part, "V+") || BatteryPlus(part, "V+")) && LogicGround(part, "GND");
+                    string? pin = UnoPin(part, "SIG");
+                    if (!powered) Warn("servoUnpowered", part.Id);
+                    if (pin == null) Warn("servoPin", part.Id);
+                    circuit.Servos.Add(new ServoLink(part.Id, pin, powered));
+                }
             }
             return circuit;
         }

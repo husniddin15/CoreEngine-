@@ -85,6 +85,38 @@ public class DesignTests
     }
 
     [Fact]
+    public void AnLedModuleLightsFromItsPin()
+    {
+        var d = DesignPresets.ObstacleAvoiderKit();
+        var led = d.AddPart(PartCatalog.Led)!;
+        var circuit = Analyse(d);
+        Assert.Contains(circuit.Warnings, w => w.Code == "ledPin" && w.Args[0] == led.Id);
+        Assert.Contains(circuit.Warnings, w => w.Code == "ledNoGround");
+        d.AddWire("uno1", "D13", led.Id, "S", "yellow");
+        d.AddWire("uno1", "GND.1", led.Id, "GND", "black");
+        circuit = Analyse(d);
+        Assert.False(circuit.HasProblems, string.Join(", ", circuit.Warnings));
+        var link = Assert.Single(circuit.Leds);
+        Assert.Equal(("D13", true), (link.Pin, link.Live));
+    }
+
+    [Fact]
+    public void AServoNeedsPowerGroundAndItsSignal()
+    {
+        var d = DesignPresets.ObstacleAvoiderKit();
+        var servo = d.AddPart(PartCatalog.Servo)!;
+        d.AddWire("uno1", "D3", servo.Id, "SIG", "orange");
+        var circuit = Analyse(d);
+        Assert.Contains(circuit.Warnings, w => w.Code == "servoUnpowered" && w.Args[0] == servo.Id);
+        d.AddWire(servo.Id, "V+", "driver1", "+12V", "red"); // the 4×AA pack, about 6 V: an SG90 takes up to 6 V
+        d.AddWire(servo.Id, "GND", "uno1", "GND.1", "brown");
+        circuit = Analyse(d);
+        Assert.False(circuit.HasProblems, string.Join(", ", circuit.Warnings));
+        var link = Assert.Single(circuit.Servos);
+        Assert.Equal(("D3", true), (link.Pin, link.Powered));
+    }
+
+    [Fact]
     public void NetsJoinThroughSharedPins()
     {
         var d = DesignPresets.ObstacleAvoiderKit();
@@ -200,8 +232,8 @@ public class DesignTests
         var before = DesignGeometry.PinPosition(d, driver.Id, "IN1")!.Value;
         driver.Rotation = 90;
         var after = DesignGeometry.PinPosition(d, driver.Id, "IN1")!.Value;
-        // Unity's +90° about y maps local +z (the header side, z = 19) to +x.
-        Assert.Equal(19, after.x, 3);
+        // Unity's +90° about y maps local z to x: the header's row, z = -14.5 at the module's front, goes to x = -14.5.
+        Assert.Equal(-14.5f, after.x, 3);
         Assert.Equal(before.x, -after.z, 3);
         Assert.Equal(before.y, after.y, 3);
     }

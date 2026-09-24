@@ -6,7 +6,7 @@ namespace CoreEngine.Sim.Design
     /// <summary>What a pin carries; used for colours in the wiring view and for the wiring check.</summary>
     public enum PinKind { Signal, Power, Ground, Motor }
 
-    public enum PartKind { Board, MotorDriver, Ultrasonic, Motor, Battery, Caster }
+    public enum PartKind { Board, MotorDriver, Ultrasonic, Motor, Battery, Caster, Servo, Led }
 
     /// <summary>
     /// Where a part usually goes. Since 2026-09-24 every part is placed and turned freely by the player; the
@@ -143,30 +143,36 @@ namespace CoreEngine.Sim.Design
         public const string TtMotor = "motor-tt-1-48";
         public const string Battery4AA = "bat-4aa-holder";
         public const string Caster = "caster-ball-20";
+        public const string Servo = "servo-sg90";
+        public const string Led = "led-module-5mm";
 
         public static readonly IReadOnlyList<PartDef> All = new[]
         {
             UnoDef(),
+            // The common red module: the heatsink at the back (+z) with a motor terminal either side of it, the
+            // power terminal at the front left and the logic header at the front right, its ENA and ENB jumpers
+            // to the pins behind them.
             new PartDef(L298N, "L298N motor driver", PartKind.MotorDriver, MountKind.Deck, 43, 27, 43, 26, 2,
-                new PinDef("ENA", "ENA · enable A (jumper fitted)", PinKind.Signal, -6.35f, 11, 19, PinStyle.Pin),
-                new PinDef("IN1", "IN1 · input 1", PinKind.Signal, -3.81f, 11, 19, PinStyle.Pin),
-                new PinDef("IN2", "IN2 · input 2", PinKind.Signal, -1.27f, 11, 19, PinStyle.Pin),
-                new PinDef("IN3", "IN3 · input 3", PinKind.Signal, 1.27f, 11, 19, PinStyle.Pin),
-                new PinDef("IN4", "IN4 · input 4", PinKind.Signal, 3.81f, 11, 19, PinStyle.Pin),
-                new PinDef("ENB", "ENB · enable B (jumper fitted)", PinKind.Signal, 6.35f, 11, 19, PinStyle.Pin),
-                new PinDef("+12V", "+12V · motor supply (5–35 V)", PinKind.Power, -5, 6, -21, PinStyle.Terminal, 0, 0, -1),
-                new PinDef("GND", "GND", PinKind.Ground, 0, 6, -21, PinStyle.Terminal, 0, 0, -1),
-                new PinDef("+5V", "+5V · 78M05 output (5V-EN jumper fitted)", PinKind.Power, 5, 6, -21, PinStyle.Terminal, 0, 0, -1),
-                new PinDef("OUT1", "OUT1 · motor A", PinKind.Motor, -22, 6, 4.5f, PinStyle.Terminal, -1, 0, 0),
-                new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -22, 6, -1.5f, PinStyle.Terminal, -1, 0, 0),
-                new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 22, 6, -1.5f, PinStyle.Terminal, 1, 0, 0),
-                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 22, 6, 4.5f, PinStyle.Terminal, 1, 0, 0)),
-            // The sensor's frame is the middle of its board; it stands on its bracket, transducers toward +z.
+                new PinDef("ENA", "ENA · enable A (jumper fitted)", PinKind.Signal, 3.5f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("IN1", "IN1 · input 1", PinKind.Signal, 6.04f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("IN2", "IN2 · input 2", PinKind.Signal, 8.58f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("IN3", "IN3 · input 3", PinKind.Signal, 11.12f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("IN4", "IN4 · input 4", PinKind.Signal, 13.66f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("ENB", "ENB · enable B (jumper fitted)", PinKind.Signal, 16.2f, 11, -14.5f, PinStyle.Pin),
+                new PinDef("+12V", "+12V · motor supply (5–35 V)", PinKind.Power, -12, 6.5f, -21.5f, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("GND", "GND", PinKind.Ground, -7, 6.5f, -21.5f, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("+5V", "+5V · 78M05 output (5V-EN jumper fitted)", PinKind.Power, -2, 6.5f, -21.5f, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("OUT1", "OUT1 · motor A", PinKind.Motor, -21.5f, 6.5f, 14, PinStyle.Terminal, -1, 0, 0),
+                new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -21.5f, 6.5f, 9, PinStyle.Terminal, -1, 0, 0),
+                new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 21.5f, 6.5f, 9, PinStyle.Terminal, 1, 0, 0),
+                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 21.5f, 6.5f, 14, PinStyle.Terminal, 1, 0, 0)),
+            // The sensor's frame is the middle of its board; it stands on its bracket, transducers toward +z. Seen
+            // from the front the pins read VCC, TRIG, ECHO, GND from left to right, as printed on the real board.
             new PartDef(HcSr04, "HC-SR04 ultrasonic sensor", PartKind.Ultrasonic, MountKind.Front, 45, 26, 22, 8.5f, 1,
-                new PinDef("VCC", "VCC · 5 V", PinKind.Power, -3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
-                new PinDef("TRIG", "TRIG · trigger input", PinKind.Signal, -1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
-                new PinDef("ECHO", "ECHO · echo output", PinKind.Signal, 1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
-                new PinDef("GND", "GND", PinKind.Ground, 3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1))
+                new PinDef("VCC", "VCC · 5 V", PinKind.Power, 3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("TRIG", "TRIG · trigger input", PinKind.Signal, 1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("ECHO", "ECHO · echo output", PinKind.Signal, -1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("GND", "GND", PinKind.Ground, -3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1))
                 .Frame((0, -3, 1.9f), (0, -16, -4), (0, -1, 0)),
             // The motor's frame is the middle of its gearbox; the shaft runs along x, 8.5 mm above it, with the
             // wheel on the −x side; the can and the leads point to +z. It hangs under a plate by its top face.
@@ -181,6 +187,18 @@ namespace CoreEngine.Sim.Design
             // The caster's frame is the middle of its 20 mm ball; the holder's flange screws under a plate.
             new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 22, 35, 22, 15, 1)
                 .Frame((0, 7.5f, 0), (0, 25, 0), (0, 1, 0)),
+            // The SG90 stands on its base, its output shaft toward +x with the horn on top; its lead leaves the -x
+            // end and doubles back along its side to the 3-way socket, whose mouth faces +x: brown GND, red V+,
+            // orange signal, as on the real lead.
+            new PartDef(Servo, "SG90 micro servo", PartKind.Servo, MountKind.Deck, 30.6f, 30.4f, 20.9f, 9, 2,
+                new PinDef("GND", "GND · brown lead", PinKind.Ground, 2.2f, 1.3f, -8.46f, PinStyle.Header, 1, 0, 0),
+                new PinDef("V+", "V+ · red lead (4.8–6 V)", PinKind.Power, 2.2f, 1.3f, -11f, PinStyle.Header, 1, 0, 0),
+                new PinDef("SIG", "SIG · orange lead (servo pulses)", PinKind.Signal, 2.2f, 1.3f, -13.54f, PinStyle.Header, 1, 0, 0))
+                .Frame((0.8f, 15.2f, -4.35f), (0, 0, 0), (0, -1, 0)),
+            // A 5 mm red LED on a small board with its 220 Ω resistor: S lights it through the resistor, - is ground.
+            new PartDef(Led, "LED module 5 mm (red)", PartKind.Led, MountKind.Deck, 20, 14.3f, 14, 2, 4,
+                new PinDef("S", "S · signal (lights it when high)", PinKind.Signal, 7.46f, 11, -1.27f, PinStyle.Pin),
+                new PinDef("GND", "− · ground", PinKind.Ground, 7.46f, 11, 1.27f, PinStyle.Pin)),
         };
 
         static PartDef UnoDef()

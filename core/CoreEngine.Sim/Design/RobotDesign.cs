@@ -298,6 +298,8 @@ namespace CoreEngine.Sim.Design
                 PartKind.Ultrasonic => "sonar",
                 PartKind.Motor => "motor",
                 PartKind.Battery => "battery",
+                PartKind.Servo => "servo",
+                PartKind.Led => "led",
                 _ => "caster",
             };
             for (int n = 1; ; n++)

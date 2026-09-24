@@ -1,6 +1,7 @@
 using System.Text;
 using CoreEngine.Sim.Avr;
 using CoreEngine.Sim.Components;
+using CoreEngine.Sim.Tests.Avr;
 
 namespace CoreEngine.Sim.Tests;
 
@@ -59,6 +60,39 @@ public class L298NModelTests
     public void DisabledChannelCoasts()
     {
         Assert.True(double.IsNaN(new L298NModel().ChannelVolts(false, true, false)));
+    }
+}
+
+public class Sg90ServoTests
+{
+    /// <summary>
+    /// D9 high for 4·<paramref name="highLoops"/> cycles or so, then low for about 15 ms, over and over: a hand-made
+    /// servo signal without the Servo library.
+    /// </summary>
+    static TestMachine Pulses(int highLoops) => new TestMachine(
+        Asm.Ldi(16, 0x02), Asm.Out(0x04, 16),                                   // DDRB: PB1 (D9) is an output
+        Asm.Sbi(0x05, 1),                                                       // loop: D9 high
+        Asm.Ldi(24, highLoops & 0xFF), Asm.Ldi(25, highLoops >> 8), Asm.Sbiw(24, 1), Asm.Brne(-2),
+        Asm.Cbi(0x05, 1),                                                       // D9 low
+        Asm.Ldi(24, 60000 & 0xFF), Asm.Ldi(25, 60000 >> 8), Asm.Sbiw(24, 1), Asm.Brne(-2),
+        Asm.Rjmp(-11));
+
+    [Theory]
+    [InlineData(2000, 0.0)]      // 500 µs: below 544 µs, as far as it goes
+    [InlineData(4000, 44.2)]     // 1000 µs
+    [InlineData(6000, 92.7)]     // 1500 µs: about the middle
+    [InlineData(9500, 177.6)]    // 2375 µs
+    public void TheHornTurnsToThePulseWidth(int highLoops, double degrees)
+    {
+        var machine = Pulses(highLoops);
+        var servo = new Sg90Servo(machine.Mcu.PortB, 1, Atmega328P.ClockHz);
+        machine.Cpu.Run(machine.Cpu.Cycles + (long)(0.12 * Atmega328P.ClockHz));
+        Assert.True(servo.Pulses >= 5, $"{servo.Pulses} pulses");
+        Assert.Equal(degrees, servo.TargetDegrees, 0);
+        servo.Step(0.05, powered: false);
+        Assert.Equal(90, servo.AngleDegrees);              // no power: the horn holds
+        servo.Step(0.05, powered: true);                   // 30° in 50 ms
+        Assert.Equal(Math.Abs(degrees - 90) <= 30 ? degrees : 90 + Math.Sign(degrees - 90) * 30, servo.AngleDegrees, 1);
     }
 }
 
