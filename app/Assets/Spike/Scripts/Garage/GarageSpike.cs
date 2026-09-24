@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using CoreEngine.Sim.Compile;
 using CoreEngine.Sim.Components;
+using CoreEngine.Sim.Design;
 using CoreEngine.Spike.UI;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -18,19 +19,18 @@ namespace CoreEngine.Spike.Garage
 {
     /// <summary>
     /// Prototype of the Garage, the main screen (ADR-0009, docs/03 §3.1): the selected robot on a turntable,
-    /// the robot bar, the robot card, and every action one click away: Build, Wire, Code (with a real
-    /// arduino-cli upload), Body, Customize (free and pack finishes with "Try"), Check &amp; repair, and START
-    /// with the arena picker. Throwaway prototype, not the Phase 1 Garage.
+    /// the robot bar, the robot card, and every action one click away: Build, Wire and Body (GarageEdit.cs),
+    /// Code (with a real arduino-cli upload), Customize (free and pack finishes with "Try"), Check &amp; repair,
+    /// and START with the arena picker. Throwaway prototype, not the Phase 1 Garage.
     /// </summary>
     [RequireComponent(typeof(UIDocument))]
-    public sealed class GarageSpike : MonoBehaviour
+    public sealed partial class GarageSpike : MonoBehaviour
     {
         public Material litMaterial = null!;
         public StyleSheet? styleSheet;
         public StyleSheet? editorStyleSheet;
         public string arenaScene = "RobotSpike";
 
-        static readonly Vector3 OrbitTarget = new Vector3(0, 0.10f, 0);
         static readonly string[] ArenaKeys = { "arena.obstacles", "arena.line", "arena.maze", "arena.sumo" };
         static readonly string[] ActionKeys = { "act.build", "act.wire", "act.code", "act.body", "act.customize", "act.repair" };
 
@@ -98,6 +98,7 @@ namespace CoreEngine.Spike.Garage
             SpikeStrings.LanguageChanged -= ApplyLanguage;
             foreach (var texture in thumbnails) if (texture != null) Destroy(texture);
             foreach (var material in roomMaterials) Destroy(material);
+            if (previewMaterial != null) Destroy(previewMaterial);
             shown?.Destroy();
         }
 
@@ -198,21 +199,36 @@ namespace CoreEngine.Spike.Garage
             UpdateCamera();
         }
 
-        void ShowRobot()
+        /// <summary>Builds the robot's model on the turntable: with part colliders in Build, with pin markers in Wire.</summary>
+        void ShowRobot(BodyMeshes? body = null)
         {
             shown?.Destroy();
-            shown = RobotVisuals.Build(robotAnchor, null, null, Robot, litMaterial);
+            shown = RobotVisuals.Build(robotAnchor, null, null, Robot, litMaterial, pickable: mode == EditMode.Build, pins: mode == EditMode.Wire, prebuiltBody: body);
+            if (mode == EditMode.Build) shown.Highlight(selectedPart);
+            if (mode == EditMode.Wire)
+            {
+                shown.HighlightWire(selectedWire);
+                shown.HighlightPins(hoveredPin, wireStart);
+            }
         }
 
         void Update()
         {
-            UpdateOrbit();
-            if (!orbiting) idleSeconds += Time.deltaTime;
-            if (idleSeconds > 4f) turntable.Rotate(0, 10f * Time.deltaTime, 0);
+            if (mode == EditMode.None)
+            {
+                UpdateOrbit();
+                if (!orbiting) idleSeconds += Time.deltaTime;
+                if (idleSeconds > 4f) turntable.Rotate(0, 10f * Time.deltaTime, 0);
+            }
+            else
+            {
+                UpdateEditing();
+            }
             UpdateCamera();
             if (toast.style.display == DisplayStyle.Flex && Time.unscaledTime > toastUntil) toast.style.display = DisplayStyle.None;
             if (Input.GetKeyDown(KeyCode.Escape) && overlay.style.display == DisplayStyle.Flex) CloseOverlay();
             PollCompile();
+            UpdateEditFrame();
         }
 
         void UpdateOrbit()
@@ -245,8 +261,8 @@ namespace CoreEngine.Spike.Garage
 
         void UpdateCamera()
         {
-            view.transform.position = OrbitTarget + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, 0, -distance);
-            view.transform.LookAt(OrbitTarget);
+            view.transform.position = orbitTarget + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, 0, -distance);
+            view.transform.LookAt(orbitTarget);
         }
 
         bool IsPointerOverUi()
@@ -332,7 +348,8 @@ namespace CoreEngine.Spike.Garage
             middle.Add(right);
             root.Add(middle);
 
-            root.Add(Classed(Localized(new Label { pickingMode = PickingMode.Ignore }, "garage.hint"), "garage-hint"));
+            hint = Classed(new Label { pickingMode = PickingMode.Ignore }, "garage-hint");
+            root.Add(hint);
 
             // Robot bar.
             var bar = new VisualElement();
@@ -353,6 +370,7 @@ namespace CoreEngine.Spike.Garage
             overlay.Add(overlayPanel);
             overlay.style.display = DisplayStyle.None;
             root.Add(overlay);
+            BuildEditUi();
         }
 
         VisualElement BuildCard()
@@ -402,31 +420,41 @@ namespace CoreEngine.Spike.Garage
             var robot = Robot;
             cardName.text = robot.Name;
             cardBoard.text = robot.Electronics ? "Arduino Uno R3" : Tr("card.noBoard");
-            cardSketch.text = robot.HasSketch ? $"{robot.SketchFile}\n" + SpikeStrings.Format("card.compiled", robot.ProgramBytes) : Tr("card.noSketch");
+            cardSketch.text = !robot.HasSketch ? Tr("card.noSketch")
+                : robot.RunsFactoryBlink ? $"{robot.SketchFile}\n" + Tr("card.factoryBlink")
+                : $"{robot.SketchFile}\n" + SpikeStrings.Format("card.compiled", robot.ProgramBytes);
             cardParts.text = robot.PartCount.ToString();
             cardMass.text = $"{robot.MassKg * 1000:F0} g";
-            cardBatteryRow.style.display = robot.Electronics ? DisplayStyle.Flex : DisplayStyle.None;
+            bool hasBattery = robot.Design.Count(PartCatalog.Battery4AA) > 0;
+            cardBatteryRow.style.display = hasBattery ? DisplayStyle.Flex : DisplayStyle.None;
             double charge = robot.Battery.StateOfCharge * 100;
             cardBattery.value = (float)charge;
             cardBatteryText.text = $"{charge:F1} %";
 
             cardWarnings.Clear();
             var warnings = new List<string>();
+            var design = robot.Design;
             if (!robot.Electronics) warnings.Add(Tr("warn.noBoard"));
-            else
+            if (hasBattery)
             {
                 if (robot.Battery.IsEmpty) warnings.Add(Tr("warn.batteryEmpty"));
                 else if (charge < 20) warnings.Add(SpikeStrings.Format("warn.batteryLow", charge));
-                if (robot.LeftMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.left")));
-                if (robot.RightMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.right")));
-                if (robot.CodeNotUploaded) warnings.Add(Tr("warn.notUploaded"));
             }
+            if (design.HasSlot(PartCatalog.TtMotor, "left") && robot.LeftMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.left")));
+            if (design.HasSlot(PartCatalog.TtMotor, "right") && robot.RightMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.right")));
+            if (robot.Electronics && robot.BoardBurnt) warnings.Add(Tr("warn.boardBurnt"));
+            if (design.Count(PartCatalog.HcSr04) > 0 && robot.SonarBurnt) warnings.Add(Tr("warn.sonarBurnt"));
+            if (design.Parts.Count > 0)
+            {
+                int problems = CircuitAnalysis.Analyse(design).Warnings.FindAll(w => !w.Info).Count;
+                if (problems > 0 && robot.Electronics) warnings.Add(SpikeStrings.Format("warn.wiring", problems));
+            }
+            if (robot.Electronics && robot.CodeNotUploaded) warnings.Add(Tr("warn.notUploaded"));
             if (robot.IsTrying) warnings.Add(Tr("warn.trying"));
             foreach (string warning in warnings) cardWarnings.Add(Classed(new Label(warning), warning.StartsWith("★") ? "try-line" : "warn-line"));
             if (warnings.Count == 0 || (warnings.Count == 1 && robot.IsTrying)) cardWarnings.Add(Classed(new Label(Tr("card.ready")), "ok-line"));
 
-            // Prototype: only robots with the obstacle-avoider electronics can run. Warnings never block START.
-            startButton.SetEnabled(robot.Electronics);
+            // Warnings never block START (ADR-0009): a robot without a board simply stands in the arena.
         }
 
         void RefreshBar()
@@ -444,7 +472,8 @@ namespace CoreEngine.Spike.Garage
                 if (texture != null) thumb.style.backgroundImage = Background.FromTexture2D(texture);
                 card.Add(thumb);
                 card.Add(Classed(new Label(robot.Name), "bar-name"));
-                card.Add(Classed(new Label(robot.Electronics ? "Arduino Uno R3" : Tr("bar.empty")), "bar-sub"));
+                string sub = robot.Electronics ? "Arduino Uno R3" : robot.Design.Parts.Count == 0 ? Tr("bar.empty") : SpikeStrings.Format("bar.parts", robot.Design.Parts.Count);
+                card.Add(Classed(new Label(sub), "bar-sub"));
                 barContent.Add(card);
             }
             var add = new Button(NewRobot) { focusable = false };
@@ -456,6 +485,8 @@ namespace CoreEngine.Spike.Garage
 
         void Select(int index)
         {
+            if (mode != EditMode.None && index != GarageState.Selected) StartCoroutine(RenderThumbnail(GarageState.Selected));
+            ResetEditState();
             GarageState.Selected = index;
             GarageState.Save();
             ShowRobot();
@@ -466,6 +497,8 @@ namespace CoreEngine.Spike.Garage
 
         void NewRobot()
         {
+            if (mode != EditMode.None) StartCoroutine(RenderThumbnail(GarageState.Selected));
+            ResetEditState();
             GarageState.NewRobot();
             ShowRobot();
             RefreshBar();
@@ -485,11 +518,7 @@ namespace CoreEngine.Spike.Garage
 
         void StartRun()
         {
-            if (!Robot.Electronics)
-            {
-                ShowToast(Tr("start.needParts"));
-                return;
-            }
+            LeaveMode(show: false);
             GarageState.Arena = 0;
             GarageState.Save();
             SpikeReport.Transition = Stopwatch.StartNew();
@@ -502,12 +531,21 @@ namespace CoreEngine.Spike.Garage
         {
             switch (key)
             {
-                case "act.code": OpenCode(); break;
-                case "act.customize": OpenSide(key, RenderCustomize); break;
-                case "act.repair": OpenSide(key, RenderRepair); break;
-                case "act.build": OpenSide(key, () => Info("act.buildInfo")); break;
-                case "act.wire": OpenSide(key, () => Info("act.wireInfo")); break;
-                case "act.body": OpenSide(key, () => Info("act.bodyInfo")); break;
+                case "act.build": EnterMode(EditMode.Build, key, RenderBuild); break;
+                case "act.wire": EnterMode(EditMode.Wire, key, RenderWire); break;
+                case "act.body": EnterMode(EditMode.Body, key, RenderBody); break;
+                case "act.code":
+                    LeaveMode();
+                    OpenCode();
+                    break;
+                case "act.customize":
+                    LeaveMode();
+                    OpenSide(key, RenderCustomize);
+                    break;
+                case "act.repair":
+                    LeaveMode();
+                    OpenSide(key, RenderRepair);
+                    break;
             }
         }
 
@@ -527,6 +565,7 @@ namespace CoreEngine.Spike.Garage
 
         void CloseSide()
         {
+            LeaveMode();
             actions.style.display = DisplayStyle.Flex;
             sidePanel.style.display = DisplayStyle.None;
             renderSide = null;
@@ -604,25 +643,69 @@ namespace CoreEngine.Spike.Garage
         void RenderRepair()
         {
             var robot = Robot;
+            var design = robot.Design;
             Section("rep.readiness");
-            if (!robot.Electronics)
+            if (design.Parts.Count == 0)
             {
                 Info("warn.noBoard");
                 Info("rep.noParts");
                 return;
             }
-            string power = SpikeStrings.Format("rep.power", robot.Battery.TerminalVolts(0.25));
-            sideContent.Add(Classed(new Label((robot.Battery.IsEmpty ? "⚠ " : "✓ ") + power), robot.Battery.IsEmpty ? "warn-line" : "ok-line"));
-            sideContent.Add(Classed(new Label("✓ " + SpikeStrings.Format("rep.sketch", robot.ProgramBytes)), "ok-line"));
+            bool hasBattery = design.Count(PartCatalog.Battery4AA) > 0;
+            if (hasBattery)
+            {
+                string power = SpikeStrings.Format("rep.power", robot.Battery.TerminalVolts(0.25));
+                sideContent.Add(Classed(new Label((robot.Battery.IsEmpty ? "⚠ " : "✓ ") + power), robot.Battery.IsEmpty ? "warn-line" : "ok-line"));
+            }
+            else
+            {
+                sideContent.Add(Classed(new Label("⚠ " + Tr("rep.noBattery")), "warn-line"));
+            }
+            if (!robot.Electronics) sideContent.Add(Classed(new Label(Tr("warn.noBoard")), "warn-line"));
+            else if (robot.RunsFactoryBlink) sideContent.Add(Classed(new Label("• " + Tr("rep.factoryBlink")), "info-line"));
+            else sideContent.Add(Classed(new Label("✓ " + SpikeStrings.Format("rep.sketch", robot.ProgramBytes)), "ok-line"));
+            int problems = CircuitAnalysis.Analyse(design).Warnings.FindAll(w => !w.Info).Count;
+            sideContent.Add(problems == 0
+                ? Classed(new Label("✓ " + Tr("rep.wiringOk")), "ok-line")
+                : Classed(new Label("⚠ " + SpikeStrings.Format("rep.wiringBad", problems)), "warn-line"));
 
             Section("rep.parts");
-            MotorRow(robot.LeftMotor, "side.left");
-            MotorRow(robot.RightMotor, "side.right");
-            PartRow(SpikeStrings.Format("rep.battery", robot.Battery.StateOfCharge * 100), robot.Battery.IsEmpty ? Tr("rep.burnt") : Tr("rep.ok"), !robot.Battery.IsEmpty);
-            if (robot.Battery.StateOfCharge < 0.999)
-                sideContent.Add(SmallButton("rep.replaceBatteries", () => { robot.Battery.Replace(); AfterRobotChanged(false); }));
-            foreach (string name in robot.PartNames)
-                if (!name.StartsWith("TT motor") && !name.StartsWith("Battery")) PartRow(name, Tr("rep.ok"), true);
+            foreach (var part in design.Parts)
+            {
+                var def = PartCatalog.Get(part.Part);
+                if (def == null) continue;
+                switch (def.Kind)
+                {
+                    case PartKind.Motor:
+                        MotorRow(part.Slot == "right" ? robot.RightMotor : robot.LeftMotor, part.Slot == "right" ? "side.right" : "side.left");
+                        break;
+                    case PartKind.Battery:
+                        PartRow(SpikeStrings.Format("rep.battery", robot.Battery.StateOfCharge * 100), robot.Battery.IsEmpty ? Tr("rep.burnt") : Tr("rep.ok"), !robot.Battery.IsEmpty);
+                        if (robot.Battery.StateOfCharge < 0.999)
+                            sideContent.Add(SmallButton("rep.replaceBatteries", () => { robot.Battery.Replace(); AfterRobotChanged(false); }));
+                        break;
+                    case PartKind.Board:
+                        BurnablePartRow(def.Name, robot.BoardBurnt, () => robot.BoardBurnt = false, "rep.whyF7");
+                        break;
+                    case PartKind.Ultrasonic:
+                        BurnablePartRow(def.Name, robot.SonarBurnt, () => robot.SonarBurnt = false, "rep.whyF26");
+                        break;
+                    default:
+                        PartRow(def.Name, Tr("rep.ok"), true);
+                        break;
+                }
+            }
+        }
+
+        /// <summary>A part that a wiring fault can destroy (F7, F26): its state, and Replace with Why when it burnt out.</summary>
+        void BurnablePartRow(string name, bool burnt, Action replace, string whyKey)
+        {
+            PartRow(name, burnt ? Tr("rep.burnt") : Tr("rep.ok"), !burnt);
+            if (!burnt) return;
+            var buttons = Layout("repair-buttons");
+            buttons.Add(SmallButton("rep.replace", () => { replace(); AfterRobotChanged(false); }));
+            buttons.Add(SmallButton("rep.why", () => ShowPage("rep.why", whyKey)));
+            sideContent.Add(buttons);
         }
 
         void MotorRow(MotorWinding motor, string sideKey)
@@ -717,11 +800,12 @@ namespace CoreEngine.Spike.Garage
         void OpenCode()
         {
             var robot = Robot;
-            if (!robot.HasSketch)
+            if (!robot.Electronics)
             {
-                ShowToast(Tr("card.noSketch"));
+                ShowToast(Tr("chk.noBoard"));
                 return;
             }
+            robot.EnsureSketch();
             openedText = robot.SketchText.Length > 0 ? robot.SketchText : ReadSketchFile(robot);
             ShowOverlay(false, () =>
             {
@@ -857,6 +941,7 @@ namespace CoreEngine.Spike.Garage
             arenaField.choices = choices;
             arenaField.SetValueWithoutNotify(choices[0]);
             if (sideTitleKey.Length > 0) sideTitle.text = Tr(sideTitleKey);
+            UpdateHint();
             renderSide?.Invoke();
             if (editor == null) renderOverlay?.Invoke();
             RefreshCard();
@@ -1000,6 +1085,9 @@ namespace CoreEngine.Spike.Garage
             Select(0);
             yield return Frames(3);
             report.AppendLine("  screenshots: -garage-en, -garage-customize, -garage-repair, -garage-code, -garage-uz, -garage-ru, -garage-holed");
+
+            // Build, Wire and Body: a new robot made from nothing; START takes that robot to the arena.
+            yield return BuildFromScratch();
 
             SpikeReport.Stage = 1;
             StartRun();

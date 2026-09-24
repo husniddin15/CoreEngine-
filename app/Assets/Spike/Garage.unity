@@ -119,7 +119,7 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &251854264
+--- !u!1 &650478258
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -127,9 +127,9 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 251854267}
-  - component: {fileID: 251854266}
-  - component: {fileID: 251854265}
+  - component: {fileID: 650478261}
+  - component: {fileID: 650478260}
+  - component: {fileID: 650478259}
   m_Layer: 0
   m_Name: Garage
   m_TagString: Untagged
@@ -137,13 +137,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &251854265
+--- !u!114 &650478259
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 251854264}
+  m_GameObject: {fileID: 650478258}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 44c1164d348b44443964ce8e1c6dbb8c, type: 3}
@@ -153,13 +153,13 @@ MonoBehaviour:
   styleSheet: {fileID: 7433441132597879392, guid: ad50e73cea9cf8a41bf9634476c782b6, type: 3}
   editorStyleSheet: {fileID: 7433441132597879392, guid: 7ed933822454a814ba85e378bdb6541f, type: 3}
   arenaScene: RobotSpike
---- !u!114 &251854266
+--- !u!114 &650478260
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 251854264}
+  m_GameObject: {fileID: 650478258}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
@@ -176,13 +176,13 @@ MonoBehaviour:
   m_PivotReferenceSize: 0
   m_Pivot: 0
   m_WorldSpaceCollider: {fileID: 0}
---- !u!4 &251854267
+--- !u!4 &650478261
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 251854264}
+  m_GameObject: {fileID: 650478258}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -195,4 +195,4 @@ Transform:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 251854267}
+  - {fileID: 650478261}

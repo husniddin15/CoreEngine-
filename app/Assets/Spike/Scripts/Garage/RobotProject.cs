@@ -2,23 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using CoreEngine.Sim.Components;
+using CoreEngine.Sim.Design;
 using UnityEngine;
 
 namespace CoreEngine.Spike.Garage
 {
-    public enum BodyKind { TwoLayerPlate, HoledPlate, EmptyPlate }
-
     /// <summary>
     /// One robot in the Garage (ADR-0009, docs/04 §6 Project): body, finishes, sketch and firmware, and the
     /// state that travels to the arena and back (battery charge, motor winding temperatures and damage).
-    /// Prototype model: a robot either carries the obstacle-avoider electronics or is an empty plate.
+    /// What the robot is made of is its <see cref="RobotDesign"/> (body, parts, wires), edited in the
+    /// Garage's Build, Wire and Body modes and turned into the arena robot and its circuit.
     /// </summary>
     [Serializable]
     public sealed class RobotProject
     {
         public string Name = "Robot";
-        public BodyKind Body = BodyKind.TwoLayerPlate;
-        public bool Electronics = true;
+        public RobotDesign Design = DesignPresets.ObstacleAvoiderKit();
         public string SketchFile = "ObstacleAvoider.ino";
         public string SketchText = "";    // the player's edited sketch; empty means the file in StreamingAssets
         public string UploadedText = "";  // the source of the loaded firmware; empty means the file
@@ -32,6 +31,7 @@ namespace CoreEngine.Spike.Garage
         public double LeftMotorC = MotorWinding.AmbientC, LeftMotorPeakC = MotorWinding.AmbientC;
         public double RightMotorC = MotorWinding.AmbientC, RightMotorPeakC = MotorWinding.AmbientC;
         public bool LeftMotorBurnt, RightMotorBurnt;
+        public bool BoardBurnt, SonarBurnt;  // killed by overvoltage in the arena (F7, F26); replaced in Check & repair
 
         [NonSerialized] BatteryPack? battery;
         [NonSerialized] MotorWinding? leftMotor, rightMotor;
@@ -62,22 +62,55 @@ namespace CoreEngine.Spike.Garage
         public string ActiveBodyFinish => TriedBodyFinish.Length > 0 ? TriedBodyFinish : BodyFinish;
         public string ActiveWheelFinish => TriedWheelFinish.Length > 0 ? TriedWheelFinish : WheelFinish;
         public bool IsTrying => TriedBodyFinish.Length > 0 || TriedWheelFinish.Length > 0;
+        /// <summary>True when the robot has a board to run code on.</summary>
+        public bool Electronics => Design.Count(PartCatalog.Uno) > 0;
         public bool HasSketch => Electronics && SketchFile.Length > 0;
-        public bool CodeNotUploaded => SketchText.Length > 0 && SketchText != UploadedText;
+        public bool CodeNotUploaded => SketchText.Length > 0 && SketchText != UploadedText && !RunsFactoryBlink;
 
+        public const string GoldenSketch = "ObstacleAvoider.ino";
+
+        /// <summary>The uploaded hex; else the golden one for the kit's sketch; else Blink, which a new Uno runs from the factory.</summary>
         public string FirmwareFullPath => FirmwarePath.Length > 0 && File.Exists(FirmwarePath)
             ? FirmwarePath
-            : Path.Combine(Application.streamingAssetsPath, "Firmware", "ObstacleAvoider.hex");
+            : Path.Combine(Application.streamingAssetsPath, "Firmware", SketchFile == GoldenSketch ? "ObstacleAvoider.hex" : "Blink.hex");
+
+        /// <summary>True when the board still runs its factory Blink: nothing was uploaded to it yet.</summary>
+        public bool RunsFactoryBlink => !(FirmwarePath.Length > 0 && File.Exists(FirmwarePath)) && SketchFile != GoldenSketch;
+
+        /// <summary>Gives a robot with a board its first, empty sketch (the Arduino IDE's new-sketch text).</summary>
+        public void EnsureSketch()
+        {
+            if (!Electronics || SketchFile.Length > 0) return;
+            SketchFile = "Sketch.ino";
+            SketchText = "void setup() {\n  // put your setup code here, to run once:\n\n}\n\nvoid loop() {\n  // put your main code here, to run repeatedly:\n\n}\n";
+            UploadedText = "";
+            ProgramBytes = 0;
+        }
 
         /// <summary>Real product names; they are not translated (docs/10 §5).</summary>
-        public IReadOnlyList<string> PartNames => Electronics
-            ? new[] { "Arduino Uno R3", "L298N", "HC-SR04", "TT motor 1:48 ×2", "Wheel 65 mm ×2", "Caster ball", "Battery holder 4×AA", "Chassis plates ×2", "Jumper wires ×6" }
-            : new[] { "Chassis plate" };
+        public IReadOnlyList<string> PartNames
+        {
+            get
+            {
+                var names = new List<string>();
+                foreach (var part in Design.Parts) names.Add(PartCatalog.Get(part.Part)?.Name ?? part.Part);
+                return names;
+            }
+        }
 
-        public int PartCount => Electronics ? 12 : 1;
+        /// <summary>Parts, wheels (one per motor) and the plates.</summary>
+        public int PartCount => Design.Parts.Count + Design.Count(PartCatalog.TtMotor) + Math.Max(1, Design.Body.Decks);
 
-        /// <summary>The physics mass of the spike robot, or one 120 × 160 × 3 mm acrylic plate (1.19 g/cm³).</summary>
-        public double MassKg => Electronics ? 0.96 : 0.069;
+        public double MassKg => Design.MassKg();
+
+        /// <summary>Fills in what older saves lack.</summary>
+        public void Upgrade()
+        {
+            Design ??= DesignPresets.ObstacleAvoiderKit();
+            Design.Body ??= new BodyDesign();
+            Design.Parts ??= new List<PartInstance>();
+            Design.Wires ??= new List<WireInstance>();
+        }
 
         /// <summary>Copies the live battery and motor state into the serialised fields.</summary>
         public void Sync()
@@ -128,10 +161,12 @@ namespace CoreEngine.Spike.Garage
                     Debug.LogWarning("GarageState: could not read " + SavePath + ": " + e.Message);
                 }
             }
+            foreach (var robot in Robots) robot.Upgrade();
             if (Robots.Count == 0)
             {
                 Robots.Add(new RobotProject { Name = "Obstacle avoider" });
-                Robots.Add(new RobotProject { Name = "Holed chassis", Body = BodyKind.HoledPlate, BodyFinish = "orange-pla", WheelFinish = "black-hubs" });
+                var holed = new BodyDesign { HoleGrid = true, WallHeightMm = 22 };
+                Robots.Add(new RobotProject { Name = "Holed chassis", Design = DesignPresets.ObstacleAvoiderKit(holed), BodyFinish = "orange-pla", WheelFinish = "black-hubs" });
             }
         }
 
@@ -140,8 +175,7 @@ namespace CoreEngine.Spike.Garage
             var robot = new RobotProject
             {
                 Name = "Robot " + (Robots.Count + 1),
-                Body = BodyKind.EmptyPlate,
-                Electronics = false,
+                Design = DesignPresets.EmptyChassis(),
                 SketchFile = "",
                 ProgramBytes = 0,
                 BodyFinish = "white-pla",

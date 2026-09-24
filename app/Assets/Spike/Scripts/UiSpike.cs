@@ -367,9 +367,15 @@ namespace CoreEngine.Spike
 
         void LoadSketch()
         {
-            string path = Path.Combine(Application.streamingAssetsPath, "Sketches", sketchFile);
-            string source = File.Exists(path) ? File.ReadAllText(path) : "// " + sketchFile + " not found\n";
-            if (!SpikeReport.Active && robot != null && robot.Project.SketchText.Length > 0) source = robot.Project.SketchText;
+            // The robot's own sketch: its edited text, else its file in StreamingAssets (the golden sketch).
+            // OnEnable runs before RobotSpike.Start, so the project comes from the Garage state directly.
+            SpikeReport.Init();
+            GarageState.Load(SpikeReport.Active);
+            var project = GarageState.Current;
+            string file = project.SketchFile.Length > 0 ? project.SketchFile : sketchFile;
+            string path = Path.Combine(Application.streamingAssetsPath, "Sketches", file);
+            string source = File.Exists(path) ? File.ReadAllText(path) : "// " + file + ": no sketch uploaded yet; the board runs Blink\n";
+            if (!SpikeReport.Active && project.SketchText.Length > 0) source = project.SketchText;
             editor.SetText(SpikeReport.Active ? LongSketch(source, 520) : source);
         }
 
@@ -434,7 +440,7 @@ namespace CoreEngine.Spike
 
         void RefreshValues()
         {
-            if (robot == null || robot.Mcu == null || values.Count == 0) return;
+            if (robot == null || robot.Circuit == null || values.Count == 0) return;
             string cm = SpikeStrings.Get("unit.cm"), v = SpikeStrings.Get("unit.V"), a = SpikeStrings.Get("unit.A");
             values["insp.distance"].text = double.IsNaN(robot.DistanceCm) ? SpikeStrings.Get("insp.noEcho") : $"{robot.DistanceCm:F1} {cm}";
             values["insp.measurements"].text = robot.SonarMeasurements.ToString();
@@ -442,7 +448,9 @@ namespace CoreEngine.Spike
             values["insp.leftMotor"].text = $"{Volts(robot.LeftVolts, v)}  {robot.LeftAmps:F2} {a}";
             values["insp.rightMotor"].text = $"{Volts(robot.RightVolts, v)}  {robot.RightAmps:F2} {a}";
             values["insp.wheelSpeed"].text = $"{robot.LeftWheelSpeed:F1} / {robot.RightWheelSpeed:F1} {SpikeStrings.Get("unit.rads")}";
-            values["insp.emulatedTime"].text = $"{robot.Mcu.Seconds:F1} {SpikeStrings.Get("unit.s")}";
+            values["insp.emulatedTime"].text = robot.Mcu == null || !robot.BoardRunning
+                ? SpikeStrings.Get(robot.BoardStatusKey)
+                : $"{robot.Mcu.Seconds:F1} {SpikeStrings.Get("unit.s")}";
             values["insp.emulatorLoad"].text = SpikeStrings.Format("insp.perStep", robot.EmulatorMsPerFixedStep);
             values["serial.baud"].text = SpikeStrings.Format("serial.baud", 115200);
         }
@@ -451,7 +459,7 @@ namespace CoreEngine.Spike
 
         void CheckStalls()
         {
-            if (robot == null || robot.Mcu == null) return;
+            if (robot == null || robot.Circuit == null) return;
             leftStalled = Stall(leftStalled, robot.LeftAmps, robot.LeftWheelSpeed, "event.left");
             rightStalled = Stall(rightStalled, robot.RightAmps, robot.RightWheelSpeed, "event.right");
             leftBurnt = Burnt(leftBurnt, robot.Project.LeftMotor, "event.left");
@@ -463,7 +471,7 @@ namespace CoreEngine.Spike
             bool stalled = Math.Abs(amps) > 0.9 && Math.Abs(speed) < 0.5;
             if (stalled && !wasStalled)
             {
-                events.Add($"{robot!.Mcu.Seconds,7:F2} s  " + SpikeStrings.Format("event.stall", SpikeStrings.Get(sideKey), Math.Abs(amps)));
+                events.Add($"{robot!.ArenaSeconds,7:F2} s  " + SpikeStrings.Format("event.stall", SpikeStrings.Get(sideKey), Math.Abs(amps)));
                 eventView.RefreshItems();
                 eventView.ScrollToItem(events.Count - 1);
             }
@@ -474,7 +482,7 @@ namespace CoreEngine.Spike
         {
             if (winding.Burnt && !wasBurnt)
             {
-                events.Add($"{robot!.Mcu.Seconds,7:F2} s  " + SpikeStrings.Format("event.burnt", SpikeStrings.Get(sideKey), winding.TemperatureC));
+                events.Add($"{robot!.ArenaSeconds,7:F2} s  " + SpikeStrings.Format("event.burnt", SpikeStrings.Get(sideKey), winding.TemperatureC));
                 eventView.RefreshItems();
                 eventView.ScrollToItem(events.Count - 1);
             }

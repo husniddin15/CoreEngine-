@@ -42,9 +42,13 @@ namespace CoreEngine.Spike
             if (ui != null) ui.Visible = false;
             var spike = GetComponent<RobotSpike>();
             report.AppendLine($"robot: {spike.Project.Name}, firmware {spike.FirmwareName}, battery {spike.Project.Battery.StateOfCharge * 100:F1} % at the start");
+            var design = spike.Project.Design;
+            report.AppendLine($"  built from its design: {design.Body.Shape} {design.Body.WidthMm:F0} × {design.Body.EffectiveLength:F0} mm, {design.Parts.Count} parts, " +
+                              $"{design.Wires.Count} wires, {spike.Project.MassKg * 1000:F0} g; wiring: " +
+                              (spike.Circuit.Warnings.Count == 0 ? "no findings" : string.Join(", ", spike.Circuit.Warnings)));
             yield return new WaitForSecondsRealtime(3f);
             var startPosition = spike.RobotPosition;
-            double startEmulated = spike.Mcu.Seconds;
+            double startEmulated = spike.Mcu?.Seconds ?? 0;
             int startFrame = Time.frameCount;
             float startTime = Time.realtimeSinceStartup;
             double worstFrameMs = 0;
@@ -81,7 +85,7 @@ namespace CoreEngine.Spike
             report.AppendLine($"robot scene: {fps:F1} fps average, worst frame {worstFrameMs:F1} ms, {slowFrames} frames over 20 ms " +
                               "(the frame after the screenshot is not counted)");
             report.AppendLine($"emulator in scene: {spike.EmulatorMsPerFixedStep:F2} ms per 10 ms physics step");
-            report.AppendLine($"emulated time in 10 s: {spike.Mcu.Seconds - startEmulated:F2} s");
+            report.AppendLine($"emulated time in 10 s: {(spike.Mcu?.Seconds ?? 0) - startEmulated:F2} s (board {UI.SpikeStrings.Get(spike.BoardStatusKey)})");
             report.AppendLine($"robot moved: {Vector3.Distance(startPosition, spike.RobotPosition):F2} m straight-line from its start");
 
             report.AppendLine("telemetry every 0.5 s:");
