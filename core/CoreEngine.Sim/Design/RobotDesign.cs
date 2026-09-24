@@ -5,16 +5,26 @@ namespace CoreEngine.Sim.Design
 {
     public enum BodyShape { Rectangle, Rounded, Round }
 
-    public enum BodyMaterial { Acrylic, Pla, Plywood }
+    /// <summary>
+    /// What a body shape is made of (docs/08 §2): its look and its density. The first three keep the numbers
+    /// older saves use (Acrylic 0, PLA 1, Plywood 2).
+    /// </summary>
+    public enum BodyMaterial { Acrylic, Pla, Plywood, Cardboard, EvaFoam, FoamBoard, Aluminium }
 
     /// <summary>
-    /// The chassis made in the Body Studio (docs/08), first version: a plate outline with optional M3 hole
-    /// grid and side walls, one or two decks. Millimetres. The mesh is derived (Manifold, ADR-0005).
+    /// The robot's body: shapes the player builds it from in the Body Studio (docs/08), each of its own
+    /// material, in millimetres in the chassis frame (y up from the floor the robot stands on, +z forward).
+    /// Shapes can be grouped as in Tinkercad: a hole cuts only the shapes of its own group.
     /// Fields are public so Unity's JsonUtility can save them.
     /// </summary>
     [Serializable]
     public sealed class BodyDesign
     {
+        /// <summary>Every shape and group record, in the order they were made.</summary>
+        public List<BodyFeature> Features = new List<BodyFeature>();
+
+        // A version-2 body (before 2026-09-24) was two ready-made plates with these settings. They are read
+        // only to turn such a body into shapes (DesignMigration); a new body has no plates.
         public BodyShape Shape = BodyShape.Rectangle;
         public float LengthMm = 160;
         public float WidthMm = 120;
@@ -27,17 +37,18 @@ namespace CoreEngine.Sim.Design
         public float WallHeightMm;
         public BodyMaterial Material = BodyMaterial.Acrylic;
 
-        /// <summary>Shapes added in the Body Studio: solids joined to the plates and holes cut through everything.</summary>
-        public List<BodyFeature> Features = new List<BodyFeature>();
-
-        /// <summary>Round bodies use the width as their diameter.</summary>
+        /// <summary>A version-2 body's length: round bodies use the width as their diameter.</summary>
         public float EffectiveLength => Shape == BodyShape.Round ? WidthMm : LengthMm;
 
         public static float DensityGPerCm3(BodyMaterial material) => material switch
         {
             BodyMaterial.Pla => 1.24f,
             BodyMaterial.Plywood => 0.68f,
-            _ => 1.18f,
+            BodyMaterial.Cardboard => 0.15f,  // corrugated board
+            BodyMaterial.EvaFoam => 0.10f,    // craft foam sheet ("fomiks")
+            BodyMaterial.FoamBoard => 0.50f,  // PVC foam board
+            BodyMaterial.Aluminium => 2.70f,
+            _ => 1.18f,                       // acrylic
         };
 
         public BodyDesign Clone()
@@ -54,7 +65,7 @@ namespace CoreEngine.Sim.Design
             return null;
         }
 
-        /// <summary>Adds a feature with a new id ("f1", "f2", …) and returns it.</summary>
+        /// <summary>Adds a shape or group with a new id ("f1", "f2", …) and returns it.</summary>
         public BodyFeature AddFeature(BodyFeature feature)
         {
             for (int n = 1; ; n++)
@@ -66,18 +77,95 @@ namespace CoreEngine.Sim.Design
             Features.Add(feature);
             return feature;
         }
+
+        /// <summary>The group a shape or group is in, or null at the top level (a missing group counts as none).</summary>
+        public BodyFeature? Parent(BodyFeature feature) =>
+            feature.Group.Length == 0 ? null : Feature(feature.Group) is { Kind: FeatureKind.Group } group ? group : null;
+
+        /// <summary>The shapes and groups directly in a group; with null, the top level.</summary>
+        public List<BodyFeature> Members(BodyFeature? group)
+        {
+            var members = new List<BodyFeature>();
+            foreach (var feature in Features)
+                if (Parent(feature) == group) members.Add(feature);
+            return members;
+        }
+
+        /// <summary>Every shape (not group record) inside a group, however deep.</summary>
+        public List<BodyFeature> Shapes(BodyFeature group)
+        {
+            var shapes = new List<BodyFeature>();
+            foreach (var member in Members(group))
+            {
+                if (member.Kind == FeatureKind.Group) shapes.AddRange(Shapes(member));
+                else shapes.Add(member);
+            }
+            return shapes;
+        }
+
+        /// <summary>The top-level shape or group that contains a feature (the feature itself at the top level).</summary>
+        public BodyFeature TopLevel(BodyFeature feature)
+        {
+            var top = feature;
+            for (var parent = Parent(top); parent != null; parent = Parent(top)) top = parent;
+            return top;
+        }
+
+        /// <summary>
+        /// Groups top-level shapes and groups (Tinkercad's Group): a new group record takes them in. Holes among them
+        /// then cut the solids among them. Returns null for fewer than two.
+        /// </summary>
+        public BodyFeature? Group(IEnumerable<string> ids)
+        {
+            var chosen = new List<BodyFeature>();
+            foreach (string id in ids)
+            {
+                var feature = Feature(id);
+                if (feature != null && !chosen.Contains(TopLevel(feature))) chosen.Add(TopLevel(feature));
+            }
+            if (chosen.Count < 2) return null;
+            var group = AddFeature(new BodyFeature { Kind = FeatureKind.Group });
+            foreach (var member in chosen) member.Group = group.Id;
+            return group;
+        }
+
+        /// <summary>Takes a group apart (Tinkercad's Ungroup): its members go back to where the group was.</summary>
+        public void Ungroup(string id)
+        {
+            var group = Feature(id);
+            if (group == null || group.Kind != FeatureKind.Group) return;
+            foreach (var member in Members(group)) member.Group = group.Group;
+            Features.Remove(group);
+        }
+
+        /// <summary>Removes a shape, or a group with everything in it.</summary>
+        public void Remove(string id)
+        {
+            var feature = Feature(id);
+            if (feature == null) return;
+            if (feature.Kind == FeatureKind.Group)
+                foreach (var member in Members(feature)) Remove(member.Id);
+            Features.Remove(feature);
+        }
     }
 
-    /// <summary>One part on the robot: a catalogue id, and its place (a slot for fixed mounts, x/z/rotation on the deck).</summary>
+    /// <summary>
+    /// One part on the robot: a catalogue id and where the player put it. Parts keep their real size; they are
+    /// moved and turned freely (since 2026-09-24).
+    /// </summary>
     [Serializable]
     public sealed class PartInstance
     {
         public string Id = "";
         public string Part = "";
-        public string Slot = "";   // "left"/"right" for motors
-        public float X;            // mm on the deck, chassis centre at 0, +x right, +z forward
-        public float Z;
-        public int Rotation;       // degrees about +y, as Unity's Quaternion.Euler(0, rotation, 0)
+        public string Slot = "";   // version 2: the "left" or "right" motor mount; now the side follows the wheel's place
+        public float X, Y, Z;      // mm, chassis frame: where the part's own frame origin is
+        public float Rotation;     // degrees about y (the name older saves use); with RotX and RotZ as Unity's Quaternion.Euler
+        public float RotX, RotZ;
+
+        public Rot3 Turn => Rot3.Euler(RotX, Rotation, RotZ);
+
+        public PartInstance Clone() => (PartInstance)MemberwiseClone();
     }
 
     /// <summary>A jumper wire (or lead) from one pin to another (docs/03 §6).</summary>
@@ -115,20 +203,18 @@ namespace CoreEngine.Sim.Design
             return n;
         }
 
-        /// <summary>Adds a part at its default place. Returns null when the catalogue allows no more of it.</summary>
+        /// <summary>
+        /// Adds a part standing on the ground beside the others (the Garage then puts it where the mouse is).
+        /// Returns null when the catalogue allows no more of it.
+        /// </summary>
         public PartInstance? AddPart(string partId)
         {
             var def = PartCatalog.Get(partId);
             if (def == null || Count(partId) >= def.MaxCount) return null;
-            var instance = new PartInstance { Id = NewId(def), Part = partId };
-            if (def.Mount == MountKind.Motor) instance.Slot = HasSlot(partId, "left") ? "right" : "left";
-            if (def.Mount == MountKind.Deck)
-            {
-                // First free spot on a 20 mm grid from the rear, so a new part never lands on another.
-                var spot = FreeDeckSpot(def);
-                instance.X = spot.x;
-                instance.Z = spot.z;
-            }
+            var instance = new PartInstance { Id = NewId(def), Part = partId, Y = DesignGeometry.RestHeight(def) };
+            var spot = DesignGeometry.FreeSpot(this, instance);
+            instance.X = spot.x;
+            instance.Z = spot.z;
             Parts.Add(instance);
             return instance;
         }
@@ -173,9 +259,11 @@ namespace CoreEngine.Sim.Design
             return pin != null && WiresOn(partId, pinId) < pin.Capacity;
         }
 
+        /// <summary>True when a motor's wheel is on that side ("left" or "right") of the robot.</summary>
         public bool HasSlot(string partId, string slot)
         {
-            foreach (var part in Parts) if (part.Part == partId && part.Slot == slot) return true;
+            foreach (var part in Parts)
+                if (part.Part == partId && DesignGeometry.SideOf(part) == slot) return true;
             return false;
         }
 
@@ -196,7 +284,7 @@ namespace CoreEngine.Sim.Design
         public RobotDesign Clone()
         {
             var copy = new RobotDesign { Body = Body.Clone() };
-            foreach (var p in Parts) copy.Parts.Add(new PartInstance { Id = p.Id, Part = p.Part, Slot = p.Slot, X = p.X, Z = p.Z, Rotation = p.Rotation });
+            foreach (var p in Parts) copy.Parts.Add(p.Clone());
             foreach (var w in Wires) copy.Wires.Add(new WireInstance { FromPart = w.FromPart, FromPin = w.FromPin, ToPart = w.ToPart, ToPin = w.ToPin, Color = w.Color });
             return copy;
         }
@@ -215,100 +303,42 @@ namespace CoreEngine.Sim.Design
             for (int n = 1; ; n++)
                 if (Find(stem + n) == null) return stem + n;
         }
-
-        (float x, float z) FreeDeckSpot(PartDef def)
-        {
-            float halfL = Body.EffectiveLength / 2, halfW = Body.WidthMm / 2;
-            for (float z = -halfL + def.SizeZ / 2 + 5; z <= halfL - def.SizeZ / 2; z += 20)
-                for (float x = -halfW + def.SizeX / 2 + 5; x <= halfW - def.SizeX / 2; x += 20)
-                    if (!DesignGeometry.OverlapsDeckPart(this, def, x, z, 0, null)) return (x, z);
-            return (0, 0);
-        }
     }
 
     /// <summary>
-    /// Where things are, in millimetres in the chassis frame: origin at the chassis centre 50 mm above the
-    /// floor (the physics root), y up, +z forward. Shared by the Garage, the arena and the wire lengths.
+    /// Where things are, in millimetres in the chassis frame: y up from the floor the robot stands on (y = 0),
+    /// +x right, +z forward. Everything follows from where the player put each part and shape: the wheels are
+    /// on the motors' shafts, the caster ball where the caster is, the sensor looks where it faces.
     /// </summary>
     public static class DesignGeometry
     {
         public const float WheelRadius = 32.5f;
+        public const float WheelWidth = 26;
         public const float WheelMassG = 30;         // 65 mm TT wheel with its tyre
         public const float CellsMassG = 4 * 23;     // four alkaline AA cells in the holder
-        public const float BottomPlateTop = -12;   // the bottom plate sits on the motors
-        public const float TopDeckBottom = 12;     // 24 mm standoffs between the decks
+        public const float CasterBallRadius = 10;
 
-        public static float DeckTop(BodyDesign body) =>
-            body.Decks >= 2 ? TopDeckBottom + body.ThicknessMm : BottomPlateTop;
+        /// <summary>The wheel's centre in a TT motor's frame: on the shaft, 8.5 mm above the gearbox middle, on the −x side.</summary>
+        public static readonly (float x, float y, float z) WheelInMotor = (-27.5f, 8.5f, 0);
 
-        public static float BottomPlateBottom(BodyDesign body) => BottomPlateTop - body.ThicknessMm;
+        /// <summary>The middle of the HC-SR04's transducer faces in its frame; it looks along +z.</summary>
+        public static readonly (float x, float y, float z) SonarFaceInPart = (0, 0, 13);
 
-        /// <summary>The motors' axle line, 50 mm in front of the rear edge.</summary>
-        public static float AxleZ(BodyDesign body) => -body.EffectiveLength / 2 + 50;
-
-        /// <summary>Half the body's width at a given z; a round body is narrower away from its middle.</summary>
-        public static float SideHalfWidth(BodyDesign body, float z)
+        public static (float x, float y, float z) ToChassis(PartInstance part, (float x, float y, float z) local)
         {
-            float half = body.WidthMm / 2;
-            return body.Shape == BodyShape.Round ? (float)Math.Sqrt(Math.Max(0, half * half - z * z)) : half;
+            var r = part.Turn.Apply(local);
+            return (part.X + r.x, part.Y + r.y, part.Z + r.z);
         }
 
-        /// <summary>Wheel centre of a motor slot: the 26 mm wide wheel sits on the shaft just outside the plate edge.</summary>
-        public static (float x, float y, float z) WheelCentre(BodyDesign body, string slot)
-        {
-            float side = slot == "right" ? 1 : -1, z = AxleZ(body);
-            return (side * (SideHalfWidth(body, z) + 17.5f), WheelRadius - 50, z);
-        }
-
-        /// <summary>A TT motor hangs under the bottom plate, 10 mm inside its edge, with the shaft pointing out.</summary>
-        public static (float x, float y, float z) MotorCentre(BodyDesign body, string slot)
-        {
-            float side = slot == "right" ? 1 : -1, z = AxleZ(body);
-            return (side * (SideHalfWidth(body, z) - 10), -26, z);
-        }
-
-        public static (float x, float y, float z) CasterCentre(BodyDesign body) => (0, -40, body.EffectiveLength / 2 - 15);
-
-        public static (float x, float y, float z) SonarCentre(BodyDesign body) =>
-            (0, DeckTop(body) + 15, body.EffectiveLength / 2 + 5);
-
-        public static (float x, float y, float z) LowerCentre(BodyDesign body) =>
-            body.Decks >= 2 ? (0, BottomPlateTop + 7.5f, -5) : (0, BottomPlateTop + 7.5f, -body.EffectiveLength / 2 + 40);
-
-        /// <summary>The part's origin and rotation in the chassis frame.</summary>
-        public static (float x, float y, float z, int rotation) Place(RobotDesign design, PartInstance part)
-        {
-            var def = PartCatalog.Get(part.Part);
-            var body = design.Body;
-            switch (def?.Mount)
-            {
-                case MountKind.Motor:
-                    var m = MotorCentre(body, part.Slot);
-                    return (m.x, m.y, m.z, 0);
-                case MountKind.Front:
-                    var s = SonarCentre(body);
-                    return (s.x, s.y, s.z, 0);
-                case MountKind.Caster:
-                    var c = CasterCentre(body);
-                    return (c.x, c.y, c.z, 0);
-                case MountKind.Lower:
-                    var l = LowerCentre(body);
-                    return (l.x, l.y, l.z, 0);
-                default:
-                    return (part.X, DeckTop(body), part.Z, part.Rotation);
-            }
-        }
+        public static (float x, float y, float z) Direction(PartInstance part, (float x, float y, float z) local) => part.Turn.Apply(local);
 
         /// <summary>A pin's position in the chassis frame.</summary>
         public static (float x, float y, float z)? PinPosition(RobotDesign design, string partId, string pinId)
         {
             var part = design.Find(partId);
-            var def = part == null ? null : PartCatalog.Get(part.Part);
-            var pin = def?.Pin(pinId);
-            if (part == null || def == null || pin == null) return null;
-            var place = Place(design, part);
-            var (x, z) = Rotate(pin.X, pin.Z, place.rotation);
-            return (place.x + x, place.y + pin.Y, place.z + z);
+            var pin = part == null ? null : PartCatalog.Get(part.Part)?.Pin(pinId);
+            if (part == null || pin == null) return null;
+            return ToChassis(part, (pin.X, pin.Y, pin.Z));
         }
 
         /// <summary>The direction a wire leaves a pin, in the chassis frame (unit length).</summary>
@@ -317,126 +347,223 @@ namespace CoreEngine.Sim.Design
             var part = design.Find(partId);
             var pin = part == null ? null : PartCatalog.Get(part.Part)?.Pin(pinId);
             if (part == null || pin == null) return null;
-            var (x, z) = Rotate(pin.ExitX, pin.ExitZ, Place(design, part).rotation);
-            return (x, pin.ExitY, z);
+            return Direction(part, (pin.ExitX, pin.ExitY, pin.ExitZ));
         }
 
         /// <summary>Unity's rotation about +y: (x, z) → (x cos θ + z sin θ, −x sin θ + z cos θ).</summary>
-        public static (float x, float z) Rotate(float x, float z, int degrees)
+        public static (float x, float z) Rotate(float x, float z, float degrees)
         {
             double r = degrees * Math.PI / 180;
             double c = Math.Cos(r), s = Math.Sin(r);
             return ((float)(x * c + z * s), (float)(-x * s + z * c));
         }
 
-        /// <summary>Footprint half sizes on the deck after rotating by a multiple of 90°.</summary>
-        public static (float halfX, float halfZ) Footprint(PartDef def, int rotation) =>
-            (rotation / 90) % 2 == 0 ? (def.SizeX / 2, def.SizeZ / 2) : (def.SizeZ / 2, def.SizeX / 2);
+        // ------------------------------------------------------------------ what the parts do where they are
 
-        public static bool OverlapsDeckPart(RobotDesign design, PartDef def, float x, float z, int rotation, string? ignoreId)
+        public static (float x, float y, float z) WheelCentre(PartInstance motor) => ToChassis(motor, WheelInMotor);
+
+        /// <summary>The motor shaft's direction (unit length): a positive voltage on M+ turns the wheel about it by the right-hand rule.</summary>
+        public static (float x, float y, float z) WheelAxis(PartInstance motor) => Direction(motor, (1, 0, 0));
+
+        /// <summary>"left" or "right": the side the motor's wheel is on.</summary>
+        public static string SideOf(PartInstance motor) => WheelCentre(motor).x < 0 ? "left" : "right";
+
+        /// <summary>
+        /// +1 when a positive voltage on the motor's M+ lead drives the robot forward (+z), −1 when it drives it back,
+        /// 0 when the shaft does not point sideways and the wheel cannot drive. A wheel turning about +x rolls
+        /// forward, so a motor turned round (its shaft toward −x, as the right motor of a kit) needs its leads swapped.
+        /// </summary>
+        public static int ForwardSign(PartInstance motor)
         {
-            var (hx, hz) = Footprint(def, rotation);
+            var axis = WheelAxis(motor);
+            return Math.Abs(axis.x) < 0.5f ? 0 : axis.x > 0 ? 1 : -1;
+        }
+
+        public static (float x, float y, float z) CasterBall(PartInstance caster) => ToChassis(caster, (0, 0, 0));
+
+        public static (float x, float y, float z) SonarFace(PartInstance sonar) => ToChassis(sonar, SonarFaceInPart);
+
+        public static (float x, float y, float z) SonarAim(PartInstance sonar) => Direction(sonar, (0, 0, 1));
+
+        // ------------------------------------------------------------------ bounds
+
+        /// <summary>The corners of a box of the given size about a centre, turned and placed.</summary>
+        static IEnumerable<(float x, float y, float z)> Corners(Rot3 turn, (float x, float y, float z) at, (float x, float y, float z) centre, (float x, float y, float z) size)
+        {
+            foreach (float sx in new[] { -0.5f, 0.5f })
+                foreach (float sy in new[] { -0.5f, 0.5f })
+                    foreach (float sz in new[] { -0.5f, 0.5f })
+                    {
+                        var r = turn.Apply(centre.x + sx * size.x, centre.y + sy * size.y, centre.z + sz * size.z);
+                        yield return (at.x + r.x, at.y + r.y, at.z + r.z);
+                    }
+        }
+
+        /// <summary>A part's box in the chassis frame (min and max corners), with its wheel for a motor.</summary>
+        public static ((float x, float y, float z) min, (float x, float y, float z) max) PartBounds(PartInstance part)
+        {
+            var def = PartCatalog.Get(part.Part);
+            var min = (x: float.MaxValue, y: float.MaxValue, z: float.MaxValue);
+            var max = (x: float.MinValue, y: float.MinValue, z: float.MinValue);
+            void Take((float x, float y, float z) p)
+            {
+                min = (Math.Min(min.x, p.x), Math.Min(min.y, p.y), Math.Min(min.z, p.z));
+                max = (Math.Max(max.x, p.x), Math.Max(max.y, p.y), Math.Max(max.z, p.z));
+            }
+            if (def == null)
+            {
+                Take((part.X, part.Y, part.Z));
+                return (min, max);
+            }
+            foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), def.BoxCentre, (def.SizeX, def.SizeY, def.SizeZ))) Take(corner);
+            if (def.Kind == PartKind.Motor) // the wheel: 26 mm wide along the shaft, 65 mm across
+                foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), WheelInMotor, (WheelWidth, 2 * WheelRadius, 2 * WheelRadius))) Take(corner);
+            return (min, max);
+        }
+
+        /// <summary>A shape's turned box in the chassis frame (min and max corners).</summary>
+        public static ((float x, float y, float z) min, (float x, float y, float z) max) FeatureBounds(BodyFeature f)
+        {
+            var min = (x: float.MaxValue, y: float.MaxValue, z: float.MaxValue);
+            var max = (x: float.MinValue, y: float.MinValue, z: float.MinValue);
+            foreach (var p in Corners(Rot3.Euler(f.RotX, f.RotY, f.RotZ), (f.X, f.Y, f.Z), (0, 0, 0), (f.SizeX, f.SizeY, f.SizeZ)))
+            {
+                min = (Math.Min(min.x, p.x), Math.Min(min.y, p.y), Math.Min(min.z, p.z));
+                max = (Math.Max(max.x, p.x), Math.Max(max.y, p.y), Math.Max(max.z, p.z));
+            }
+            return (min, max);
+        }
+
+        /// <summary>
+        /// The lowest point of the robot (mm): the bottom of a wheel, the caster ball, or a part or solid shape
+        /// hanging lower. The arena and the Garage's turntable stand the robot there; 0 for an empty design.
+        /// </summary>
+        public static float LowestPoint(RobotDesign design)
+        {
+            float lowest = float.MaxValue;
+            foreach (var part in design.Parts)
+            {
+                var def = PartCatalog.Get(part.Part);
+                if (def?.Kind == PartKind.Motor)
+                {
+                    var centre = WheelCentre(part);
+                    var axis = WheelAxis(part);
+                    lowest = Math.Min(lowest, centre.y - WheelRadius * (float)Math.Sqrt(Math.Max(0, 1 - axis.y * axis.y)));
+                }
+                if (def?.Kind == PartKind.Caster) lowest = Math.Min(lowest, CasterBall(part).y - CasterBallRadius);
+                lowest = Math.Min(lowest, PartBounds(part).min.y);
+            }
+            foreach (var feature in design.Body.Features)
+            {
+                if (feature.Kind == FeatureKind.Group || feature.Hole) continue;
+                lowest = Math.Min(lowest, FeatureBounds(feature).min.y);
+            }
+            return lowest == float.MaxValue ? 0 : lowest;
+        }
+
+        // ------------------------------------------------------------------ placing new parts
+
+        /// <summary>
+        /// How high a part's frame is when it stands on the ground unturned: its lowest point (a motor's wheel,
+        /// the caster's ball, a board's underside) on y = 0.
+        /// </summary>
+        public static float RestHeight(PartDef def)
+        {
+            float lowest = def.BoxCentre.y - def.SizeY / 2;
+            if (def.Kind == PartKind.Motor) lowest = Math.Min(lowest, WheelInMotor.y - WheelRadius);
+            return -lowest;
+        }
+
+        /// <summary>A place on the ground, on a ring of 45 mm steps round the middle, where the part meets no other part.</summary>
+        public static (float x, float z) FreeSpot(RobotDesign design, PartInstance part)
+        {
+            for (int ring = 0; ring < 8; ring++)
+            {
+                int steps = ring == 0 ? 1 : ring * 8;
+                for (int i = 0; i < steps; i++)
+                {
+                    double angle = 2 * Math.PI * i / steps;
+                    part.X = (float)Math.Round(ring * 45 * Math.Sin(angle));
+                    part.Z = (float)Math.Round(ring * 45 * Math.Cos(angle));
+                    if (!Overlaps(design, part)) return (part.X, part.Z);
+                }
+            }
+            return (0, 0);
+        }
+
+        /// <summary>True when a part's box meets another part's box (seen from above).</summary>
+        public static bool Overlaps(RobotDesign design, PartInstance part)
+        {
+            var (min, max) = PartBounds(part);
             foreach (var other in design.Parts)
             {
-                if (other.Id == ignoreId) continue;
-                var otherDef = PartCatalog.Get(other.Part);
-                if (otherDef == null || !TakesDeckRoom(design.Body, otherDef)) continue;
-                var place = Place(design, other);
-                var (ox, oz) = Footprint(otherDef, place.rotation);
-                if (Math.Abs(x - place.x) < hx + ox && Math.Abs(z - place.z) < hz + oz) return true;
+                if (other == part || other.Id == part.Id) continue;
+                var (omin, omax) = PartBounds(other);
+                if (min.x < omax.x && max.x > omin.x && min.z < omax.z && max.z > omin.z && min.y < omax.y && max.y > omin.y) return true;
             }
             return false;
         }
 
-        /// <summary>Deck parts, and the battery holder when there is only one deck for it to stand on.</summary>
-        public static bool TakesDeckRoom(BodyDesign body, PartDef def) =>
-            def.Mount == MountKind.Deck || (def.Mount == MountKind.Lower && body.Decks < 2);
-
-        /// <summary>Keeps a deck part's footprint on the deck (inside the disc for a round body).</summary>
-        public static (float x, float z) ClampToDeck(BodyDesign body, PartDef def, float x, float z, int rotation)
-        {
-            var (hx, hz) = Footprint(def, rotation);
-            float maxX = Math.Max(0, body.WidthMm / 2 - hx), maxZ = Math.Max(0, body.EffectiveLength / 2 - hz);
-            x = Math.Max(-maxX, Math.Min(maxX, x));
-            z = Math.Max(-maxZ, Math.Min(maxZ, z));
-            if (body.Shape != BodyShape.Round) return (x, z);
-            float r = body.WidthMm / 2;
-            bool OnDisc(float s) => Square(Math.Abs(s * x) + hx) + Square(Math.Abs(s * z) + hz) <= r * r;
-            if (OnDisc(1)) return (x, z);
-            float lo = 0, hi = 1; // pull the part toward the centre until its far corner is on the disc
-            for (int i = 0; i < 20; i++)
-            {
-                float mid = (lo + hi) / 2;
-                if (OnDisc(mid)) lo = mid;
-                else hi = mid;
-            }
-            return (lo * x, lo * z);
-        }
-
-        static float Square(float v) => v * v;
+        // ------------------------------------------------------------------ mass
 
         /// <summary>
-        /// Centre of mass in the chassis frame (mm) of the plates, parts and cells, and of the wheels unless
+        /// Centre of mass in the chassis frame (mm) of the shapes, parts and cells, and of the wheels unless
         /// <paramref name="wheels"/> is false (the arena gives the wheels bodies of their own).
         /// </summary>
         public static (float x, float y, float z) CentreOfMass(RobotDesign design, bool wheels = true)
         {
-            var body = design.Body;
             double m = 0, x = 0, y = 0, z = 0;
-            void Add(double grams, float px, float py, float pz)
+            void Add(double grams, (float x, float y, float z) p)
             {
                 m += grams;
-                x += grams * px;
-                y += grams * py;
-                z += grams * pz;
+                x += grams * p.x;
+                y += grams * p.y;
+                z += grams * p.z;
             }
-            double density = BodyDesign.DensityGPerCm3(body.Material) / 1000.0; // g per mm³
-            double features = 0;
-            foreach (var feature in body.Features)
+            foreach (var feature in design.Body.Features)
             {
-                if (feature.Hole) continue;
-                double grams = feature.ApproximateVolume() * density;
-                Add(grams, feature.X, feature.Y, feature.Z);
-                features += grams;
-            }
-            double plates = Math.Max(0, BodyMassG(body) - features);
-            float t = body.ThicknessMm;
-            if (body.Decks >= 2)
-            {
-                Add(plates / 2, 0, BottomPlateTop - t / 2, 0);
-                Add(plates / 2, 0, TopDeckBottom + t / 2, 0);
-            }
-            else
-            {
-                Add(plates, 0, BottomPlateTop - t / 2, 0);
+                if (feature.Kind == FeatureKind.Group || feature.Hole) continue;
+                Add(feature.ApproximateVolume() / 1000.0 * BodyDesign.DensityGPerCm3(feature.Material), (feature.X, feature.Y, feature.Z));
             }
             foreach (var part in design.Parts)
             {
                 var def = PartCatalog.Get(part.Part);
                 if (def == null) continue;
-                var p = Place(design, part);
-                float cy = def.Mount == MountKind.Deck ? p.y + def.SizeY / 2 : p.y; // deck parts stand on the deck
-                Add(def.MassG + (def.Kind == PartKind.Battery ? CellsMassG : 0), p.x, cy, p.z);
-                if (wheels && def.Kind == PartKind.Motor)
-                {
-                    var w = WheelCentre(body, part.Slot);
-                    Add(WheelMassG, w.x, w.y, w.z);
-                }
+                Add(def.MassG + (def.Kind == PartKind.Battery ? CellsMassG : 0), ToChassis(part, def.BoxCentre));
+                if (wheels && def.Kind == PartKind.Motor) Add(WheelMassG, WheelCentre(part));
             }
             return m <= 0 ? (0f, 0f, 0f) : ((float)(x / m), (float)(y / m), (float)(z / m));
         }
 
-        /// <summary>Approximate plate mass before holes (the Garage refines it with Manifold's exact volume).</summary>
+        /// <summary>
+        /// The body's mass estimated from the shapes' boxes; the Garage shows Manifold's exact volumes. A hole takes
+        /// away half its volume of its group's material (it cuts only where there is material); a hole on its own
+        /// cuts nothing, as in Tinkercad.
+        /// </summary>
         public static double BodyMassG(BodyDesign body)
         {
-            double area = body.Shape == BodyShape.Round
-                ? Math.PI * body.WidthMm * body.WidthMm / 4
-                : body.LengthMm * body.WidthMm;
-            double volumeMm3 = area * body.ThicknessMm * Math.Max(1, body.Decks);
-            if (body.WallHeightMm > 0 && body.Shape != BodyShape.Round) volumeMm3 += 2 * body.LengthMm * body.ThicknessMm * body.WallHeightMm;
+            double grams = 0;
             foreach (var feature in body.Features)
-                volumeMm3 += (feature.Hole ? -0.5 : 1) * feature.ApproximateVolume(); // a hole cuts only where there is material
-            return Math.Max(0, volumeMm3) / 1000.0 * BodyDesign.DensityGPerCm3(body.Material);
+            {
+                if (feature.Kind == FeatureKind.Group) continue;
+                double cm3 = feature.ApproximateVolume() / 1000.0;
+                if (!feature.Hole)
+                {
+                    grams += cm3 * BodyDesign.DensityGPerCm3(feature.Material);
+                    continue;
+                }
+                var group = body.Parent(feature);
+                if (group == null) continue;
+                BodyMaterial material = BodyMaterial.Pla;
+                foreach (var shape in body.Shapes(body.TopLevel(group)))
+                {
+                    if (shape.Hole) continue;
+                    material = shape.Material;
+                    break;
+                }
+                grams -= 0.5 * cm3 * BodyDesign.DensityGPerCm3(material);
+            }
+            return Math.Max(0, grams);
         }
 
         /// <summary>Length of a wire in millimetres (straight line; a jumper's slack comes on top).</summary>

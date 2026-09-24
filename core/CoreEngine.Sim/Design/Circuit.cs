@@ -131,9 +131,11 @@ namespace CoreEngine.Sim.Design
         public List<MotorLink> Motors { get; } = new List<MotorLink>();
         public List<CircuitWarning> Warnings { get; } = new List<CircuitWarning>();
 
-        public MotorLink? Motor(string slot)
+        /// <summary>The motor on that side ("left" or "right"), or with that part id.</summary>
+        public MotorLink? Motor(string slotOrId)
         {
-            foreach (var m in Motors) if (m.Slot == slot) return m;
+            foreach (var m in Motors) if (m.MotorId == slotOrId) return m;
+            foreach (var m in Motors) if (m.Slot == slotOrId) return m;
             return null;
         }
 
@@ -242,7 +244,7 @@ namespace CoreEngine.Sim.Design
             foreach (var motor in design.Parts)
             {
                 if (PartCatalog.Get(motor.Part)?.Kind != PartKind.Motor) continue;
-                string side = motor.Slot.Length > 0 ? motor.Slot : "left";
+                string side = DesignGeometry.SideOf(motor);
                 MotorLink? link = null;
                 if (driver != null)
                 {
@@ -269,19 +271,17 @@ namespace CoreEngine.Sim.Design
 
     /// <summary>
     /// From driver inputs to wheel drive in the arena (docs/06 §5.11): the L298N channel a motor is on, the
-    /// channel's enable (the ENA/ENB jumper, unless a wire takes the pin to the Uno), the lead polarity and
-    /// the mirrored mounting of the right motor.
+    /// channel's enable (the ENA/ENB jumper, unless a wire takes the pin to the Uno) and the lead polarity. Which
+    /// way the wheel then rolls follows from how the motor was mounted (<see cref="DesignGeometry.ForwardSign"/>).
     /// </summary>
     public static class DriveMap
     {
-        /// <summary>+1 left, −1 right: the right motor is the left one turned round, so the same voltage turns its wheel the other way.</summary>
-        public static int MountSign(string slot) => slot == "right" ? -1 : 1;
-
         /// <summary>Voltage across a motor's M+ and M− leads; NaN when they are open (not on the driver, no supply, channel disabled).</summary>
+        /// <param name="slotOrId">The motor's part id, or its side ("left", "right").</param>
         /// <param name="pinHigh">Whether an Uno pin (for example "D5") is driven high.</param>
-        public static double MotorVolts(RobotCircuit circuit, string slot, Func<string, bool> pinHigh, L298NModel bridge)
+        public static double MotorVolts(RobotCircuit circuit, string slotOrId, Func<string, bool> pinHigh, L298NModel bridge)
         {
-            var link = circuit.Motor(slot);
+            var link = circuit.Motor(slotOrId);
             if (link == null || !circuit.DriverPowered) return double.NaN;
             bool High(string? pin) => pin != null && pinHigh(pin); // a floating input reads low
             int a = 2 * link.Channel;

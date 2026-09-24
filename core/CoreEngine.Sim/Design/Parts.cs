@@ -9,8 +9,9 @@ namespace CoreEngine.Sim.Design
     public enum PartKind { Board, MotorDriver, Ultrasonic, Motor, Battery, Caster }
 
     /// <summary>
-    /// Where a part goes (docs/03 §5.2): anywhere on the top deck, or in one of the chassis' fixed places
-    /// (motor mounts, the sensor bracket at the front, the caster mount, the space between the decks).
+    /// Where a part usually goes. Since 2026-09-24 every part is placed and turned freely by the player; the
+    /// kind only says where a new one appears and where old saves had it (docs/03 §5.2): on a deck, under the
+    /// body as a motor or caster, upright at the front as the sensor, or lower down as the battery holder.
     /// </summary>
     public enum MountKind { Deck, Motor, Front, Caster, Lower }
 
@@ -69,8 +70,11 @@ namespace CoreEngine.Sim.Design
         }
     }
 
-    /// <summary>A catalogue part (docs/09): real name, size, mass and pins. The frame's origin is the
-    /// centre of the part's footprint on its mounting surface.</summary>
+    /// <summary>
+    /// A catalogue part (docs/09): real name, size, mass and pins. Real parts cannot be resized, only placed and
+    /// turned. Sizes are the part's bounding box in its own frame, centred on <see cref="BoxCentre"/>; for
+    /// most parts the frame's origin is the middle of the face that stands on a surface.
+    /// </summary>
     public sealed class PartDef
     {
         public PartDef(string id, string name, PartKind kind, MountKind mount, float sizeX, float sizeY, float sizeZ, float massG, int maxCount, params PinDef[] pins)
@@ -85,6 +89,28 @@ namespace CoreEngine.Sim.Design
             MassG = massG;
             MaxCount = maxCount;
             Pins = pins;
+            BoxCentre = (0, sizeY / 2, 0);
+        }
+
+        /// <summary>The middle of the bounding box in the part's frame (mm).</summary>
+        public (float x, float y, float z) BoxCentre { get; private set; }
+
+        /// <summary>The point of the part that touches the surface it is mounted on (mm, part frame).</summary>
+        public (float x, float y, float z) MountPoint { get; private set; }
+
+        /// <summary>
+        /// The way the mounting face looks, in the part's frame: down for a board standing on a plate, up for a
+        /// motor or caster hanging under one. Placing a part on a face turns this against the face's normal.
+        /// </summary>
+        public (float x, float y, float z) MountNormal { get; private set; } = (0, -1, 0);
+
+        /// <summary>For parts whose frame is not the middle of their bottom face (catalogue set-up only).</summary>
+        internal PartDef Frame((float x, float y, float z) boxCentre, (float x, float y, float z) mountPoint, (float x, float y, float z) mountNormal)
+        {
+            BoxCentre = boxCentre;
+            MountPoint = mountPoint;
+            MountNormal = mountNormal;
+            return this;
         }
 
         public string Id { get; }
@@ -135,18 +161,26 @@ namespace CoreEngine.Sim.Design
                 new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -22, 6, -1.5f, PinStyle.Terminal, -1, 0, 0),
                 new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 22, 6, -1.5f, PinStyle.Terminal, 1, 0, 0),
                 new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 22, 6, 4.5f, PinStyle.Terminal, 1, 0, 0)),
-            new PartDef(HcSr04, "HC-SR04 ultrasonic sensor", PartKind.Ultrasonic, MountKind.Front, 45, 20, 15, 8.5f, 1,
+            // The sensor's frame is the middle of its board; it stands on its bracket, transducers toward +z.
+            new PartDef(HcSr04, "HC-SR04 ultrasonic sensor", PartKind.Ultrasonic, MountKind.Front, 45, 26, 22, 8.5f, 1,
                 new PinDef("VCC", "VCC · 5 V", PinKind.Power, -3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
                 new PinDef("TRIG", "TRIG · trigger input", PinKind.Signal, -1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
                 new PinDef("ECHO", "ECHO · echo output", PinKind.Signal, 1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
-                new PinDef("GND", "GND", PinKind.Ground, 3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1)),
-            new PartDef(TtMotor, "TT gear motor 1:48", PartKind.Motor, MountKind.Motor, 19, 22, 70, 30.6f, 2,
+                new PinDef("GND", "GND", PinKind.Ground, 3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1))
+                .Frame((0, -3, 1.9f), (0, -16, -4), (0, -1, 0)),
+            // The motor's frame is the middle of its gearbox; the shaft runs along x, 8.5 mm above it, with the
+            // wheel on the −x side; the can and the leads point to +z. It hangs under a plate by its top face.
+            new PartDef(TtMotor, "TT gear motor 1:48", PartKind.Motor, MountKind.Motor, 19, 22, 64, 30.6f, 2,
                 new PinDef("M+", "M+ · red lead", PinKind.Motor, 0, 4, 45.5f, PinStyle.Lead, 0, 0, 1),
-                new PinDef("M-", "M− · black lead", PinKind.Motor, 0, -4, 45.5f, PinStyle.Lead, 0, 0, 1)),
+                new PinDef("M-", "M− · black lead", PinKind.Motor, 0, -4, 45.5f, PinStyle.Lead, 0, 0, 1))
+                .Frame((0, 0, 13.5f), (0, 11, 0), (0, 1, 0)),
             new PartDef(Battery4AA, "Battery holder 4×AA", PartKind.Battery, MountKind.Lower, 58, 15, 62, 20, 1,
                 new PinDef("+", "+ · red lead (≈ 6 V)", PinKind.Power, 12, 5, -31.5f, PinStyle.Lead, 0, 0, -1),
-                new PinDef("-", "− · black lead", PinKind.Ground, -12, 5, -31.5f, PinStyle.Lead, 0, 0, -1)),
-            new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 30, 25, 30, 15, 1),
+                new PinDef("-", "− · black lead", PinKind.Ground, -12, 5, -31.5f, PinStyle.Lead, 0, 0, -1))
+                .Frame((0, 0, 0), (0, -7.5f, 0), (0, -1, 0)),
+            // The caster's frame is the middle of its 20 mm ball; the holder's flange screws under a plate.
+            new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 22, 35, 22, 15, 1)
+                .Frame((0, 7.5f, 0), (0, 25, 0), (0, 1, 0)),
         };
 
         static PartDef UnoDef()

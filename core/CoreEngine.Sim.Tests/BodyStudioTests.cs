@@ -19,15 +19,62 @@ public class BodyStudioTests
     }
 
     [Fact]
-    public void SolidsAddMassAndHolesTakeItAway()
+    public void EachShapeWeighsWhatItsMaterialWeighs()
     {
-        var plain = new BodyDesign();
-        var withBox = new BodyDesign();
-        withBox.AddFeature(new BodyFeature { Kind = FeatureKind.Box, SizeX = 10, SizeY = 10, SizeZ = 10 }); // 1 cm³
-        Assert.Equal(DesignGeometry.BodyMassG(plain) + 1.18, DesignGeometry.BodyMassG(withBox), 3);
-        var withHole = new BodyDesign();
-        withHole.AddFeature(new BodyFeature { Kind = FeatureKind.Cylinder, Hole = true, SizeX = 10, SizeY = 10, SizeZ = 10 });
-        Assert.True(DesignGeometry.BodyMassG(withHole) < DesignGeometry.BodyMassG(plain));
+        Assert.Equal(0, DesignGeometry.BodyMassG(new BodyDesign())); // a new body is empty: no ready-made plates
+        foreach (var (material, grams) in new[] { (BodyMaterial.Acrylic, 1.18), (BodyMaterial.Pla, 1.24), (BodyMaterial.Cardboard, 0.15), (BodyMaterial.EvaFoam, 0.10), (BodyMaterial.Aluminium, 2.70) })
+        {
+            var body = new BodyDesign();
+            body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, SizeX = 10, SizeY = 10, SizeZ = 10, Material = material }); // 1 cm³
+            Assert.Equal(grams, DesignGeometry.BodyMassG(body), 3);
+        }
+    }
+
+    [Fact]
+    public void AHoleCutsOnlyTheShapesOfItsGroup()
+    {
+        // As in Tinkercad: a hole on its own is only a marker; grouped with a plate it takes material away.
+        var body = new BodyDesign();
+        var plate = body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, SizeX = 50, SizeY = 3, SizeZ = 50, Material = BodyMaterial.Plywood });
+        var hole = body.AddFeature(new BodyFeature { Kind = FeatureKind.Cylinder, Hole = true, SizeX = 10, SizeY = 10, SizeZ = 10 });
+        double alone = DesignGeometry.BodyMassG(body);
+        Assert.Equal(50 * 3 * 50 / 1000.0 * 0.68, alone, 3);
+        var group = body.Group(new[] { plate.Id, hole.Id })!;
+        Assert.Equal(FeatureKind.Group, group.Kind);
+        Assert.Equal((group.Id, group.Id), (plate.Group, hole.Group));
+        Assert.True(DesignGeometry.BodyMassG(body) < alone);
+        Assert.Equal(2, body.Shapes(group).Count);
+        Assert.Same(group, body.TopLevel(hole));
+
+        body.Ungroup(group.Id);
+        Assert.Equal(("", ""), (plate.Group, hole.Group));
+        Assert.Null(body.Feature(group.Id));
+        Assert.Equal(alone, DesignGeometry.BodyMassG(body), 6);
+    }
+
+    [Fact]
+    public void GroupsNestAndGoAwayWithEverythingInThem()
+    {
+        var body = new BodyDesign();
+        var a = body.AddFeature(BodyFeature.Create(FeatureKind.Box, false, 0));
+        var b = body.AddFeature(BodyFeature.Create(FeatureKind.Sphere, false, 0));
+        var c = body.AddFeature(BodyFeature.Create(FeatureKind.Cone, false, 0));
+        var inner = body.Group(new[] { a.Id, b.Id })!;
+        var outer = body.Group(new[] { b.Id, c.Id })!; // b is inside inner: the whole of inner goes in
+        Assert.Equal(outer.Id, inner.Group);
+        Assert.Equal(3, body.Shapes(outer).Count);
+        Assert.Single(body.Members(null));
+        body.Remove(outer.Id);
+        Assert.Empty(body.Features);
+    }
+
+    [Fact]
+    public void APerforatedPlateIsLighterThanASolidOne()
+    {
+        var plate = BodyFeature.Create(FeatureKind.Plate, false, 0, BodyMaterial.Acrylic);
+        Assert.Equal((120f, 3f, 160f, 15f), (plate.SizeX, plate.SizeY, plate.SizeZ, plate.Pitch));
+        double solid = new BodyFeature { Kind = FeatureKind.Plate, SizeX = 120, SizeY = 3, SizeZ = 160, Detail = 12 }.ApproximateVolume();
+        Assert.InRange(plate.ApproximateVolume(), solid * 0.8, solid * 0.98); // 77 M3 holes
     }
 
     [Fact]

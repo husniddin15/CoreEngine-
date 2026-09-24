@@ -3,13 +3,18 @@ using System.Collections.Generic;
 
 namespace CoreEngine.Sim.Design
 {
-    /// <summary>The shapes of the Body Studio (docs/08 §2).</summary>
-    public enum FeatureKind { Box, RoundedBox, Cylinder, Cone, Sphere, Wedge, Tube, Extrusion, Imported }
+    /// <summary>
+    /// The shapes of the Body Studio (docs/08 §2), a perforated plate (a sheet with an M3 hole grid, as robot kits
+    /// use), and the record of a group. The numbers are saved; new kinds go at the end.
+    /// </summary>
+    public enum FeatureKind { Box, RoundedBox, Cylinder, Cone, Sphere, Wedge, Tube, Extrusion, Imported, Plate, Group }
 
     /// <summary>
-    /// One shape of the Body Studio: a solid that adds material or a hole that cuts it away (Tinkercad's way of
-    /// modelling), placed in the chassis frame in millimetres with a size and a rotation. An extrusion carries
-    /// its outline, an imported shape the file it came from. The mesh is derived with Manifold (ADR-0005).
+    /// One shape of the Body Studio: a solid of some material, or a hole that cuts the solids of its group
+    /// (Tinkercad's way of modelling), placed in the chassis frame in millimetres with a size and a rotation.
+    /// An extrusion carries its outline, an imported shape the file it came from, a plate its hole grid. A group
+    /// record has no shape of its own: shapes name it in <see cref="Group"/>. The mesh is derived with Manifold
+    /// (ADR-0005).
     /// </summary>
     [Serializable]
     public sealed class BodyFeature
@@ -24,6 +29,11 @@ namespace CoreEngine.Sim.Design
         public List<float> Outline = new List<float>(); // extrusion: x, z pairs of the outline, scaled to a 1 × 1 square
         public string MeshFile = "";                  // imported: the file's name in the robot's import folder
         public bool MirrorX;                          // imported: the mesh is mirrored left-right (a mirrored copy)
+        public BodyMaterial Material = BodyMaterial.Pla;
+        public string Colour = "";                    // "#rrggbb" for materials sold in colours (PLA, EVA foam, acrylic); empty: the material's own
+        public string Group = "";                     // the id of the group record this shape or group is in; empty: none
+        public float Pitch;                           // plate: spacing of the hole grid (0: no holes), mm
+        public float HoleSize = 3.2f;                 // plate: diameter of its holes (M3 clearance), mm
 
         public BodyFeature Clone()
         {
@@ -49,9 +59,9 @@ namespace CoreEngine.Sim.Design
         }
 
         /// <summary>A sensible starting shape of each kind, standing on a surface at height <paramref name="floor"/>.</summary>
-        public static BodyFeature Create(FeatureKind kind, bool hole, float floor)
+        public static BodyFeature Create(FeatureKind kind, bool hole, float floor, BodyMaterial material = BodyMaterial.Pla)
         {
-            var f = new BodyFeature { Kind = kind, Hole = hole };
+            var f = new BodyFeature { Kind = kind, Hole = hole, Material = material };
             switch (kind)
             {
                 case FeatureKind.RoundedBox:
@@ -75,6 +85,13 @@ namespace CoreEngine.Sim.Design
                     f.SizeX = 30;
                     f.SizeY = 15;
                     f.SizeZ = 30;
+                    break;
+                case FeatureKind.Plate: // a kit-sized chassis plate: 120 × 160 mm, 3 mm thick, M3 holes every 15 mm
+                    f.SizeX = 120;
+                    f.SizeY = 3;
+                    f.SizeZ = 160;
+                    f.Detail = 12;
+                    f.Pitch = 15;
                     break;
             }
             if (hole && kind != FeatureKind.Sphere) f.SizeY += 10; // a hole reaches through the plate below it
@@ -104,6 +121,18 @@ namespace CoreEngine.Sim.Design
                     return (SizeX * SizeZ - ix * iz) * SizeY * Math.PI / 4;
                 }
                 case FeatureKind.Extrusion: return Math.Abs(OutlineArea(Outline)) * SizeX * SizeZ * SizeY;
+                case FeatureKind.Plate:
+                {
+                    double r = Math.Max(0, Math.Min(Detail, Math.Min(SizeX, SizeZ) / 2));
+                    double area = SizeX * SizeZ - (4 - Math.PI) * r * r;
+                    if (Pitch >= 5 && HoleSize > 0)
+                    {
+                        double holes = Math.Floor((SizeX - 2 * (HoleSize / 2 + 3)) / Pitch + 1) * Math.Floor((SizeZ - 2 * (HoleSize / 2 + 3)) / Pitch + 1);
+                        area -= Math.Max(0, holes) * Math.PI * HoleSize * HoleSize / 4;
+                    }
+                    return Math.Max(0, area) * SizeY;
+                }
+                case FeatureKind.Group: return 0;
                 default: return box * 0.5; // an imported shape: unknown until Manifold measures it
             }
         }

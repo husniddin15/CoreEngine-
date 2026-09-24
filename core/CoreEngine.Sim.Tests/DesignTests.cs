@@ -95,15 +95,19 @@ public class DesignTests
     }
 
     [Fact]
-    public void AddingPartsFillsSlotsAndRespectsLimits()
+    public void NewPartsStandOnTheGroundBesideEachOtherAndRespectLimits()
     {
-        var d = DesignPresets.EmptyChassis();
-        Assert.Equal("left", d.AddPart(PartCatalog.TtMotor)!.Slot);
-        Assert.Equal("right", d.AddPart(PartCatalog.TtMotor)!.Slot);
-        Assert.Null(d.AddPart(PartCatalog.TtMotor));
+        var d = DesignPresets.Empty();
+        Assert.Empty(d.Body.Features); // a new robot has no body until the player builds one
+        var motor = d.AddPart(PartCatalog.TtMotor)!;
+        Assert.NotNull(d.AddPart(PartCatalog.TtMotor));
+        Assert.Null(d.AddPart(PartCatalog.TtMotor)); // an L298N drives two
         var uno = d.AddPart(PartCatalog.Uno)!;
         var driver = d.AddPart(PartCatalog.L298N)!;
-        Assert.False(DesignGeometry.OverlapsDeckPart(d, PartCatalog.Get(PartCatalog.L298N)!, driver.X, driver.Z, 0, driver.Id));
+        foreach (var part in d.Parts) Assert.False(DesignGeometry.Overlaps(d, part), part.Id);
+        Assert.Equal(0, DesignGeometry.WheelCentre(motor).y - DesignGeometry.WheelRadius, 3); // the wheel on the ground
+        Assert.Equal(0, uno.Y);
+        Assert.Equal(0, DesignGeometry.LowestPoint(d), 3);
         d.AddWire(uno.Id, "D5", driver.Id, "IN1", "yellow");
         Assert.Null(d.AddWire(driver.Id, "IN1", uno.Id, "D5", "green")); // the same wire again
         d.RemovePart(uno.Id);
@@ -111,9 +115,85 @@ public class DesignTests
     }
 
     [Fact]
+    public void TurnsFollowUnitysEulerAngles()
+    {
+        // Quaternion.Euler(0, 90, 0) turns +x to -z; Euler(90, 0, 0) turns up to forward; z turns first, then x, then y.
+        Assert.Equal((0f, 0f, -1f), Round(Rot3.Euler(0, 90, 0).Apply(1, 0, 0)));
+        Assert.Equal((0f, 0f, 1f), Round(Rot3.Euler(90, 0, 0).Apply(0, 1, 0)));
+        Assert.Equal((0f, 0f, 1f), Round(Rot3.Euler(90, 90, 0).Apply(1, 0, 0) is var v ? (v.x, v.y, -v.z) : default)); // y after x
+        var random = new Random(7);
+        for (int i = 0; i < 200; i++)
+        {
+            float x = random.Next(-89, 90), y = random.Next(-179, 181), z = random.Next(-179, 181);
+            var back = Rot3.Euler(x, y, z).ToEuler();
+            Assert.Equal((x, y, z), (back.x, back.y, back.z));
+        }
+        var turn = Rot3.AngleAxis(90, (0, 1, 0));
+        Assert.Equal(Round(Rot3.Euler(0, 90, 0).Apply(1, 2, 3)), Round(turn.Apply(1, 2, 3)));
+        Assert.Equal((1f, 2f, 3f), Round((turn.Inverse() * turn).Apply(1, 2, 3)));
+    }
+
+    static (float x, float y, float z) Round((float x, float y, float z) v) =>
+        ((float)Math.Round(v.x, 4) + 0f, (float)Math.Round(v.y, 4) + 0f, (float)Math.Round(v.z, 4) + 0f);
+
+    [Fact]
+    public void PartsTurnAboutEveryAxis()
+    {
+        var d = DesignPresets.Empty();
+        var motor = d.AddPart(PartCatalog.TtMotor)!;
+        (motor.X, motor.Y, motor.Z) = (0, 40, 0);
+        Assert.Equal("left", DesignGeometry.SideOf(motor));
+        Assert.Equal(1, DesignGeometry.ForwardSign(motor));
+        motor.Rotation = 180; // the kit's right motor: the same motor turned round
+        Assert.Equal("right", DesignGeometry.SideOf(motor));
+        Assert.Equal(-1, DesignGeometry.ForwardSign(motor));
+        motor.Rotation = 0;
+        motor.RotZ = 90; // shaft pointing up: the wheel lies flat and cannot drive
+        Assert.Equal(0, DesignGeometry.ForwardSign(motor));
+        var pin = DesignGeometry.PinPosition(d, motor.Id, "M+")!.Value;
+        Assert.Equal((-4f, 40f, 45.5f), Round(pin)); // local (0, 4, 45.5) turned 90° about z
+    }
+
+    [Fact]
+    public void OldSavesKeepTheirRobot()
+    {
+        // The version-2 kit: plates 120 × 160 mm, motors on fixed mounts at the axle, 50 mm in front of the back.
+        var d = DesignPresets.ObstacleAvoiderKit();
+        Assert.Equal(0, d.Body.Decks); // converted, and not converted twice
+        DesignMigration.Upgrade(d);
+        var plates = d.Body.Features.FindAll(f => f.Kind == FeatureKind.Plate);
+        Assert.Equal(2, plates.Count);
+        Assert.Equal((36.5f, 63.5f), (plates[0].Y, plates[1].Y)); // 3 mm acrylic at 35 and 62 mm above the floor
+        Assert.Equal(4, d.Body.Features.FindAll(f => f.Kind == FeatureKind.Cylinder).Count); // the brass standoffs
+        var left = DesignGeometry.WheelCentre(d.Find("motor1")!);
+        var right = DesignGeometry.WheelCentre(d.Find("motor2")!);
+        Assert.Equal((-77.5f, 32.5f, -30f), Round(left));
+        Assert.Equal((77.5f, 32.5f, -30f), Round(right));
+        Assert.Equal(("left", "right"), (DesignGeometry.SideOf(d.Find("motor1")!), DesignGeometry.SideOf(d.Find("motor2")!)));
+        Assert.Equal(0, DesignGeometry.LowestPoint(d), 3); // wheels and caster on the floor
+        Assert.Equal((0f, 10f, 65f), Round(DesignGeometry.CasterBall(d.Find("caster1")!)));
+        var uno = d.Find("uno1")!;
+        Assert.Equal((-28f, 65f, -35f, 270f), (uno.X, uno.Y, uno.Z, uno.Rotation)); // on the top deck, as dragged there
+    }
+
+    [Fact]
+    public void OldHolesStillCutThePlates()
+    {
+        var old = DesignPresets.ObstacleAvoiderKit();
+        var body = new BodyDesign();
+        body.Features.Add(new BodyFeature { Id = "f1", Kind = FeatureKind.Cylinder, Hole = true, SizeX = 20, SizeY = 30, SizeZ = 20, Y = 12 });
+        var holed = DesignPresets.ObstacleAvoiderKit(body);
+        var hole = holed.Body.Feature("f1")!;
+        Assert.Equal(62, hole.Y);                            // the frame moved from 50 mm up to the floor
+        var group = holed.Body.Parent(hole)!;
+        Assert.Equal(3, holed.Body.Shapes(group).Count);      // the hole and both plates; the standoffs stay out
+        Assert.True(holed.MassKg() < old.MassKg());
+    }
+
+    [Fact]
     public void PinPositionsTurnWithThePart()
     {
-        var d = DesignPresets.EmptyChassis();
+        var d = DesignPresets.Empty();
         var driver = d.AddPart(PartCatalog.L298N)!;
         driver.X = 0;
         driver.Z = 0;
@@ -129,7 +209,7 @@ public class DesignTests
     [Fact]
     public void WiresLeaveTerminalsSidewaysAndTurnWithThePart()
     {
-        var d = DesignPresets.EmptyChassis();
+        var d = DesignPresets.Empty();
         var driver = d.AddPart(PartCatalog.L298N)!;
         Assert.Equal((-1f, 0f, 0f), DesignGeometry.PinExit(d, driver.Id, "OUT1")!.Value);
         Assert.Equal((0f, 1f, 0f), DesignGeometry.PinExit(d, driver.Id, "IN1")!.Value);
@@ -192,16 +272,21 @@ public class DesignTests
     [Fact]
     public void KitMassAddsUpFromTheCatalogue()
     {
-        // Plates 2 × 120 × 160 × 3 mm acrylic (136 g), Uno 25 g, L298N 26 g, HC-SR04 8.5 g, TT motors 2 × 30.6 g,
-        // wheels 2 × 30 g, holder 20 g with 4 × 23 g cells, caster 15 g: about 444 g.
-        Assert.Equal(0.4436, DesignPresets.ObstacleAvoiderKit().MassKg(), 3);
+        // Plates 2 × 120 × 160 × 3 mm acrylic with 12 mm corners (135 g), four 5 × 24 mm standoffs (5 g), Uno 25 g,
+        // L298N 26 g, HC-SR04 8.5 g, TT motors 2 × 30.6 g, wheels 2 × 30 g, holder 20 g with 4 × 23 g cells,
+        // caster 15 g: about 448 g.
+        Assert.Equal(0.448, DesignPresets.ObstacleAvoiderKit().MassKg(), 2);
     }
 
     // The golden sketch drives forward with IN1 and IN3 high (D5 and D7).
     static readonly Func<string, bool> Forward = pin => pin == "D5" || pin == "D7";
 
-    static double WheelDrive(RobotDesign d, string slot, Func<string, bool> pins) =>
-        DriveMap.MotorVolts(Analyse(d), slot, pins, new Components.L298NModel { SupplyVolts = 6 }) * DriveMap.MountSign(slot);
+    /// <summary>The voltage on a side's motor times the way it rolls the robot: positive drives forward.</summary>
+    static double WheelDrive(RobotDesign d, string slot, Func<string, bool> pins)
+    {
+        var motor = d.Parts.Find(p => p.Part == PartCatalog.TtMotor && DesignGeometry.SideOf(p) == slot)!;
+        return DriveMap.MotorVolts(Analyse(d), motor.Id, pins, new Components.L298NModel { SupplyVolts = 6 }) * DesignGeometry.ForwardSign(motor);
+    }
 
     [Fact]
     public void KitDrivesBothWheelsForward()
@@ -247,43 +332,20 @@ public class DesignTests
     {
         var d = DesignPresets.ObstacleAvoiderKit();
         var com = DesignGeometry.CentreOfMass(d);
-        Assert.InRange(com.z, DesignGeometry.AxleZ(d.Body), DesignGeometry.CasterCentre(d.Body).z);
+        Assert.InRange(com.z, DesignGeometry.WheelCentre(d.Find("motor1")!).z, DesignGeometry.CasterBall(d.Find("caster1")!).z);
         Assert.InRange(com.x, -10, 10);
-        Assert.InRange(com.y, -30, 15);
+        Assert.InRange(com.y, 20, 65);
     }
 
     [Fact]
-    public void WheelsSitJustOutsideARoundBody()
+    public void WheelsSitJustOutsideAnOldRoundBody()
     {
-        var body = new BodyDesign { Shape = BodyShape.Round, WidthMm = 200 };
-        var wheel = DesignGeometry.WheelCentre(body, "right");
-        var motor = DesignGeometry.MotorCentre(body, "right");
-        float edge = DesignGeometry.SideHalfWidth(body, wheel.z);
-        Assert.InRange(wheel.x - 13, edge, edge + 10);      // the wheel's inner face clears the plate
-        Assert.True(motor.x + 9.5f <= edge);                // the gearbox stays under the plate
-    }
-
-    [Fact]
-    public void RoundDeckKeepsPartsOnTheDisc()
-    {
-        var body = new BodyDesign { Shape = BodyShape.Round, WidthMm = 140 };
-        var uno = PartCatalog.Get(PartCatalog.Uno)!;
-        var (x, z) = DesignGeometry.ClampToDeck(body, uno, 60, 60, 0);
-        float far = (float)Math.Sqrt(Math.Pow(Math.Abs(x) + uno.SizeX / 2, 2) + Math.Pow(Math.Abs(z) + uno.SizeZ / 2, 2));
-        Assert.True(far <= 70.01f, $"corner at {far} mm");
-        Assert.True(x > 0 && z > 0);
-    }
-
-    [Fact]
-    public void OnOneDeckTheBatteryHolderTakesDeckRoom()
-    {
-        var d = DesignPresets.EmptyChassis();
-        d.Body.Decks = 1;
-        d.AddPart(PartCatalog.Battery4AA);
-        var battery = DesignGeometry.Place(d, d.Parts[0]);
-        var driver = PartCatalog.Get(PartCatalog.L298N)!;
-        Assert.True(DesignGeometry.OverlapsDeckPart(d, driver, battery.x, battery.z, 0, null));
-        var added = d.AddPart(PartCatalog.L298N)!;
-        Assert.False(DesignGeometry.OverlapsDeckPart(d, driver, added.X, added.Z, 0, added.Id));
+        var d = DesignPresets.ObstacleAvoiderKit(new BodyDesign { Shape = BodyShape.Round, WidthMm = 200 });
+        var motor = d.Find("motor2")!;
+        var wheel = DesignGeometry.WheelCentre(motor);
+        double edge = Math.Sqrt(100 * 100 - wheel.z * wheel.z);
+        Assert.InRange(wheel.x - 13, edge, edge + 10);          // the wheel's inner face clears the plate
+        Assert.True(motor.X + 9.5f <= edge);                    // the gearbox stays under the plate
+        Assert.Equal(100, d.Body.Features.Find(f => f.Kind == FeatureKind.Plate)!.Detail); // a disc: corners of half its width
     }
 }
