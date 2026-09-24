@@ -155,6 +155,7 @@ namespace CoreEngine.Spike.Garage
                     if (file?.Robots != null) Robots.AddRange(file.Robots);
                     Selected = file?.Selected ?? 0;
                     Arena = file?.Arena ?? 0;
+                    if ((file?.Version ?? 0) < 2) RestoreHoledChassis();
                 }
                 catch (Exception e)
                 {
@@ -167,6 +168,21 @@ namespace CoreEngine.Spike.Garage
                 Robots.Add(new RobotProject { Name = "Obstacle avoider" });
                 var holed = new BodyDesign { HoleGrid = true, WallHeightMm = 22 };
                 Robots.Add(new RobotProject { Name = "Holed chassis", Design = DesignPresets.ObstacleAvoiderKit(holed), BodyFinish = "orange-pla", WheelFinish = "black-hubs" });
+            }
+        }
+
+        /// <summary>
+        /// Saves from before the design model kept only a body kind, and the first conversion turned the
+        /// "Holed chassis" test robot into a plain one: its hole grid and walls come back.
+        /// </summary>
+        static void RestoreHoledChassis()
+        {
+            foreach (var robot in Robots)
+            {
+                var body = robot.Design?.Body;
+                if (robot.Name != "Holed chassis" || body == null || body.HoleGrid || body.WallHeightMm > 0) continue;
+                body.HoleGrid = true;
+                body.WallHeightMm = 22;
             }
         }
 
@@ -192,7 +208,7 @@ namespace CoreEngine.Spike.Garage
             if (noSaving) return;
             try
             {
-                var file = new SaveFile { Robots = new List<RobotProject>(Robots), Selected = Selected, Arena = Arena };
+                var file = new SaveFile { Version = 2, Robots = new List<RobotProject>(Robots), Selected = Selected, Arena = Arena };
                 File.WriteAllText(SavePath, JsonUtility.ToJson(file, true));
             }
             catch (Exception e)
@@ -204,6 +220,7 @@ namespace CoreEngine.Spike.Garage
         [Serializable]
         sealed class SaveFile
         {
+            public int Version; // 2 since the design model (2026-09-24); files without it read as 0
             public List<RobotProject> Robots = new List<RobotProject>();
             public int Selected;
             public int Arena;

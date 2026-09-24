@@ -654,3 +654,34 @@
     border-top-width: 1px;
     border-top-color: rgba(255, 255, 255, 0.06);
 }
+.pin-tag {
+    position: absolute;
+    padding: 0 2px;
+    border-radius: 2px;
+    background-color: rgba(14, 17, 23, 0.8);
+    color: rgb(240, 242, 246);
+    font-size: 10px;
+    white-space: nowrap;
+    transform-origin: left center;
+    translate: 0 -50%;
+}
+.pin-tag--flip {
+    transform-origin: right center;
+    translate: -100% -50%;
+}
+.pin-field {
+    margin: 2px 0;
+}
+.pin-field .unity-base-popup-field__input {
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    background-color: rgb(30, 36, 48);
+}
+.pin-field .unity-base-popup-field__text {
+    color: rgb(232, 234, 240);
+    font-size: 12px;
+}
+.pin-field .unity-base-popup-field__arrow {
+    -unity-background-image-tint-color: rgb(160, 170, 185);
+}

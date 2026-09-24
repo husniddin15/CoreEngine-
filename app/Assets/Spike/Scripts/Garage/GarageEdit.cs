@@ -37,11 +37,28 @@ namespace CoreEngine.Spike.Garage
         LineRenderer? wirePreview;
         Material? previewMaterial;
 
-        // Mouse
+        // Mouse and keys of this frame. The benchmark queues scripted frames, which go through the same code.
+        struct PointerFrame
+        {
+            public Vector2 Position;
+            public bool LeftPressed, LeftHeld, RightPressed, RightHeld, MiddlePressed, MiddleHeld;
+            public float Scroll;
+            public KeyCode Key;
+            public bool Ctrl, Scripted;
+        }
+
+        readonly Queue<PointerFrame> scriptedInput = new Queue<PointerFrame>();
+        PointerFrame input;
         Vector2 pressPosition;
         bool leftDown, rightDown, panning, dragging, dragMoved;
+        bool wireGesture, wireStartedByPress; // a press on a pin: a drag to another pin makes a wire, a click starts one
         Vector2 dragOffset;
         RobotDesign? dragBefore;
+
+        // "Look at" a part in Wire: the camera comes close and the pins show their names
+        string? focusedPart;
+        readonly List<Label> pinTags = new List<Label>();
+        string listFrom = "", listTo = "";
 
         // Undo, saving and the body rebuild, which runs on a worker thread so the sliders stay smooth
         readonly List<RobotDesign> undo = new List<RobotDesign>();
@@ -86,6 +103,7 @@ namespace CoreEngine.Spike.Garage
             selectedPart = null;
             selectedWire = -1;
             wireStart = null;
+            focusedPart = null;
             ShowRobot();
             OpenSide(titleKey, render);
             UpdateHint();
@@ -180,6 +198,7 @@ namespace CoreEngine.Spike.Garage
                 }
             }
             if (bodyDirty && Time.unscaledTime >= bodyRebuildAt) FlushBody();
+            UpdatePinTags();
             if (saveAt > 0 && Time.unscaledTime >= saveAt)
             {
                 saveAt = -1;
@@ -211,47 +230,52 @@ namespace CoreEngine.Spike.Garage
 
         void UpdateEditing()
         {
+            input = ReadInput();
             if (overlay.style.display == DisplayStyle.Flex) return;
-            bool overUi = IsPointerOverUi();
-            Vector2 mouse = Input.mousePosition;
+            Vector2 mouse = input.Position;
+            bool overUi = IsPointerOverUi(mouse);
 
-            // Left button: parts are dragged in Build; a click picks; a drag elsewhere turns the view.
             // A click in the scene ends typing in a number box, so the keys work on the robot again.
-            if ((Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) && !overUi)
-                (root.panel?.focusController?.focusedElement as Focusable)?.Blur();
-            if (Input.GetMouseButtonDown(0) && !overUi)
+            if ((input.LeftPressed || input.RightPressed) && !overUi) root.panel?.focusController?.focusedElement?.Blur();
+
+            // Left button: parts are dragged in Build; in Wire a press on a pin starts a wire; a click picks;
+            // a drag anywhere else turns the view.
+            if (input.LeftPressed && !overUi)
             {
                 leftDown = true;
                 pressPosition = mouse;
                 lastMouse = mouse;
                 if (mode == EditMode.Build) BeginPartDrag(mouse);
+                if (mode == EditMode.Wire) BeginWireGesture(mouse);
             }
-            if (leftDown && Input.GetMouseButton(0))
+            if (leftDown && input.LeftHeld)
             {
                 if (dragging) UpdatePartDrag(mouse);
-                else if ((mouse - pressPosition).magnitude > 4) Orbit(mouse);
+                else if (!wireGesture && (mouse - pressPosition).magnitude > 4) Orbit(mouse);
             }
-            if (leftDown && !Input.GetMouseButton(0))
+            if (leftDown && !input.LeftHeld)
             {
                 leftDown = false;
+                bool click = (mouse - pressPosition).magnitude <= 4;
                 if (dragging) EndPartDrag();
-                else if ((mouse - pressPosition).magnitude <= 4) SceneClick(mouse);
+                else if (wireGesture) EndWireGesture(mouse, click);
+                else if (click) SceneClick(mouse);
             }
 
             // Right button turns the view, the middle button pans it.
-            if (Input.GetMouseButtonDown(1) && !overUi)
+            if (input.RightPressed && !overUi)
             {
                 rightDown = true;
                 lastMouse = mouse;
             }
-            if (rightDown && Input.GetMouseButton(1)) Orbit(mouse);
+            if (rightDown && input.RightHeld) Orbit(mouse);
             else rightDown = false;
-            if (Input.GetMouseButtonDown(2) && !overUi)
+            if (input.MiddlePressed && !overUi)
             {
                 panning = true;
                 lastMouse = mouse;
             }
-            if (panning && Input.GetMouseButton(2))
+            if (panning && input.MiddleHeld)
             {
                 var delta = mouse - (Vector2)lastMouse;
                 lastMouse = mouse;
@@ -264,11 +288,10 @@ namespace CoreEngine.Spike.Garage
             }
 
             // The wheel zooms toward the point under the mouse, so small pins can be reached.
-            float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f && !overUi)
+            if (Mathf.Abs(input.Scroll) > 0.01f && !overUi)
             {
                 float old = distance;
-                distance = Mathf.Clamp(distance * (1f - scroll * 0.12f), 0.12f, 1.3f);
+                distance = Mathf.Clamp(distance * (1f - input.Scroll * 0.12f), 0.12f, 1.3f);
                 if (distance < old && DeckPointWorld(mouse, out var point)) MoveTarget(orbitTarget + (point - orbitTarget) * (1 - distance / old));
                 else if (distance > old) MoveTarget(orbitTarget + (DefaultTarget - orbitTarget) * (1 - old / distance));
             }
@@ -276,6 +299,30 @@ namespace CoreEngine.Spike.Garage
             UpdateHover(mouse, overUi);
             if (!IsTyping()) UpdateKeys();
         }
+
+        PointerFrame ReadInput()
+        {
+            if (scriptedInput.Count > 0)
+            {
+                var frame = scriptedInput.Dequeue();
+                frame.Scripted = true;
+                return frame;
+            }
+            return new PointerFrame
+            {
+                Position = Input.mousePosition,
+                LeftPressed = Input.GetMouseButtonDown(0),
+                LeftHeld = Input.GetMouseButton(0),
+                RightPressed = Input.GetMouseButtonDown(1),
+                RightHeld = Input.GetMouseButton(1),
+                MiddlePressed = Input.GetMouseButtonDown(2),
+                MiddleHeld = Input.GetMouseButton(2),
+                Scroll = Input.mouseScrollDelta.y,
+                Ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl),
+            };
+        }
+
+        bool KeyPressed(KeyCode key) => input.Scripted ? input.Key == key : Input.GetKeyDown(key);
 
         void Orbit(Vector2 mouse)
         {
@@ -295,21 +342,20 @@ namespace CoreEngine.Spike.Garage
 
         void UpdateKeys()
         {
-            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-            if (ctrl && Input.GetKeyDown(KeyCode.Z)) Undo();
-            if (Input.GetKeyDown(KeyCode.Escape))
+            if (input.Ctrl && KeyPressed(KeyCode.Z)) Undo();
+            if (KeyPressed(KeyCode.Escape))
             {
                 if (wireStart != null) CancelWire();
                 else if (selectedPart != null || selectedWire >= 0) SelectNothing();
                 else CloseSide();
                 return;
             }
-            bool delete = Input.GetKeyDown(KeyCode.Delete) || Input.GetKeyDown(KeyCode.Backspace);
+            bool delete = KeyPressed(KeyCode.Delete) || KeyPressed(KeyCode.Backspace);
             if (mode == EditMode.Build)
             {
-                if (Input.GetKeyDown(KeyCode.R)) RotateSelected();
+                if (KeyPressed(KeyCode.R)) RotateSelected();
                 if (delete) RemoveSelectedPart();
-                if (Input.GetKeyDown(KeyCode.F) && selectedPart != null && shown != null && shown.Parts.TryGetValue(selectedPart, out var go))
+                if (KeyPressed(KeyCode.F) && selectedPart != null && shown != null && shown.Parts.TryGetValue(selectedPart, out var go))
                     MoveTarget(go.transform.position);
             }
             if (mode == EditMode.Wire && delete && selectedWire >= 0) RemoveWire(selectedWire);
@@ -319,16 +365,40 @@ namespace CoreEngine.Spike.Garage
         {
             if (mode == EditMode.Build && !PartUnder(mouse, out _)) SelectNothing();
             if (mode != EditMode.Wire) return;
-            string? pin = PinUnder(mouse);
-            if (pin != null)
-            {
-                PinClicked(pin);
-                return;
-            }
             int wire = WireUnder(mouse);
             if (wire >= 0) SelectWire(wire);
             else if (wireStart != null) CancelWire();
             else SelectNothing();
+        }
+
+        /// <summary>A press on a pin: a new wire starts there unless one is already waiting for its other end.</summary>
+        void BeginWireGesture(Vector2 mouse)
+        {
+            string? pin = WireModeTarget(mouse).pin;
+            wireGesture = pin != null;
+            wireStartedByPress = false;
+            if (pin == null || wireStart != null) return;
+            wireStartedByPress = StartWire(pin);
+            if (!wireStartedByPress) wireGesture = false; // a full pin: the toast says why
+        }
+
+        /// <summary>
+        /// The release: dragged onto another pin, the wire is made; a click on a pin starts a wire or, when one
+        /// is waiting, ends it there; a click on the same pin again or a release on nothing cancels it.
+        /// </summary>
+        void EndWireGesture(Vector2 mouse, bool click)
+        {
+            wireGesture = false;
+            string? target = PinUnder(mouse);
+            if (click)
+            {
+                if (wireStartedByPress) return; // the first click: the wire waits for its other end
+                if (target == null || target == wireStart) CancelWire();
+                else CompleteWire(target);
+                return;
+            }
+            bool made = target != null && target != wireStart && CompleteWire(target);
+            if (!made && wireStart != null) CancelWire();
         }
 
         void SelectNothing()
@@ -345,7 +415,7 @@ namespace CoreEngine.Spike.Garage
         {
             string text = "";
             hoveredPin = null;
-            if (!overUi && !leftDown && !rightDown && !panning)
+            if (!overUi && (!leftDown || wireGesture) && !rightDown && !panning)
             {
                 if (mode == EditMode.Build && PartUnder(mouse, out var partId))
                 {
@@ -353,16 +423,11 @@ namespace CoreEngine.Spike.Garage
                 }
                 else if (mode == EditMode.Wire)
                 {
-                    hoveredPin = PinUnder(mouse);
-                    if (hoveredPin != null)
-                    {
-                        text = PinDescription(hoveredPin);
-                    }
-                    else
-                    {
-                        int wire = WireUnder(mouse);
-                        if (wire >= 0) text = WireText(Design.Wires[wire]);
-                    }
+                    // While a wire is being dragged only pins count: it is dropped on one.
+                    var (pin, wire) = wireGesture ? (PinUnder(mouse), -1) : WireModeTarget(mouse);
+                    hoveredPin = pin;
+                    if (pin != null) text = PinDescription(pin);
+                    else if (wire >= 0) text = WireText(Design.Wires[wire]);
                 }
             }
             shown?.HighlightPins(hoveredPin, wireStart);
@@ -604,9 +669,23 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ Wire
 
-        /// <summary>The nearest pin marker within 14 pixels of the mouse, as "part/pin".</summary>
-        string? PinUnder(Vector2 mouse)
+        /// <summary>
+        /// What the mouse points at in Wire: the nearer of a pin and a wire. A pin wins when it is about as
+        /// close (2 pixels), so a wire that passes over a row of pins can still be clicked where it runs.
+        /// </summary>
+        (string? pin, int wire) WireModeTarget(Vector2 mouse)
         {
+            string? pin = PinUnder(mouse, out float pinDistance);
+            int wire = WireUnder(mouse, out float wireDistance);
+            return pin != null && (wire < 0 || pinDistance <= wireDistance + 2) ? (pin, -1) : (null, wire);
+        }
+
+        string? PinUnder(Vector2 mouse) => PinUnder(mouse, out _);
+
+        /// <summary>The nearest pin marker within 14 pixels of the mouse, as "part/pin".</summary>
+        string? PinUnder(Vector2 mouse, out float distance)
+        {
+            distance = float.MaxValue;
             if (shown == null) return null;
             string? best = null;
             float bestDistance = 14f;
@@ -621,12 +700,16 @@ namespace CoreEngine.Spike.Garage
                     best = entry.Key;
                 }
             }
+            if (best != null) distance = bestDistance;
             return best;
         }
 
+        int WireUnder(Vector2 mouse) => WireUnder(mouse, out _);
+
         /// <summary>The wire whose curve passes within 7 pixels of the mouse, or -1.</summary>
-        int WireUnder(Vector2 mouse)
+        int WireUnder(Vector2 mouse, out float distance)
         {
+            distance = float.MaxValue;
             if (shown == null) return -1;
             int best = -1;
             float bestDistance = 7f;
@@ -651,6 +734,7 @@ namespace CoreEngine.Spike.Garage
                     previous = next;
                 }
             }
+            if (best >= 0) distance = bestDistance;
             return best;
         }
 
@@ -661,36 +745,63 @@ namespace CoreEngine.Spike.Garage
             return Vector2.Distance(p, a + t * ab);
         }
 
-        /// <summary>The first click chooses where a wire starts, the second where it ends.</summary>
+        /// <summary>One click on a pin as the mouse makes it: the first starts a wire, the second ends it.</summary>
         void PinClicked(string key)
         {
-            if (wireStart == null)
+            if (wireStart == null) StartWire(key);
+            else if (wireStart == key) CancelWire();
+            else CompleteWire(key);
+        }
+
+        /// <summary>Makes a wire between two pins in one go (the lists in the Wire panel, the benchmark).</summary>
+        bool ConnectPins(string from, string to)
+        {
+            wireStart = null;
+            if (!StartWire(from)) return false;
+            if (CompleteWire(to)) return true;
+            CancelWire();
+            return false;
+        }
+
+        /// <summary>Chooses where a new wire starts, if the pin has room for one more.</summary>
+        bool StartWire(string key)
+        {
+            var (part, pin) = SplitKey(key);
+            if (!Design.HasRoomOn(part, pin))
             {
-                wireStart = key;
-                selectedWire = -1;
-                shown?.HighlightWire(-1);
-                renderSide?.Invoke();
-                return;
+                ShowToast(SpikeStrings.Format("wire.full", PartLabel(part) + " " + PinLabel(part, pin)));
+                return false;
             }
-            if (wireStart == key)
-            {
-                CancelWire();
-                return;
-            }
+            wireStart = key;
+            selectedWire = -1;
+            shown?.HighlightWire(-1);
+            renderSide?.Invoke();
+            return true;
+        }
+
+        /// <summary>Ends the waiting wire on a pin. A full pin is refused and the wire keeps waiting.</summary>
+        bool CompleteWire(string key)
+        {
+            if (wireStart == null) return false;
             var (fromPart, fromPin) = SplitKey(wireStart);
             var (toPart, toPin) = SplitKey(key);
-            wireStart = null;
+            if (!Design.HasRoomOn(toPart, toPin))
+            {
+                ShowToast(SpikeStrings.Format("wire.full", PartLabel(toPart) + " " + PinLabel(toPart, toPin)));
+                return false;
+            }
             PushUndo();
             if (Design.AddWire(fromPart, fromPin, toPart, toPin, ColourFor(fromPart, fromPin, toPart, toPin)) == null)
             {
                 undo.RemoveAt(undo.Count - 1);
                 ShowToast(Tr("wire.duplicate"));
-                renderSide?.Invoke();
-                return;
+                return false;
             }
+            wireStart = null;
             selectedWire = Design.Wires.Count - 1;
             DesignChanged();
             shown?.HighlightWire(selectedWire);
+            return true;
         }
 
         void CancelWire()
@@ -698,6 +809,107 @@ namespace CoreEngine.Spike.Garage
             wireStart = null;
             shown?.HighlightPins(hoveredPin, null);
             renderSide?.Invoke();
+        }
+
+        /// <summary>
+        /// Points the camera at a part from the side its pins face (from above for headers, from behind for the
+        /// sensor's pins), close enough to tell 2.54 mm pins apart, and shows the pins' names.
+        /// </summary>
+        void FocusPart(string partId)
+        {
+            if (shown == null) return;
+            focusedPart = partId;
+            MoveTarget(shown.FocusPoint(partId));
+            var facing = Vector3.zero;
+            foreach (var entry in shown.PinMarkers)
+            {
+                if (!entry.Key.StartsWith(partId + "/")) continue;
+                var (part, pin) = SplitKey(entry.Key);
+                var exit = DesignGeometry.PinExit(Design, part, pin);
+                if (exit != null) facing += robotAnchor.TransformDirection(new Vector3(exit.Value.x, exit.Value.y, exit.Value.z));
+            }
+            if (facing.sqrMagnitude > 1e-6f)
+            {
+                facing.Normalize();
+                if (new Vector2(facing.x, facing.z).magnitude > 0.2f) yaw = Mathf.Atan2(-facing.x, -facing.z) * Mathf.Rad2Deg;
+                pitch = Mathf.Clamp(Mathf.Asin(facing.y) * Mathf.Rad2Deg, 30f, 75f);
+            }
+            distance = 0.2f;
+            renderSide?.Invoke();
+        }
+
+        void ViewWholeRobot()
+        {
+            focusedPart = null;
+            orbitTarget = DefaultTarget;
+            distance = mode == EditMode.Wire ? 0.40f : 0.50f;
+            pitch = 42f;
+            yaw = 200f;
+            renderSide?.Invoke();
+        }
+
+        /// <summary>Small name tags on the pins of the part being looked at, like the printing on a real board.</summary>
+        void UpdatePinTags()
+        {
+            int used = 0;
+            var part = mode == EditMode.Wire && focusedPart != null ? Design.Find(focusedPart) : null;
+            var def = part == null ? null : PartCatalog.Get(part.Part);
+            if (def != null && shown != null && root.panel != null && shown.Parts.TryGetValue(part!.Id, out var partObject))
+            {
+                var frame = partObject.transform;
+                var centre = ToPanel(view.WorldToScreenPoint(frame.position));
+                foreach (var pin in def.Pins)
+                {
+                    if (!shown.PinMarkers.TryGetValue(part.Id + "/" + pin.Id, out var marker)) continue;
+                    var screen = view.WorldToScreenPoint(marker.position);
+                    if (screen.z <= 0) continue;
+                    var at = ToPanel(screen);
+                    // Header pins sit 2.54 mm apart in a row, so their names run across the row, away from the
+                    // part; a terminal's or a lead's name runs the way its wire leaves.
+                    bool header = pin.Style == PinStyle.Header || pin.Style == PinStyle.Pin;
+                    var world = header ? frame.right : frame.TransformDirection(new Vector3(pin.ExitX, pin.ExitY, pin.ExitZ));
+                    var step = ToPanel(view.WorldToScreenPoint(marker.position + world * 0.003f)) - at;
+                    var along = header ? new Vector2(-step.y, step.x) : step;
+                    along = along.sqrMagnitude > 1e-4f ? along.normalized : new Vector2(0, -1);
+                    if (header && Vector2.Dot(along, at - centre) < 0) along = -along;
+                    float angle = Mathf.Atan2(along.y, along.x) * Mathf.Rad2Deg;
+                    bool flip = Mathf.Abs(angle) > 90; // keep the text upright: it then ends at the pin's side
+                    if (used == pinTags.Count)
+                    {
+                        var label = Classed(new Label { pickingMode = PickingMode.Ignore }, "pin-tag");
+                        root.Insert(root.IndexOf(tooltip), label);
+                        pinTags.Add(label);
+                    }
+                    var tag = pinTags[used++];
+                    tag.text = pin.ShortLabel;
+                    tag.EnableInClassList("pin-tag--flip", flip);
+                    tag.style.left = at.x + along.x * 6;
+                    tag.style.top = at.y + along.y * 6;
+                    tag.style.rotate = new Rotate(new Angle(flip ? angle - 180 : angle, AngleUnit.Degree));
+                    tag.style.display = DisplayStyle.Flex;
+                }
+            }
+            for (int i = used; i < pinTags.Count; i++) pinTags[i].style.display = DisplayStyle.None;
+        }
+
+        Vector2 ToPanel(Vector3 screen) => RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y));
+
+        /// <summary>Every pin as "Uno · D5" with its "part/pin" key; a dot marks pins that have no room left.</summary>
+        static (List<string> labels, List<string> keys) PinChoices(RobotDesign design)
+        {
+            var labels = new List<string>();
+            var keys = new List<string>();
+            foreach (var part in design.Parts)
+            {
+                var def = PartCatalog.Get(part.Part);
+                if (def == null) continue;
+                foreach (var pin in def.Pins)
+                {
+                    labels.Add(PartLabel(part.Id) + " · " + pin.ShortLabel + (design.HasRoomOn(part.Id, pin.Id) ? "" : "  ●"));
+                    keys.Add(part.Id + "/" + pin.Id);
+                }
+            }
+            return (labels, keys);
         }
 
         static (string part, string pin) SplitKey(string key)
@@ -849,6 +1061,39 @@ namespace CoreEngine.Spike.Garage
                 var (part, pin) = SplitKey(wireStart);
                 sideContent.Add(Classed(new Label(SpikeStrings.Format("wire.from", PartLabel(part) + " " + PinLabel(part, pin))), "try-line"));
             }
+
+            Section("wire.lookAt");
+            var look = Layout("seg-row");
+            foreach (var part in design.Parts)
+            {
+                var def = PartCatalog.Get(part.Part);
+                if (def == null || def.Pins.Count == 0) continue;
+                string id = part.Id;
+                var button = new Button(() => FocusPart(id)) { text = PartLabel(id), focusable = false };
+                button.AddToClassList("seg-button");
+                button.EnableInClassList("seg-button--active", id == focusedPart);
+                look.Add(button);
+            }
+            var whole = new Button(ViewWholeRobot) { text = Tr("wire.whole"), focusable = false };
+            whole.AddToClassList("seg-button");
+            whole.EnableInClassList("seg-button--active", focusedPart == null);
+            look.Add(whole);
+            sideContent.Add(look);
+
+            Section("wire.byList");
+            var (labels, keys) = PinChoices(design);
+            if (!keys.Contains(listFrom)) listFrom = keys.Count > 0 ? keys[0] : "";
+            if (!keys.Contains(listTo)) listTo = keys.Count > 1 ? keys[1] : listFrom;
+            var fromField = new DropdownField(labels, Math.Max(0, keys.IndexOf(listFrom))) { focusable = false };
+            var toField = new DropdownField(labels, Math.Max(0, keys.IndexOf(listTo))) { focusable = false };
+            fromField.RegisterValueChangedCallback(_ => { if (fromField.index >= 0) listFrom = keys[fromField.index]; });
+            toField.RegisterValueChangedCallback(_ => { if (toField.index >= 0) listTo = keys[toField.index]; });
+            fromField.AddToClassList("pin-field");
+            toField.AddToClassList("pin-field");
+            sideContent.Add(fromField);
+            sideContent.Add(Classed(new Label("↓"), "bin-sub"));
+            sideContent.Add(toField);
+            sideContent.Add(SmallButton("wire.addFromList", () => ConnectPins(listFrom, listTo)));
 
             Section("wire.colour");
             var palette = Layout("palette");
@@ -1128,22 +1373,27 @@ namespace CoreEngine.Spike.Garage
                               $"left motor on channel {circuit.Motor("left")?.Channel} polarity {circuit.Motor("left")?.Polarity}, " +
                               $"right on channel {circuit.Motor("right")?.Channel} polarity {circuit.Motor("right")?.Polarity}");
 
-            // Two classic mistakes: the sensor's ground wire missing, then the battery on the Uno's 5V pin.
+            // Two classic mistakes: the sensor's ground wire missing, then the Uno's 5V jumper moved from the
+            // L298N's +5V to its +12V terminal, which carries the battery's full voltage.
             int sensorGround = Design.Wires.FindIndex(w => w.FromPart == "sonar1" && w.FromPin == "GND");
             RemoveWire(sensorGround);
             var noGround = CircuitAnalysis.Analyse(Design);
             Undo();
-            PinClicked("battery1/+");
-            PinClicked("uno1/5V");
+            RemoveWire(Design.Wires.FindIndex(w => w.ToPart == "uno1" && w.ToPin == "5V"));
+            bool fullRefused5v = !ConnectPins("battery1/+", "uno1/5V"); // the battery lead already goes to +12V
+            ConnectPins("driver1/+12V", "uno1/5V");
             var burning = CircuitAnalysis.Analyse(Design);
             renderSide?.Invoke();
             yield return Frames(4);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-wire-warning"));
             Undo();
+            Undo();
             bool restored = !CircuitAnalysis.Analyse(Design).HasProblems && Design.Wires.Count == 16;
             report.AppendLine($"  mistakes: without the sensor's GND wire the check says {string.Join(", ", noGround.Warnings.FindAll(w => !w.Info))}; " +
                               $"battery + on the Uno 5V pin says {string.Join(", ", burning.Warnings.FindAll(w => !w.Info))} (board damaged: {burning.BoardDamaged}); " +
-                              $"both undone: {(restored ? "yes" : "NO")}");
+                              $"both undone: {(restored ? "yes" : "NO")}; a second wire on the battery lead refused: {(fullRefused5v ? "yes" : "NO")}");
+
+            yield return WireByMouse();
 
             // The robot runs the obstacle-avoider sketch; START then takes it to the arena.
             robot.SketchFile = RobotProject.GoldenSketch;
@@ -1154,7 +1404,146 @@ namespace CoreEngine.Spike.Garage
             yield return Frames(6);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-scratch"));
             report.AppendLine($"  back on the turntable: {robot.PartCount} parts, {robot.MassKg * 1000:F0} g; screenshots -garage-body, -garage-build, " +
-                              "-garage-wire, -garage-wire-warning, -garage-scratch");
+                              "-garage-wire, -garage-wire-warning, -garage-wire-mouse, -garage-look, -garage-scratch");
+        }
+
+        /// <summary>
+        /// Wiring and building as a player does it, through the same mouse and key code: a drag from pin to pin,
+        /// two clicks, a drag onto a pin that already has its jumper, a click on a wire, Del and Ctrl+Z, a part
+        /// dragged in Build, "Look at" with the pin names, and a Body slider dragged with UI Toolkit events.
+        /// </summary>
+        IEnumerator WireByMouse()
+        {
+            var report = SpikeReport.Text;
+            RemoveWire(Design.Wires.FindIndex(w => w.ToPart == "sonar1" && w.ToPin == "TRIG"));
+            RemoveWire(Design.Wires.FindIndex(w => w.ToPart == "sonar1" && w.ToPin == "ECHO"));
+            ViewWholeRobot();
+            yield return Frames(3);
+
+            yield return MouseDrag(PinScreen("uno1/D9"), PinScreen("sonar1/TRIG"));
+            bool dragged = HasWire("uno1/D9", "sonar1/TRIG");
+            yield return MouseClick(PinScreen("sonar1/ECHO"));
+            bool waiting = wireStart == "sonar1/ECHO";
+            yield return MouseClick(PinScreen("uno1/D10"));
+            bool clicked = HasWire("sonar1/ECHO", "uno1/D10");
+            int count = Design.Wires.Count;
+            yield return MouseDrag(PinScreen("uno1/D4"), PinScreen("driver1/IN1"));
+            bool refused = Design.Wires.Count == count && wireStart == null;
+            yield return Frames(3);
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-wire-mouse"));
+
+            int trig = Design.Wires.FindIndex(w => w.FromPart == "uno1" && w.FromPin == "D9");
+            yield return MouseClick(WireScreen(trig));
+            bool selected = selectedWire == trig;
+            yield return Press(KeyCode.Delete, false);
+            bool deleted = Design.Wires.Count == count - 1;
+            yield return Press(KeyCode.Z, true);
+            bool undone = Design.Wires.Count == count && HasWire("uno1/D9", "sonar1/TRIG");
+
+            FocusPart("uno1");
+            yield return Frames(4);
+            int tags = 0;
+            foreach (var tag in pinTags) if (tag.style.display == DisplayStyle.Flex) tags++;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-look"));
+            ViewWholeRobot();
+
+            // Build: drag the L298N 20 mm to the left with the mouse.
+            OnAction("act.build");
+            yield return Frames(3);
+            float before = Design.Find("driver1")!.X;
+            var part = shown!.Parts["driver1"].transform;
+            var grab = part.position + part.up * 0.012f;
+            var dropAt = grab + robotAnchor.TransformDirection(Vector3.left) * 0.020f;
+            yield return MouseDrag(view.WorldToScreenPoint(grab), view.WorldToScreenPoint(dropAt));
+            float moved = Design.Find("driver1")!.X - before;
+
+            // Body: drag the length slider's handle 40 pixels to the right with UI Toolkit pointer events.
+            OnAction("act.body");
+            yield return Frames(3);
+            float length = Design.Body.LengthMm;
+            var slider = sideContent.Q<Slider>();
+            var handle = slider?.Q("unity-dragger");
+            if (handle != null)
+            {
+                Vector2 from = handle.worldBound.center, to = from + new Vector2(40, 0);
+                SendPointer(EventType.MouseDown, from);
+                for (int i = 1; i <= 8; i++)
+                {
+                    SendPointer(EventType.MouseDrag, Vector2.Lerp(from, to, i / 8f));
+                    yield return null;
+                }
+                SendPointer(EventType.MouseUp, to);
+            }
+            yield return WaitForBody();
+            float lengthAfter = Design.Body.LengthMm;
+            Undo();
+            yield return WaitForBody();
+            OnAction("act.wire");
+
+            report.AppendLine($"  by mouse: drag from D9 to TRIG made a wire: {Yes(dragged)}; click ECHO then D10: {Yes(waiting && clicked)}; " +
+                              $"a drag from D4 onto IN1, which has its jumper, refused: {Yes(refused)}; click on a wire selected it: {Yes(selected)}, " +
+                              $"Del removed it: {Yes(deleted)}, Ctrl+Z brought it back: {Yes(undone)}; Look at Uno showed {tags} pin names; " +
+                              $"Build drag moved the L298N by {moved:F0} mm; the Body slider went from {length:F0} to {lengthAfter:F0} mm");
+        }
+
+        static string Yes(bool ok) => ok ? "yes" : "NO";
+
+        bool HasWire(string a, string b)
+        {
+            var (pa, na) = SplitKey(a);
+            var (pb, nb) = SplitKey(b);
+            return Design.Wires.Exists(w => (w.FromPart == pa && w.FromPin == na && w.ToPart == pb && w.ToPin == nb) ||
+                                            (w.FromPart == pb && w.FromPin == nb && w.ToPart == pa && w.ToPin == na));
+        }
+
+        Vector2 PinScreen(string key) => shown != null && shown.PinMarkers.TryGetValue(key, out var marker)
+            ? (Vector2)view.WorldToScreenPoint(marker.position) : Vector2.zero;
+
+        /// <summary>The screen point halfway along a wire's curve.</summary>
+        Vector2 WireScreen(int index)
+        {
+            var path = shown != null && index >= 0 && index < shown.WirePaths.Count ? shown.WirePaths[index] : null;
+            return path == null ? Vector2.zero : (Vector2)view.WorldToScreenPoint(shown!.Root.transform.TransformPoint(path[path.Length / 2]));
+        }
+
+        IEnumerator Play(List<PointerFrame> frames)
+        {
+            foreach (var frame in frames) scriptedInput.Enqueue(frame);
+            while (scriptedInput.Count > 0) yield return null;
+            yield return null;
+        }
+
+        IEnumerator MouseDrag(Vector2 from, Vector2 to)
+        {
+            var frames = new List<PointerFrame>
+            {
+                new PointerFrame { Position = from },
+                new PointerFrame { Position = from, LeftPressed = true, LeftHeld = true },
+            };
+            for (int i = 1; i <= 8; i++) frames.Add(new PointerFrame { Position = Vector2.Lerp(from, to, i / 8f), LeftHeld = true });
+            frames.Add(new PointerFrame { Position = to });
+            frames.Add(new PointerFrame { Position = to });
+            return Play(frames);
+        }
+
+        IEnumerator MouseClick(Vector2 at) => Play(new List<PointerFrame>
+        {
+            new PointerFrame { Position = at },
+            new PointerFrame { Position = at, LeftPressed = true, LeftHeld = true },
+            new PointerFrame { Position = at },
+            new PointerFrame { Position = at },
+        });
+
+        IEnumerator Press(KeyCode key, bool ctrl) => Play(new List<PointerFrame> { new PointerFrame { Position = input.Position, Key = key, Ctrl = ctrl } });
+
+        /// <summary>A UI Toolkit pointer event at a panel position, as the Phase 0.6 dock test sends them.</summary>
+        void SendPointer(EventType type, Vector2 position)
+        {
+            var systemEvent = new Event { type = type, mousePosition = position, button = 0, clickCount = 1 };
+            EventBase pointerEvent = type == EventType.MouseDown ? PointerDownEvent.GetPooled(systemEvent)
+                : type == EventType.MouseUp ? PointerUpEvent.GetPooled(systemEvent)
+                : (EventBase)PointerMoveEvent.GetPooled(systemEvent);
+            using (pointerEvent) root.panel.visualTree.SendEvent(pointerEvent);
         }
     }
 }

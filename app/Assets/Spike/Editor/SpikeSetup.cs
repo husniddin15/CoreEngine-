@@ -90,17 +90,33 @@ namespace CoreEngine.Spike.Editor
         {
             string folder = EnsureFolder(SpikeFolder + "/Rendering");
             string pipelinePath = folder + "/SpikePipeline.asset";
+            string rendererPath = folder + "/SpikeRenderer.asset";
             var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(pipelinePath);
             if (pipeline == null)
             {
-                var renderer = ScriptableObject.CreateInstance<UniversalRendererData>();
-                AssetDatabase.CreateAsset(renderer, folder + "/SpikeRenderer.asset");
-                pipeline = UniversalRenderPipelineAsset.Create(renderer);
+                var created = ScriptableObject.CreateInstance<UniversalRendererData>();
+                AssetDatabase.CreateAsset(created, rendererPath);
+                pipeline = UniversalRenderPipelineAsset.Create(created);
                 AssetDatabase.CreateAsset(pipeline, pipelinePath);
             }
-            pipeline.shadowDistance = 6f;
+            // Picture quality (docs/04 §10): 4x MSAA and HDR; soft shadows from a 2048 map in two cascades over
+            // 4 m (about 1 mm per shadow texel near the robot), and the Garage's spot lights cast shadows too.
             pipeline.msaaSampleCount = 4;
+            pipeline.supportsHDR = true;
+            pipeline.shadowDistance = 4f;
+            pipeline.shadowCascadeCount = 2;
+            pipeline.cascade2Split = 0.25f;
+            pipeline.mainLightShadowmapResolution = 2048;
+            var quality = new SerializedObject(pipeline);
+            SetBool(quality, "m_SoftShadowsSupported", true);
+            SetInt(quality, "m_SoftShadowQuality", 2);                // SoftShadowQuality.Medium
+            SetBool(quality, "m_AdditionalLightShadowsSupported", true);
+            SetBool(quality, "m_AnyShadowsSupported", true);
+            SetInt(quality, "m_AdditionalLightsShadowmapResolution", 2048);
+            SetInt(quality, "m_ColorGradingMode", 1);                 // grading in HDR, before tonemapping
+            quality.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(pipeline);
+            ConfigureRenderer(AssetDatabase.LoadAssetAtPath<UniversalRendererData>(rendererPath));
 
             GraphicsSettings.defaultRenderPipeline = pipeline;
             int current = QualitySettings.GetQualityLevel();
@@ -111,6 +127,83 @@ namespace CoreEngine.Spike.Editor
             }
             QualitySettings.SetQualityLevel(current, false);
             return pipeline;
+        }
+
+        /// <summary>Post-processing data (tonemapping, bloom, grading) and screen-space ambient occlusion on the renderer.</summary>
+        static void ConfigureRenderer(UniversalRendererData renderer)
+        {
+            if (renderer == null) return;
+            if (renderer.postProcessData == null)
+                renderer.postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>("Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset");
+            // Ambient occlusion darkens creases and contact points, so parts sit on the deck instead of floating.
+            var ssao = renderer.rendererFeatures.Find(f => f is ScreenSpaceAmbientOcclusion) as ScreenSpaceAmbientOcclusion;
+            if (ssao == null)
+            {
+                ssao = ScriptableObject.CreateInstance<ScreenSpaceAmbientOcclusion>();
+                ssao.name = "SSAO";
+                AssetDatabase.AddObjectToAsset(ssao, renderer);
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(ssao, out _, out long localId);
+                var data = new SerializedObject(renderer);
+                var features = data.FindProperty("m_RendererFeatures");
+                var map = data.FindProperty("m_RendererFeatureMap");
+                features.arraySize++;
+                features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = ssao;
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+                data.ApplyModifiedPropertiesWithoutUndo();
+            }
+            var settings = new SerializedObject(ssao);
+            SetFloat(settings, "m_Settings.Intensity", 1.6f);
+            SetFloat(settings, "m_Settings.Radius", 0.03f);       // 3 cm: the scale of the robot's parts
+            SetFloat(settings, "m_Settings.DirectLightingStrength", 0.3f);
+            SetBool(settings, "m_Settings.Downsample", true);     // half resolution: a quarter of the cost
+            settings.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(ssao);
+            EditorUtility.SetDirty(renderer);
+        }
+
+        /// <summary>
+        /// The look of both scenes: a neutral tone curve keeps bright plastic from clipping to flat white, with a
+        /// little more contrast and colour, a soft bloom on bright highlights and a light vignette.
+        /// </summary>
+        static VolumeProfile CreatePostProfile()
+        {
+            string path = EnsureFolder(SpikeFolder + "/Rendering") + "/SpikePost.asset";
+            var profile = AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                AssetDatabase.CreateAsset(profile, path);
+            }
+            T Component<T>() where T : VolumeComponent
+            {
+                if (profile.TryGet(out T existing)) return existing;
+                var added = profile.Add<T>(true);
+                added.name = typeof(T).Name;
+                AssetDatabase.AddObjectToAsset(added, profile);
+                return added;
+            }
+            Component<Tonemapping>().mode.Override(TonemappingMode.Neutral);
+            var color = Component<ColorAdjustments>();
+            color.postExposure.Override(0.15f);
+            color.contrast.Override(12f);
+            color.saturation.Override(8f);
+            var bloom = Component<Bloom>();
+            bloom.threshold.Override(1.1f);
+            bloom.intensity.Override(0.35f);
+            bloom.scatter.Override(0.6f);
+            var vignette = Component<Vignette>();
+            vignette.intensity.Override(0.2f);
+            vignette.smoothness.Override(0.45f);
+            EditorUtility.SetDirty(profile);
+            return profile;
+        }
+
+        static void AddPostProcessing()
+        {
+            var volume = new GameObject("PostProcessing").AddComponent<Volume>();
+            volume.isGlobal = true;
+            volume.sharedProfile = CreatePostProfile();
         }
 
         static void ConfigurePhysics()
@@ -146,6 +239,7 @@ namespace CoreEngine.Spike.Editor
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.resizableWindow = true;
+            PlayerSettings.enableFrameTimingStats = true; // GPU and CPU time per frame for the benchmark
         }
 
         /// <summary>manifoldc.dll (native/manifold/build.ps1) loads in the Windows editor and 64-bit Windows players only.</summary>
@@ -213,6 +307,7 @@ namespace CoreEngine.Spike.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.ambientMode = AmbientMode.Skybox;
+            AddPostProcessing();
 
             var go = new GameObject("Spike");
             var spike = go.AddComponent<RobotSpike>();
@@ -242,6 +337,7 @@ namespace CoreEngine.Spike.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.ambientMode = AmbientMode.Skybox;
+            AddPostProcessing();
 
             var go = new GameObject("Garage");
             go.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
@@ -296,21 +392,21 @@ namespace CoreEngine.Spike.Editor
         {
             var p = so.FindProperty(name);
             if (p != null) p.intValue = value;
-            else Debug.LogWarning($"SpikeSetup: physics setting {name} not found");
+            else Debug.LogWarning($"SpikeSetup: setting {name} not found");
         }
 
         static void SetFloat(SerializedObject so, string name, float value)
         {
             var p = so.FindProperty(name);
             if (p != null) p.floatValue = value;
-            else Debug.LogWarning($"SpikeSetup: physics setting {name} not found");
+            else Debug.LogWarning($"SpikeSetup: setting {name} not found");
         }
 
         static void SetBool(SerializedObject so, string name, bool value)
         {
             var p = so.FindProperty(name);
             if (p != null) p.boolValue = value;
-            else Debug.LogWarning($"SpikeSetup: physics setting {name} not found");
+            else Debug.LogWarning($"SpikeSetup: setting {name} not found");
         }
     }
 }

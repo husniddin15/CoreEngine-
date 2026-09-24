@@ -2,7 +2,9 @@
   "name": "CoreEngine.Spike",
   "rootNamespace": "CoreEngine.Spike",
   "references": [
-    "CoreEngine.Sim"
+    "CoreEngine.Sim",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -29,7 +29,7 @@ namespace CoreEngine.Spike.Garage
             var sb = new StringBuilder();
             for (char c = ' '; c <= '~'; c++) sb.Append(c);
             for (char c = 'А'; c <= 'я'; c++) sb.Append(c);
-            sb.Append("Ёёʻʼ‘’«»—–…№°±×→←≥≤µΩ•≈³−");
+            sb.Append("Ёёʻʼ‘’«»—–…№°±×→←↓≥≤µΩ•≈³−");
             return sb.ToString();
         }
 

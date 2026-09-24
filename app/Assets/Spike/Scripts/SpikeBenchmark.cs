@@ -53,7 +53,10 @@ namespace CoreEngine.Spike
             float startTime = Time.realtimeSinceStartup;
             double worstFrameMs = 0;
             int slowFrames = 0;
-            bool afterCapture = false; // the frame after a screenshot includes the PNG encoding
+            var slowList = new StringBuilder(); // when the slow frames came and whether a garbage collection ran in them
+            int collections = GC.CollectionCount(0);
+            var cost = new SpikeReport.CostMeter();
+            int afterCapture = 0; // the frames after a screenshot include its PNG encoding and file write
             float elapsed = 0;
             var log = new StringBuilder();
             float nextLog = 0;
@@ -61,13 +64,20 @@ namespace CoreEngine.Spike
             while (elapsed < 10f)
             {
                 yield return null;
+                cost.Sample();
                 double frameMs = Time.unscaledDeltaTime * 1000.0;
-                if (!afterCapture)
+                int nowCollections = GC.CollectionCount(0);
+                if (afterCapture == 0)
                 {
                     worstFrameMs = Math.Max(worstFrameMs, frameMs);
-                    if (frameMs > 20) slowFrames++;
+                    if (frameMs > 20)
+                    {
+                        slowFrames++;
+                        slowList.Append($" {Time.realtimeSinceStartup - startTime:F2} s {frameMs:F0} ms{(nowCollections != collections ? " (GC)" : "")};");
+                    }
                 }
-                afterCapture = false;
+                collections = nowCollections;
+                if (afterCapture > 0) afterCapture--;
                 elapsed = Time.realtimeSinceStartup - startTime;
                 if (elapsed >= nextLog)
                 {
@@ -78,12 +88,12 @@ namespace CoreEngine.Spike
                 {
                     followShot = true;
                     yield return SpikeReport.Capture(SpikeReport.Shot("follow"));
-                    afterCapture = true;
+                    afterCapture = 3;
                 }
             }
             double fps = (Time.frameCount - startFrame) / elapsed;
             report.AppendLine($"robot scene: {fps:F1} fps average, worst frame {worstFrameMs:F1} ms, {slowFrames} frames over 20 ms " +
-                              "(the frame after the screenshot is not counted)");
+                              "(the three frames after the screenshot are not counted); " + cost + (slowList.Length > 0 ? ";" + slowList : ""));
             report.AppendLine($"emulator in scene: {spike.EmulatorMsPerFixedStep:F2} ms per 10 ms physics step");
             report.AppendLine($"emulated time in 10 s: {(spike.Mcu?.Seconds ?? 0) - startEmulated:F2} s (board {UI.SpikeStrings.Get(spike.BoardStatusKey)})");
             report.AppendLine($"robot moved: {Vector3.Distance(startPosition, spike.RobotPosition):F2} m straight-line from its start");

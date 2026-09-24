@@ -11,6 +11,7 @@ using CoreEngine.Sim.Design;
 using CoreEngine.Spike.UI;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 using Debug = UnityEngine.Debug;
@@ -196,6 +197,7 @@ namespace CoreEngine.Spike.Garage
             view.fieldOfView = 44f;
             view.nearClipPlane = 0.02f;
             view.farClipPlane = 30f;
+            view.GetUniversalAdditionalCameraData().renderPostProcessing = true;
             UpdateCamera();
         }
 
@@ -265,11 +267,13 @@ namespace CoreEngine.Spike.Garage
             view.transform.LookAt(orbitTarget);
         }
 
-        bool IsPointerOverUi()
+        bool IsPointerOverUi() => IsPointerOverUi(Input.mousePosition);
+
+        /// <summary>True when a screen position (pixels from the bottom left) is over a panel or button.</summary>
+        bool IsPointerOverUi(Vector2 screen)
         {
             if (root == null || root.panel == null) return false;
-            var mouse = Input.mousePosition;
-            var point = RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(mouse.x, Screen.height - mouse.y));
+            var point = RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y));
             return root.panel.Pick(point) != null;
         }
 
@@ -359,7 +363,7 @@ namespace CoreEngine.Spike.Garage
             bar.Add(barContent);
             root.Add(bar);
 
-            toast = Classed(new Label(), "toast");
+            toast = Classed(new Label { pickingMode = PickingMode.Ignore }, "toast"); // a notice must not block clicks on the robot
             toast.style.display = DisplayStyle.None;
             root.Add(toast);
 
@@ -972,6 +976,7 @@ namespace CoreEngine.Spike.Garage
             camera.farClipPlane = 4f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.17f, 0.19f, 0.23f);
+            camera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
             camera.transform.position = stage.transform.position + Quaternion.Euler(24f, 215f, 0) * new Vector3(0, 0, -0.5f);
             camera.transform.LookAt(stage.transform.position);
 
@@ -1023,13 +1028,21 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < 30; i++) yield return null;
 
             var frames = new List<double>();
+            var slow = new System.Text.StringBuilder(); // when slow frames came and whether a garbage collection ran in them
+            int collections = GC.CollectionCount(0);
+            var cost = new SpikeReport.CostMeter();
             float start = Time.realtimeSinceStartup;
             while (Time.realtimeSinceStartup - start < 3f)
             {
                 yield return null;
-                frames.Add(Time.unscaledDeltaTime * 1000.0);
+                cost.Sample();
+                double ms = Time.unscaledDeltaTime * 1000.0;
+                frames.Add(ms);
+                int now = GC.CollectionCount(0);
+                if (ms > 20) slow.Append($" {Time.realtimeSinceStartup - start:F2} s {ms:F0} ms{(now != collections ? " (GC)" : "")};");
+                collections = now;
             }
-            report.AppendLine("  garage view with the turntable turning: " + SpikeReport.FrameStats(frames));
+            report.AppendLine("  garage view with the turntable turning: " + SpikeReport.FrameStats(frames) + "; " + cost + (slow.Length > 0 ? ";" + slow : ""));
             report.AppendLine($"  robot thumbnails rendered off-screen; the first needed {ThumbnailAttempts} attempt(s) after start-up: " +
                               SaveThumbnail(0, SpikeReport.Shot("garage-thumbnail")));
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-en"));

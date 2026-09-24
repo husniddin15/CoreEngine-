@@ -69,6 +69,36 @@ namespace CoreEngine.Spike.Garage
             return $"{frames.Count} frames, {1000.0 * frames.Count / Math.Max(sum, 1e-6):F0} fps average, worst {worst:F1} ms, {over20} over 20 ms";
         }
 
+        static readonly FrameTiming[] timings = new FrameTiming[1];
+
+        /// <summary>GPU time and main-thread CPU time of the latest finished frame in ms, or null when not measured.</summary>
+        public static (double gpu, double cpu)? FrameCost()
+        {
+            FrameTimingManager.CaptureFrameTimings();
+            if (FrameTimingManager.GetLatestTimings(1, timings) < 1 || timings[0].gpuFrameTime <= 0) return null;
+            return (timings[0].gpuFrameTime, timings[0].cpuMainThreadFrameTime);
+        }
+
+        /// <summary>Adds up <see cref="FrameCost"/> over a measurement.</summary>
+        public sealed class CostMeter
+        {
+            double gpu, cpu, worstGpu;
+            int count;
+
+            public void Sample()
+            {
+                var cost = FrameCost();
+                if (cost == null) return;
+                gpu += cost.Value.gpu;
+                cpu += cost.Value.cpu;
+                worstGpu = Math.Max(worstGpu, cost.Value.gpu);
+                count++;
+            }
+
+            public override string ToString() => count == 0 ? "GPU time not available"
+                : $"GPU {gpu / count:F1} ms a frame on average (worst {worstGpu:F1}), main thread {cpu / count:F1} ms";
+        }
+
         public static IEnumerator Capture(string path)
         {
             yield return new WaitForEndOfFrame();
