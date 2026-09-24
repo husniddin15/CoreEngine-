@@ -33,9 +33,8 @@ namespace CoreEngine.Spike.Garage
         public Material? gridMaterial;     // CoreEngine/StudioGrid: the workplane's grid
         public Material? acrylicMaterial;  // transparent URP Lit: acrylic shapes (BodyLook)
 
-        enum StudioTool { Move, Rotate, Size }
-
-        enum Grip { None, Move, Turn, Size, Shape }
+        /// <summary>What a drag holds: the item itself, or one of its Tinkercad handles (GarageHandles.cs).</summary>
+        enum Grip { None, Shape, Corner, Edge, Top, Lift, Turn }
 
         enum LibraryTab { Shapes, Parts }
 
@@ -57,7 +56,6 @@ namespace CoreEngine.Spike.Garage
         }
 
         const float StudioMm = 0.001f;
-        const float GizmoFactor = 0.13f; // the handles' length as a share of the distance to the camera
         const int MaxImportTriangles = 200000;
 
         static readonly FeatureKind[] PaletteKinds =
@@ -66,7 +64,6 @@ namespace CoreEngine.Spike.Garage
             { BodyMaterial.Pla, BodyMaterial.Acrylic, BodyMaterial.Plywood, BodyMaterial.Cardboard, BodyMaterial.EvaFoam, BodyMaterial.FoamBoard, BodyMaterial.Aluminium };
         static readonly string[] ColourSwatches = { "#F4F4F0", "#1E1F22", "#D8352A", "#F07A1A", "#F2C418", "#2FA84F", "#2F6FD8", "#7B4BC9", "#E64D93", "#8A8F98" };
         static readonly float[] SnapSteps = { 1, 5, 10 };
-        static readonly Color[] AxisColours = { new Color(1f, 0.33f, 0.33f, 0.95f), new Color(0.45f, 0.9f, 0.35f, 0.95f), new Color(0.33f, 0.6f, 1f, 0.95f) };
 
         // Chrome: the Garage's own parts are hidden while the Studio is open, and its side panel moves in.
         readonly List<VisualElement> garageChrome = new List<VisualElement>();
@@ -74,7 +71,6 @@ namespace CoreEngine.Spike.Garage
         VisualElement? studio;
         VisualElement studioViewport = null!, studioRight = null!, studioTop = null!, studioMain = null!, studioStatusBar = null!, libraryBody = null!;
         Label studioTitle = null!, studioStatus = null!, studioStats = null!;
-        readonly Dictionary<StudioTool, Button> toolButtons = new Dictionary<StudioTool, Button>();
         readonly Dictionary<LibraryTab, Button> tabButtons = new Dictionary<LibraryTab, Button>();
         readonly List<Button> snapButtons = new List<Button>();
         readonly List<Button> paletteButtons = new List<Button>();
@@ -82,7 +78,6 @@ namespace CoreEngine.Spike.Garage
         Button solidButton = null!, holeButton = null!, partsButton = null!, drawButton = null!, undoButton = null!, redoButton = null!;
 
         // What the Studio is doing
-        StudioTool studioTool = StudioTool.Move;
         LibraryTab libraryTab = LibraryTab.Shapes;
         float studioSnap = 5;
         bool studioHoles, studioShowParts = true, keepProportions, projectionShifted;
@@ -105,11 +100,9 @@ namespace CoreEngine.Spike.Garage
             public BodyFeature Built = null!;
         }
 
-        Transform? studioScene, gizmo, grid;
+        Transform? studioScene, grid;
         readonly Dictionary<string, Ghost> ghosts = new Dictionary<string, Ghost>();
-        readonly List<(MeshRenderer renderer, Grip grip, int axis, int sign)> gizmoParts = new List<(MeshRenderer, Grip, int, int)>();
-        Material? ghostHole, ghostHoleSelected, ghostSelected, ghostHover, hotMaterial, lineMaterial;
-        readonly Material?[] axisMaterials = new Material?[3];
+        Material? ghostHole, ghostHoleSelected, ghostSelected, ghostHover, lineMaterial;
 
         // A drag of a handle or of an item
         (Grip grip, int axis, int sign) hot, drag;
@@ -198,16 +191,6 @@ namespace CoreEngine.Spike.Garage
             history.Add(redoButton);
             top.Add(history);
 
-            var tools = Layout("studio-group");
-            foreach (var (tool, icon, key) in new[] { (StudioTool.Move, Icon.Move, "studio.move"), (StudioTool.Rotate, Icon.Rotate, "studio.rotate"), (StudioTool.Size, Icon.Size, "studio.size") })
-            {
-                var chosen = tool;
-                var button = StudioButton(icon, key, () => SetStudioTool(chosen));
-                toolButtons[tool] = button;
-                tools.Add(button);
-            }
-            top.Add(tools);
-
             var snap = Layout("studio-group");
             snap.Add(Classed(Localized(new Label(), "studio.snap"), "studio-caption"));
             foreach (float step in SnapSteps)
@@ -255,6 +238,7 @@ namespace CoreEngine.Spike.Garage
             main.Add(palette);
             studioViewport = Layout("studio-viewport");
             main.Add(studioViewport);
+            BuildHandleOverlay();
             studioRight = Layout("studio-right");
             main.Add(studioRight);
             studio.Add(main);
@@ -426,7 +410,6 @@ namespace CoreEngine.Spike.Garage
         {
             if (studio == null) return;
             studioTitle.text = Tr("studio.title") + " · " + Robot.Name;
-            foreach (var entry in toolButtons) entry.Value.EnableInClassList("tool-button--active", entry.Key == studioTool && !drawing);
             for (int i = 0; i < snapButtons.Count; i++) snapButtons[i].EnableInClassList("snap-button--active", Mathf.Approximately(SnapSteps[i], studioSnap));
             if (libraryTab == LibraryTab.Shapes && solidButton != null)
             {
@@ -450,13 +433,11 @@ namespace CoreEngine.Spike.Garage
             var part = SelectedPart;
             if (carrying != null) text = Tr("studio.hint.carry");
             else if (drawing) text = Tr("studio.hint.draw");
-            else if (part != null) text = PartName(part) + "   ·   " + Tr(studioTool == StudioTool.Size ? "studio.fixedSize" : "studio.hint.part");
+            else if (part != null) text = PartName(part) + "   ·   " + Tr("studio.hint.part");
             else if (f != null && f.Kind != FeatureKind.Group)
-            {
-                string hint = Tr(studioTool == StudioTool.Rotate ? "studio.hint.rotate" : studioTool == StudioTool.Size ? "studio.hint.size" : "studio.hint.move");
                 text = SpikeStrings.Format("studio.selected", FeatureName(f), f.Hole ? "(" + Tr("studio.holeTag") + ")" : "",
-                    f.SizeX, f.SizeY, f.SizeZ, f.X, f.Y, f.Z) + "   ·   " + hint;
-            }
+                    f.SizeX, f.SizeY, f.SizeZ, f.X, f.Y, f.Z) + "   ·   " + Tr("studio.hint.shape");
+            else if (f != null) text = FeatureName(f) + "   ·   " + Tr("studio.hint.oneGroup");
             else if (selection.Count > 1) text = SpikeStrings.Format("studio.selectedMany", selection.Count) + "   ·   " + Tr("studio.hint.group");
             else text = Tr("studio.hint.none");
             float lowest = DesignGeometry.LowestPoint(Design);
@@ -466,13 +447,6 @@ namespace CoreEngine.Spike.Garage
             double grams = Design.MassKg() * 1000;
             if (meshes != null) grams += meshes.MassG - DesignGeometry.BodyMassG(Design.Body);
             studioStats.text = SpikeStrings.Format("studio.stats", (meshes?.VolumeMm3 ?? 0) / 1000.0, grams, meshes?.BuildMs ?? 0);
-        }
-
-        void SetStudioTool(StudioTool tool)
-        {
-            CancelDrawing();
-            studioTool = tool;
-            RefreshStudioChrome();
         }
 
         void SetSnap(float step)
@@ -558,36 +532,10 @@ namespace CoreEngine.Spike.Garage
                 ghostHoleSelected = OverlayMat(new Color(0.31f, 0.76f, 1.0f, 0.42f), false);
                 ghostSelected = OverlayMat(new Color(0.31f, 0.76f, 1.0f, 0.30f), false);
                 ghostHover = OverlayMat(new Color(1f, 1f, 1f, 0.16f), false);
-                for (int a = 0; a < 3; a++) axisMaterials[a] = OverlayMat(AxisColours[a], true);
-                hotMaterial = OverlayMat(new Color(1f, 0.86f, 0.25f, 1f), true);
                 lineMaterial = OverlayMat(new Color(0.31f, 0.76f, 1.0f, 1f), true);
                 lineMaterial.SetFloat("_Shade", 0);
                 lineMaterial.SetFloat("_Rim", 0);
             }
-
-            gizmo = new GameObject("Gizmo").transform;
-            gizmo.SetParent(studioScene, false);
-            gizmoParts.Clear();
-            for (int a = 0; a < 3; a++)
-            {
-                GizmoPart(ProceduralMeshes.Arrow, Grip.Move, a, 1);
-                GizmoPart(ProceduralMeshes.Ring, Grip.Turn, a, 1);
-                GizmoPart(ProceduralMeshes.RoundedBox(Vector3.one, 0.22f), Grip.Size, a, 1);
-                GizmoPart(ProceduralMeshes.RoundedBox(Vector3.one, 0.22f), Grip.Size, a, -1);
-            }
-            gizmo.gameObject.SetActive(false);
-        }
-
-        void GizmoPart(Mesh mesh, Grip grip, int axis, int sign)
-        {
-            var go = new GameObject($"{grip}{"XYZ"[axis]}{(sign > 0 ? "+" : "-")}");
-            go.transform.SetParent(gizmo, false);
-            go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = axisMaterials[axis];
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            gizmoParts.Add((renderer, grip, axis, sign));
         }
 
         Material OverlayMat(Color colour, bool onTop)
@@ -618,10 +566,9 @@ namespace CoreEngine.Spike.Garage
         {
             if (studioScene != null) Destroy(studioScene.gameObject);
             studioScene = null;
-            gizmo = null;
             grid = null;
             ghosts.Clear();
-            gizmoParts.Clear();
+            spots.Clear();
             if (drawLine != null) Destroy(drawLine.gameObject);
             drawLine = null;
             foreach (var dot in drawDots) if (dot != null) Destroy(dot.gameObject);
@@ -722,8 +669,6 @@ namespace CoreEngine.Spike.Garage
         static float Component(Vector3 v, int axis) => axis == 0 ? v.x : axis == 1 ? v.y : v.z;
 
         static Vector3 V((float x, float y, float z) t) => new Vector3(t.x, t.y, t.z);
-
-        float GizmoScale(Vector3 pivot) => Vector3.Distance(view.transform.position, pivot) * GizmoFactor;
 
         // ------------------------------------------------------------------ items: shapes, groups and parts
 
@@ -835,153 +780,12 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ handles
 
-        /// <summary>How far a shape reaches from its centre along one of the chassis axes, in metres (its turned box).</summary>
-        static float Extent(BodyFeature f, int axis)
-        {
-            var turn = Matrix4x4.Rotate(Quaternion.Euler(f.RotX, f.RotY, f.RotZ));
-            return (Mathf.Abs(turn[axis, 0]) * f.SizeX + Mathf.Abs(turn[axis, 1]) * f.SizeY + Mathf.Abs(turn[axis, 2]) * f.SizeZ) / 2 * StudioMm;
-        }
-
-        /// <summary>How far an item reaches from its pivot along a chassis axis (metres), for the arrows to start outside it.</summary>
-        float ItemExtent(Pick p, int axis)
-        {
-            var (min, max) = BoundsOf(p);
-            float pivot = Component(PivotOf(p), axis);
-            return Mathf.Max(Component(max, axis) - pivot, pivot - Component(min, axis)) * StudioMm;
-        }
-
-        /// <summary>The turn rings' radius: the usual handle size, or more for an item that would hide them.</summary>
-        float RingRadius(Pick p, float scale)
-        {
-            var (min, max) = BoundsOf(p);
-            return Mathf.Max(scale, (max - min).magnitude / 2 * StudioMm * 1.1f);
-        }
-
-        /// <summary>A move arrow along a chassis axis, from just outside the item (world space).</summary>
-        (Vector3 from, Vector3 to) ArrowWorld(Pick p, int axis, float scale)
-        {
-            var pivot = WorldOf(PivotOf(p));
-            var direction = AxisWorld(axis);
-            float start = ItemExtent(p, axis) + 0.22f * scale;
-            return (pivot + direction * start, pivot + direction * (start + 0.86f * scale));
-        }
-
-        /// <summary>Where a size handle sits: just outside the middle of the shape's face (world space).</summary>
-        Vector3 KnobWorld(BodyFeature f, int axis, int sign, float scale)
-        {
-            var turn = robotAnchor.rotation * Quaternion.Euler(f.RotX, f.RotY, f.RotZ);
-            float half = Component(new Vector3(f.SizeX, f.SizeY, f.SizeZ), axis) / 2 * StudioMm;
-            return WorldOf(new Vector3(f.X, f.Y, f.Z)) + turn * Unit(axis) * sign * (half + 0.1f * scale);
-        }
-
         /// <summary>Size handles belong to a single shape; parts keep their real size and groups keep theirs here.</summary>
         BodyFeature? SizedShape => SelectedFeature is { Kind: not FeatureKind.Group } f ? f : null;
-
-        void UpdateGizmo()
-        {
-            if (gizmo == null) return;
-            var target = selection.Count == 1 && Exists(selection[0]) ? selection[0] : (Pick?)null;
-            bool show = target != null && !drawing && carrying == null;
-            gizmo.gameObject.SetActive(show);
-            if (!show) return;
-            var p = target!.Value;
-            var pivot = WorldOf(PivotOf(p));
-            float scale = GizmoScale(pivot);
-            gizmo.position = pivot;
-            gizmo.rotation = robotAnchor.rotation;
-            gizmo.localScale = Vector3.one * scale;
-            var sized = SizedShape;
-            var shapeTurn = sized == null ? Quaternion.identity : Quaternion.Euler(sized.RotX, sized.RotY, sized.RotZ);
-            foreach (var (renderer, grip, axis, sign) in gizmoParts)
-            {
-                bool active = grip == Grip.Move ? studioTool == StudioTool.Move
-                    : grip == Grip.Turn ? studioTool == StudioTool.Rotate
-                    : studioTool == StudioTool.Size && sized != null;
-                renderer.gameObject.SetActive(active);
-                if (!active) continue;
-                var t = renderer.transform;
-                if (grip == Grip.Size)
-                {
-                    float half = Component(new Vector3(sized!.SizeX, sized.SizeY, sized.SizeZ), axis) / 2 * StudioMm;
-                    t.localPosition = shapeTurn * Unit(axis) * sign * (half / scale + 0.1f);
-                    t.localRotation = shapeTurn;
-                    t.localScale = Vector3.one * 0.075f;
-                }
-                else if (grip == Grip.Move)
-                {
-                    // The arrow mesh starts 0.14 along its length: it then begins 0.22 handle lengths beyond the side.
-                    t.localPosition = Unit(axis) * (ItemExtent(p, axis) / scale + 0.08f);
-                    t.localRotation = Quaternion.FromToRotation(Vector3.right, Unit(axis));
-                    t.localScale = Vector3.one;
-                }
-                else
-                {
-                    t.localPosition = Vector3.zero;
-                    t.localRotation = Quaternion.FromToRotation(Vector3.right, Unit(axis));
-                    t.localScale = Vector3.one * (RingRadius(p, scale) / scale);
-                }
-                var lit = drag.grip != Grip.None ? drag : hot;
-                bool isHot = lit.grip == grip && lit.axis == axis && (grip != Grip.Size || lit.sign == sign);
-                renderer.sharedMaterial = isHot ? hotMaterial : axisMaterials[axis];
-            }
-        }
 
         // ------------------------------------------------------------------ picking
 
         Vector2 Screen2(Vector3 world) => view.WorldToScreenPoint(world);
-
-        /// <summary>The handle under the mouse, found on the screen: arrows and rings as lines, knobs as points.</summary>
-        (Grip grip, int axis, int sign) PickHandle(Vector2 mouse)
-        {
-            if (gizmo == null || !gizmo.gameObject.activeSelf || selection.Count != 1) return default;
-            var p = selection[0];
-            var pivot = WorldOf(PivotOf(p));
-            float scale = GizmoScale(pivot);
-            var sized = SizedShape;
-            (Grip, int, int) best = default;
-            float bestDistance = float.MaxValue;
-            void Consider(float distance, float limit, Grip grip, int axis, int sign)
-            {
-                if (distance < limit && distance < bestDistance)
-                {
-                    bestDistance = distance;
-                    best = (grip, axis, sign);
-                }
-            }
-            for (int a = 0; a < 3; a++)
-            {
-                switch (studioTool)
-                {
-                    case StudioTool.Move:
-                    {
-                        var (from, to) = ArrowWorld(p, a, scale);
-                        Consider(DistanceToSegment(mouse, Screen2(from), Screen2(to)), 10, Grip.Move, a, 1);
-                        break;
-                    }
-                    case StudioTool.Rotate:
-                    {
-                        var u = AxisWorld((a + 1) % 3);
-                        var v = AxisWorld((a + 2) % 3);
-                        float radius = RingRadius(p, scale);
-                        Vector2 previous = Screen2(pivot + u * radius);
-                        for (int k = 1; k <= 48; k++)
-                        {
-                            float angle = k * Mathf.PI * 2 / 48;
-                            Vector2 next = Screen2(pivot + (u * Mathf.Cos(angle) + v * Mathf.Sin(angle)) * radius);
-                            Consider(DistanceToSegment(mouse, previous, next), 8, Grip.Turn, a, 1);
-                            previous = next;
-                        }
-                        break;
-                    }
-                    case StudioTool.Size:
-                        if (sized != null)
-                            foreach (int sign in new[] { 1, -1 })
-                                Consider(Vector2.Distance(mouse, Screen2(KnobWorld(sized, a, sign, scale))), 12, Grip.Size, a, sign);
-                        break;
-                }
-            }
-            return best;
-        }
 
         /// <summary>
         /// The item under the mouse, with the point hit: a part, or a shape (a grouped shape picks its whole group,
@@ -1234,21 +1038,6 @@ namespace CoreEngine.Spike.Garage
             var ray = view.ScreenPointToRay(mouse);
             switch (handle.grip)
             {
-                case Grip.Move:
-                    dragDirection = AxisWorld(handle.axis);
-                    dragT0 = RayLineParameter(ray, dragPivot, dragDirection);
-                    break;
-                case Grip.Size:
-                {
-                    var f = SizedShape!;
-                    dragDirection = robotAnchor.rotation * Quaternion.Euler(f.RotX, f.RotY, f.RotZ) * Unit(handle.axis) * handle.sign;
-                    dragT0 = RayLineParameter(ray, dragPivot, dragDirection);
-                    break;
-                }
-                case Grip.Turn:
-                    dragDirection = AxisWorld(handle.axis);
-                    dragFrom = new Plane(dragDirection, dragPivot).Raycast(ray, out float enter) ? ray.GetPoint(enter) - dragPivot : Vector3.zero;
-                    break;
                 case Grip.Shape:
                     dragFrom = grabPoint;
                     grabOffset = Vector3.zero;
@@ -1260,6 +1049,9 @@ namespace CoreEngine.Spike.Garage
                         else if (WorkplanePoint(mouse, out var ground)) grabOffset = new Vector3(ground.x - part.X, 0, ground.z - part.Z);
                     }
                     break;
+                default:
+                    StartHandleDrag(p, handle, ray);
+                    break;
             }
             if (float.IsNaN(dragT0)) dragT0 = 0;
         }
@@ -1269,74 +1061,28 @@ namespace CoreEngine.Spike.Garage
             var target = Primary;
             if (target == null || studioBefore == null || !Exists(target.Value)) return;
             var p = target.Value;
-            float step = input.Shift ? 0.1f : studioSnap;
+            float step = input.Ctrl || input.Shift ? 0.1f : studioSnap; // moving the item: Ctrl (or Shift) for fine steps
             var ray = view.ScreenPointToRay(mouse);
             string before = Signature(p);
-            switch (drag.grip)
+            if (!UpdateHandleDrag(p, ray, mouse, studioBefore))
             {
-                case Grip.Move:
+                switch (drag.grip)
                 {
-                    float t = RayLineParameter(ray, dragPivot, dragDirection);
-                    if (float.IsNaN(t)) break;
-                    float along = (t - dragT0) / StudioMm;
-                    float value = Snap(Component(dragPivotMm, drag.axis) + along, step);
-                    var delta = Vector3.zero;
-                    if (drag.axis == 0) delta.x = value - dragPivotMm.x;
-                    else if (drag.axis == 1) delta.y = value - dragPivotMm.y;
-                    else delta.z = value - dragPivotMm.z;
-                    MoveItem(p, delta, studioBefore);
-                    dragReadout = $"{"xyz"[drag.axis]} {value:0.#} {Tr("unit.mm")}";
-                    break;
-                }
-                case Grip.Shape:
-                {
-                    if (p.Part)
+                    case Grip.Shape:
                     {
-                        var part = Design.Find(p.Id)!;
-                        if (PlacePart(part, mouse, step, grabOffset)) dragReadout = $"x {part.X:0.#} · y {part.Y:0.#} · z {part.Z:0.#} {Tr("unit.mm")}";
+                        if (p.Part)
+                        {
+                            var part = Design.Find(p.Id)!;
+                            if (PlacePart(part, mouse, step, grabOffset)) dragReadout = $"x {part.X:0.#} · y {part.Y:0.#} · z {part.Z:0.#} {Tr("unit.mm")}";
+                            break;
+                        }
+                        if (!new Plane(robotAnchor.up, dragFrom).Raycast(ray, out float enter) || enter > 5f) break;
+                        var moved = robotAnchor.InverseTransformVector(ray.GetPoint(enter) - dragFrom) / StudioMm;
+                        var delta = new Vector3(Snap(dragPivotMm.x + moved.x, step) - dragPivotMm.x, 0, Snap(dragPivotMm.z + moved.z, step) - dragPivotMm.z);
+                        MoveItem(p, delta, studioBefore);
+                        dragReadout = $"x {dragPivotMm.x + delta.x:0.#} · z {dragPivotMm.z + delta.z:0.#} {Tr("unit.mm")}";
                         break;
                     }
-                    if (!new Plane(robotAnchor.up, dragFrom).Raycast(ray, out float enter) || enter > 5f) break;
-                    var moved = robotAnchor.InverseTransformVector(ray.GetPoint(enter) - dragFrom) / StudioMm;
-                    var delta = new Vector3(Snap(dragPivotMm.x + moved.x, step) - dragPivotMm.x, 0, Snap(dragPivotMm.z + moved.z, step) - dragPivotMm.z);
-                    MoveItem(p, delta, studioBefore);
-                    dragReadout = $"x {dragPivotMm.x + delta.x:0.#} · z {dragPivotMm.z + delta.z:0.#} {Tr("unit.mm")}";
-                    break;
-                }
-                case Grip.Turn:
-                {
-                    float angle;
-                    var viewDirection = (dragPivot - view.transform.position).normalized;
-                    if (dragFrom.sqrMagnitude > 1e-10f && Mathf.Abs(Vector3.Dot(viewDirection, dragDirection)) > 0.12f &&
-                        new Plane(dragDirection, dragPivot).Raycast(ray, out float enter))
-                        angle = Vector3.SignedAngle(dragFrom, ray.GetPoint(enter) - dragPivot, dragDirection);
-                    else
-                        angle = (mouse.x - dragMouse0.x) * 0.5f; // the ring is seen edge-on: turn with the mouse's sideways movement
-                    angle = Snap(angle, input.Shift ? 1f : 15f);
-                    TurnItem(p, Quaternion.AngleAxis(angle, Unit(drag.axis)), dragPivotMm, studioBefore);
-                    dragReadout = $"{angle:0.#}°";
-                    break;
-                }
-                case Grip.Size:
-                {
-                    var f = SizedShape;
-                    var s = f == null ? null : studioBefore.Body.Feature(f.Id);
-                    if (f == null || s == null) break;
-                    float t = RayLineParameter(ray, dragPivot, dragDirection);
-                    if (float.IsNaN(t)) break;
-                    float delta = (t - dragT0) / StudioMm;
-                    bool fromCentre = input.Alt;
-                    float start = Component(new Vector3(s.SizeX, s.SizeY, s.SizeZ), drag.axis);
-                    float size = Mathf.Max(1, Snap(start + (fromCentre ? 2 * delta : delta), step));
-                    ApplySize(f, s, drag.axis, size);
-                    if (!fromCentre)
-                    {
-                        // The opposite face stays where it was: the centre moves by half the growth, along the handle.
-                        var offset = Quaternion.Euler(s.RotX, s.RotY, s.RotZ) * Unit(drag.axis) * (drag.sign * (size - start) / 2);
-                        (f.X, f.Y, f.Z) = (s.X + offset.x, s.Y + offset.y, s.Z + offset.z);
-                    }
-                    dragReadout = $"{"xyz"[drag.axis]} {size:0.#} {Tr("unit.mm")}";
-                    break;
                 }
             }
             if (before != Signature(p))
@@ -1491,9 +1237,6 @@ namespace CoreEngine.Spike.Garage
                 else return false;
                 return true;
             }
-            if (KeyPressed(KeyCode.W)) SetStudioTool(StudioTool.Move);
-            if (KeyPressed(KeyCode.E)) SetStudioTool(StudioTool.Rotate);
-            if (KeyPressed(KeyCode.R)) SetStudioTool(StudioTool.Size);
             if (input.Ctrl && KeyPressed(KeyCode.G))
             {
                 if (input.Shift) UngroupSelected();

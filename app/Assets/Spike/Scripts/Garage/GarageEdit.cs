@@ -1011,6 +1011,7 @@ namespace CoreEngine.Spike.Garage
             bool startsEmpty = Design.Body.Features.Count == 0 && Design.Parts.Count == 0;
             OnAction("act.body");
             yield return Frames(3);
+            yield return HandlesByMouse();
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             // The bottom plate: blue acrylic from the picker, the plate tile, set down on the workplane, then
@@ -1040,6 +1041,8 @@ namespace CoreEngine.Spike.Garage
             yield return ClickElement(partButtons[PartCatalog.Battery4AA]);
             yield return CarryTo(new Vector3(0, 38, -5));
             var battery = SelectedPart!;
+            yield return Frames(2);
+            bool partHandles = SizeHandleCount() == 0 && HandleScreen(Grip.Lift, 1, 1) != null && HandleScreen(Grip.Turn, 1, 1) != null;
             var leftWheel = DesignGeometry.WheelCentre(left);
             var rightWheel = DesignGeometry.WheelCentre(right);
             bool hung = Mathf.Abs(leftWheel.x + 77.5f) < 0.1f && Mathf.Abs(leftWheel.y - 32.5f) < 0.2f && Mathf.Abs(rightWheel.x - 77.5f) < 0.1f
@@ -1102,7 +1105,7 @@ namespace CoreEngine.Spike.Garage
             foreach (var part in Design.Parts) if (DesignGeometry.Overlaps(Design, part)) overlaps++;
             report.AppendLine($"  a new robot is empty: {Yes(startsEmpty)}; plate set down on the workplane in blue acrylic: {Yes(onWorkplane)}; " +
                               $"motors hung under it with wheels at x = {leftWheel.x:0.#} and {rightWheel.x:0.#} mm, on the floor: {Yes(hung)}; battery on the plate: {Yes(onPlate)}; " +
-                              $"Uno on the top deck, turned 270°: {Yes(onDeck)}; sensor on its bracket looking forward: {Yes(facing)}; a third motor refused: {Yes(refused)}; parts touching: {overlaps}");
+                              $"Uno on the top deck, turned 270°: {Yes(onDeck)}; sensor on its bracket looking forward: {Yes(facing)}; a part has only the cone and the curls, no size handles: {Yes(partHandles)}; a third motor refused: {Yes(refused)}; parts touching: {overlaps}");
             report.AppendLine($"  body: {Design.Body.Members(null).Count} shapes, {meshes?.VolumeMm3 / 1000 ?? 0:F1} cm³, {meshes?.MassG ?? 0:F0} g, built by Manifold in {meshes?.BuildMs ?? 0:F1} ms; " +
                               $"robot {Design.MassKg() * 1000:F0} g; everything placed with the mouse in {buildSeconds:F1} s");
             string stl = ExportStl(Path.GetDirectoryName(SpikeReport.Shot("x")));
@@ -1222,6 +1225,83 @@ namespace CoreEngine.Spike.Garage
                               $"Del removed it: {Yes(deleted)}, Ctrl+Z brought it back: {Yes(undone)}; Look at Uno showed {tags} pin names; " +
                               $"in the Studio the L298N dragged {moved:0.#} mm along the deck, on the deck: {Yes(stayed)}, wiring still right: {Yes(wiresFollow)}, undone: {Yes(back)}");
         }
+
+        /// <summary>
+        /// The Tinkercad handles, with the mouse, on a box set down on the empty workplane: a corner square makes it
+        /// 10 mm longer and wider while the far corner stays; the top square makes it 10 mm taller with its base still
+        /// on the workplane; the cone lifts it 15 mm; the curl under its front edge turns it a quarter (the protractor
+        /// is photographed half way). Five undos then leave the robot empty again.
+        /// </summary>
+        IEnumerator HandlesByMouse()
+        {
+            var report = SpikeReport.Text;
+            yield return ClickElement(paletteButtons[1]); // box
+            yield return CarryTo(new Vector3(0, 0, 0));
+            var box = SelectedFeature;
+            yield return Frames(2);
+            if (box == null || HandleScreen(Grip.Corner, 0, 3) == null)
+            {
+                report.AppendLine("  Tinkercad handles: NO box with handles to try");
+                yield break;
+            }
+            var pick = selection[0];
+            var s0 = box.Clone();
+
+            var corner = new Vector3(box.X + box.SizeX / 2, box.Y - box.SizeY / 2, box.Z + box.SizeZ / 2);
+            var cornerScreen = HandleScreen(Grip.Corner, 0, 3)!.Value;
+            yield return MouseDrag(cornerScreen, Screen2(WorldOf(corner + new Vector3(10, 0, 10))));
+            bool cornered = Near(box.SizeX, s0.SizeX + 10) && Near(box.SizeZ, s0.SizeZ + 10) && Near(box.SizeY, s0.SizeY)
+                            && Near(box.X - box.SizeX / 2, s0.X - s0.SizeX / 2) && Near(box.Z - box.SizeZ / 2, s0.Z - s0.SizeZ / 2);
+            yield return Frames(2);
+            // Hovering a corner shows its two dimension lines (photographed while the scripted mouse is still there).
+            var hoverAt = HandleScreen(Grip.Corner, 0, 3) ?? cornerScreen;
+            for (int i = 0; i < 5; i++) scriptedInput.Enqueue(new PointerFrame { Position = hoverAt });
+            while (scriptedInput.Count > 2) yield return null;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-handles"));
+            while (scriptedInput.Count > 0) yield return null;
+
+            var top = new Vector3(box.X, box.Y + box.SizeY / 2, box.Z);
+            yield return MouseDrag(HandleScreen(Grip.Top, 1, 1) ?? Vector2.zero, Screen2(WorldOf(top + new Vector3(0, 10, 0))));
+            bool taller = Near(box.SizeY, s0.SizeY + 10) && Near(box.Y - box.SizeY / 2, 0);
+            yield return Frames(2);
+
+            var up = robotAnchor.up;
+            var line = WorldOf(PivotOf(pick));
+            var coneScreen = HandleScreen(Grip.Lift, 1, 1) ?? Vector2.zero;
+            float along = RayLineParameter(view.ScreenPointToRay(coneScreen), line, up);
+            yield return MouseDrag(coneScreen, Screen2(line + up * (along + 0.015f)));
+            bool lifted = Near(box.Y - box.SizeY / 2, 15);
+            yield return Frames(2);
+
+            // A quarter turn about the vertical, dragged along the curl's circle, photographed at 45°.
+            var curlScreen = HandleScreen(Grip.Turn, 1, 1) ?? Vector2.zero;
+            var pivot = WorldOf(PivotOf(pick));
+            var ray = view.ScreenPointToRay(curlScreen);
+            new Plane(up, pivot).Raycast(ray, out float enter);
+            var arm = ray.GetPoint(enter) - pivot;
+            Vector2 Turned(float degrees) => Screen2(pivot + Quaternion.AngleAxis(degrees, up) * arm);
+            scriptedInput.Enqueue(new PointerFrame { Position = curlScreen });
+            scriptedInput.Enqueue(new PointerFrame { Position = curlScreen, LeftPressed = true, LeftHeld = true });
+            for (int i = 1; i <= 6; i++) scriptedInput.Enqueue(new PointerFrame { Position = Turned(7.5f * i), LeftHeld = true });
+            for (int i = 0; i < 6; i++) scriptedInput.Enqueue(new PointerFrame { Position = Turned(45), LeftHeld = true });
+            while (scriptedInput.Count > 3) yield return null;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-protractor"));
+            for (int i = 1; i <= 6; i++) scriptedInput.Enqueue(new PointerFrame { Position = Turned(45 + 7.5f * i), LeftHeld = true });
+            scriptedInput.Enqueue(new PointerFrame { Position = Turned(90) });
+            scriptedInput.Enqueue(new PointerFrame { Position = Turned(90) });
+            while (scriptedInput.Count > 0) yield return null;
+            yield return null;
+            bool turned = Mathf.Abs(Mathf.DeltaAngle(box.RotY, 90)) < 0.5f && Mathf.Abs(box.RotX) < 0.01f && Mathf.Abs(box.RotZ) < 0.01f;
+
+            for (int i = 0; i < 5; i++) Undo();
+            yield return WaitForBody();
+            bool clean = Design.Body.Features.Count == 0 && Design.Parts.Count == 0;
+            report.AppendLine($"  Tinkercad handles by mouse on a box: a corner made it 10 mm longer and wider, the far corner stayed: {Yes(cornered)}; " +
+                              $"the top square 10 mm taller, its base on the workplane: {Yes(taller)}; the cone lifted it 15 mm: {Yes(lifted)}; " +
+                              $"a curl turned it a quarter: {Yes(turned)} ({box.RotY:0.#}°); five undos left the robot empty: {Yes(clean)}; screenshots -garage-handles, -garage-protractor");
+        }
+
+        static bool Near(float a, float b) => Mathf.Abs(a - b) < 0.01f;
 
         /// <summary>Carries the item riding the mouse to a point (mm, chassis frame) and clicks it down there.</summary>
         IEnumerator CarryTo(Vector3 mm)
