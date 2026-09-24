@@ -177,6 +177,7 @@ The `arduino:avr` core and toolchain are installed into a bundled data directory
 - LEDs: emissive intensity driven by modelled current (with PWM averaged per frame, plus optional true flicker at low duty).
 - Overlays: net voltage tint, current dots (particle system fed from solver), heat glow, sensor cones (transparent meshes), CoM marker.
 - Text labels: TextMeshPro world-space labels for pins on hover.
+- Prototype settings (2026-09-24, `SpikeSetup`): URP with 4× MSAA and HDR; soft shadows (medium quality) from a 2048 map in two cascades over 4 m (about 1 mm per shadow texel near the robot), and shadows from spot lights; screen-space ambient occlusion at half resolution with a 3 cm radius (the scale of the parts); post-processing with a neutral tone curve, a little more contrast (+12) and saturation (+8), a soft bloom above 1.1 and a light vignette. Smooth shapes are made in code: tyres and hubs turned on a "lathe" with 64–96 segments (Unity's cylinder has 20), jumpers as tubes along cubic curves that leave each pin along its exit direction, with Dupont housings, the arena floor as 30 cm laminate tiles from a generated texture. Measured with `FrameTimingManager` in the IL2CPP player on the owner's laptop (GTX 1650, 1280 × 720): the GPU needs 1.8 ms a frame in the Garage and 1.5 ms in the arena (worst 3.3 ms), so both run at the display's 144 fps and there is room for the Phase 1 graphics settings (higher shadow resolution, full-resolution ambient occlusion) on stronger cards.
 
 ## 11. UI technology
 
