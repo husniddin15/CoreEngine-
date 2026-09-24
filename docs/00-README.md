@@ -51,8 +51,8 @@ All major decisions are made ([13 §1](13-open-questions-and-risks.md)): Unity 6
    Phase 1 has started (doc 11 §4):
    - the Garage main screen ([ADR-0009](adr/ADR-0009-garage-main-screen.md)) with working Build, Wire and Body modes;
    - a photographed robotics lab (CC0 assets, D19) and the redesigned menu;
-   - the core of the Body Studio (shapes, holes, STL/OBJ import).
+   - the Body Studio, a small CAD modeller for the robot's body: shapes, holes, drawn outlines, STL/OBJ upload.
 
-   Next: the Body Studio editor.
+   Next, in Phase 1: the breadboard, wire routing, the analogue solver and the `.rbp` project file.
 2. Tools in use: .NET 10 SDK, Unity 6000.6.2f1 with Windows Build Support (IL2CPP), Visual Studio Build Tools 2026 with the C++ workload and CMake.
 3. Open items: the name check (D2), the bank confirmation (D12), the purpose of email accounts (D18), a logic analyser if the Uno kit has none (D9), and compile time (13 §2 Q11).

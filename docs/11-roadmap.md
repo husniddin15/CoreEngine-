@@ -98,7 +98,14 @@ Progress (2026-09-24): Build, Wire and Body work in the Garage prototype ([03 §
 Progress (2026-09-24, afternoon): the owner found the Garage "like cartoon" and asked for three things: a real-looking render, a CAD-like Body Studio (simple shapes for beginners, complex models for experts, STL/OBJ upload), and a better menu.
 - **Render.** The Garage is now a photographed robotics lab built from CC0 Poly Haven assets (D19, [04 §10](04-technical-design.md#10-rendering)).
 - **Menu.** It has icons, a status chip, action tiles and thumbnail cards, and fits English, Uzbek and Russian ([03 §3.1](03-game-design.md#31-the-garage-main-screen)).
-- **Body Studio.** The core model and kernel are done: shapes that are solids or holes, extrusions, and imported STL/OBJ meshes ([08 §7](08-body-designer-spec.md#7-technical-design)). The Studio editor, with shape palette, gizmo and sketch tool, is the next step.
+- **Body Studio.** It works in the Garage ([08 §3.1](08-body-designer-spec.md)):
+  - a shape palette with solids and holes;
+  - move, turn and size handles with snapping, and typed values;
+  - outlines drawn on the deck;
+  - STL/OBJ upload through Windows' Open dialog;
+  - duplicate, mirror copy, undo and redo (redo is new everywhere in the Garage).
+
+  The benchmark drives every tool through the same mouse and key code a player uses. Still to do, from the Phase 2 Body Studio package: the workplane on faces, align, groups, hole patterns, measuring and mount points.
 - **Speed.** The release player keeps 142 fps in the Garage and the arena.
 
 ## 5. Phase 2 — Breadth and content (months 9–18)

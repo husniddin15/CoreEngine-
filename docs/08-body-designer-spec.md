@@ -44,6 +44,34 @@ Status: DRAFT v0.1 · Pillar P4 · Decision: [ADR-0005](adr/ADR-0005-body-design
 
 Undo/redo covers every operation. Autosave of the body with the project.
 
+### 3.1 The prototype Studio (2026-09-24)
+
+**Body** in the Garage opens the Body Studio full screen. The owner asked for "something like Blender 3d or CAD": simple shapes for beginners, more complex models for experts, and uploads.
+
+**Layout**
+- A toolbar: Garage, undo, redo, Move, Turn, Size, the snap step (1, 5 or 10 mm), Draw, Import, STL and Parts.
+- A shape palette with a Solid / Hole switch.
+- The 3D view with a grid on the deck.
+- An inspector: the selected shape, or the list of shapes and the base plates.
+- A status bar that says what the mouse does and shows the body's volume, mass and build time.
+
+**What works**
+
+| Tool | In the prototype |
+|---|---|
+| Place shape | A click on box, rounded box, cylinder, cone, sphere, wedge or tube adds it on the deck, beside the shapes already there, as a solid or a hole (the palette's switch). |
+| Move | Arrows along x, y and z, starting just outside the shape; a drag on the shape itself moves it on the deck; arrow keys and PgUp/PgDn nudge. Steps: the snap (1, 5 or 10 mm), 0.1 mm with Shift. |
+| Turn | Rings about x, y and z, in 15° steps (1° with Shift); a ring seen edge-on turns with the mouse's sideways movement. |
+| Size | A handle on each face; the opposite face stays, or the shape grows from its centre with Alt. "Keep proportions" scales all three sizes (on by default for uploaded models). |
+| Numbers | Position, rotation and size in the inspector (typed, applied with Enter); corner radius, tube wall and cone top where the shape has one. |
+| Hole mode | Any shape turns into a hole and back (H). Every hole cuts every solid and the plates: there are no groups yet. |
+| Draw | Click corners on the deck (snapped); a click on the first corner or Enter closes the outline, which becomes a 10 mm solid or a hole through the top plate. A crossing outline is refused. |
+| Import | Windows' Open dialog; STL (binary or ASCII) and OBJ. The file is copied into the robot's folder, a model under 2 units long is taken as metres (×1000), one over 400 mm gets a warning, and more than 200 000 triangles are refused. A model that is not closed is shown but cannot cut or join. |
+| Edit | Duplicate (Ctrl+D), mirror copy to the other side of x = 0 (M), put on deck, delete (Del), undo (Ctrl+Z) and redo (Ctrl+Y). |
+| Export | STL of the whole body with its shapes. |
+
+**Not yet:** the workplane on faces, align, groups, the hole pattern helpers, measuring, mount points, the wheel helper, decimation of large models, cm and inch prompts, and a per-part STL.
+
 ## 4. Physics derivation
 
 - **Mass** = Σ(solid volume − hole volume) × density. Mass and centre of mass shown live; warnings when CoM is outside the wheel support polygon (tipping) or when ground clearance < 5 mm.
@@ -73,7 +101,13 @@ Undo/redo covers every operation. Autosave of the body with the project.
     - Imported files live in the robot's own folder (`Imports/<robot id>` in the player's data), so a project does not depend on where the original file was.
     - The mesh is scaled to fit the shape's box, so the size fields resize it like any other shape.
     - A mesh that is not a closed solid cannot join the booleans. It is shown as it is, gets a convex collider, and is reported (`NotClosed`) so the editor can ask the player to repair it.
-  - Five core tests cover the feature model and the readers (`BodyStudioTests`).
+  - Six core tests cover the feature model, the mirror copy and the readers (`BodyStudioTests`).
+- The Studio's view (2026-09-24, `GarageStudio.cs`).
+  - **Ghosts.** Every shape has a "ghost" that the mouse picks, built from the shape's own mesh (Manifold returns it with the body). A hole's ghost is drawn see-through grey, the selected shape's see-through blue. While a handle moves a shape, its ghost moves at once: its parent carries the new place, turn and size, and its child undoes the place and turn the mesh was built with. The body catches up when the worker's build arrives.
+  - **Shaders.** Two small URP shaders (`Shaders/StudioOverlay`, `Shaders/StudioGrid`). The handles are drawn on top of everything; the ghosts get a small depth offset so they win over the body faces they share.
+  - **Picking.** Handles are picked on the screen, arrows and rings as lines and size handles as points.
+  - **Camera.** It uses an off-centre projection, like a shift lens, so the robot sits in the middle of the free area between the palette and the inspector.
+  - **Plate cache.** The plates with their hole grid are kept between builds while only shapes change. That halved the rebuild of a body with 2 × 77 holes and five shapes, from about 220 ms to about 105 ms (Mono build), and dragging a shape keeps about 130–140 fps.
 - Shape tree stored in `body.json` (parametric). Derived meshes cached in the project as glb for fast load; regenerated when the kernel version changes.
 - Rendering: one mesh per part with per-face colour groups; selection outline; hole shapes rendered translucent orange (Tinkercad convention; colour-blind alternative: hatch pattern).
 - Import: our own STL and OBJ readers in the core (`MeshFile`, no dependency); glTFast (in the project since 2026-09-24 for the Garage lab) for glb caching and future sharing.
