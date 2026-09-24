@@ -32,6 +32,7 @@ namespace CoreEngine.Spike.Garage
         public Material? overlayMaterial;  // CoreEngine/StudioOverlay (SpikeSetup): see-through shapes and handles
         public Material? gridMaterial;     // CoreEngine/StudioGrid: the workplane's grid
         public Material? acrylicMaterial;  // transparent URP Lit: acrylic shapes (BodyLook)
+        public Material? partMaterial;     // URP Lit with normal, metallic and emission maps on: the part models (PartLooks)
 
         /// <summary>What a drag holds: the item itself, or one of its Tinkercad handles (GarageHandles.cs).</summary>
         enum Grip { None, Shape, Corner, Edge, Top, Lift, Turn }
@@ -1872,6 +1873,8 @@ namespace CoreEngine.Spike.Garage
             PartKind.Ultrasonic => Icon.Sonar,
             PartKind.Motor => Icon.Motor,
             PartKind.Battery => Icon.Battery,
+            PartKind.Servo => Icon.Servo,
+            PartKind.Led => Icon.Led,
             _ => Icon.Caster,
         };
 

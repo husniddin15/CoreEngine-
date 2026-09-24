@@ -318,6 +318,7 @@ namespace CoreEngine.Spike.Editor
             spike.wheelMaterial = Lit(materials, "Wheel", new Color(0.08f, 0.08f, 0.08f), 0.1f);
             spike.sensorMaterial = Lit(materials, "Sensor", new Color(0.1f, 0.55f, 0.85f), 0.5f);
             spike.acrylicMaterial = Transparent(materials, "BodyAcrylic");
+            spike.partMaterial = PartTextured(materials, "PartTextured");
             spike.rayMaterial = Unlit(materials, "SonarRay");
             var csg = go.AddComponent<CsgSpike>();
             csg.bodyMaterial = Lit(materials, "Body", new Color(0.95f, 0.45f, 0.1f), 0.35f); // orange PLA
@@ -359,6 +360,7 @@ namespace CoreEngine.Spike.Editor
             // The Body Studio's see-through shapes, handles and grid (Shaders/): referenced here so that the build has them.
             garage.overlayMaterial = LoadOrCreate(materials, "StudioOverlay", "CoreEngine/StudioOverlay");
             garage.acrylicMaterial = Transparent(materials, "BodyAcrylic");
+            garage.partMaterial = PartTextured(materials, "PartTextured");
             garage.gridMaterial = LoadOrCreate(materials, "StudioGrid", "CoreEngine/StudioGrid");
             garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
             garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
@@ -400,6 +402,24 @@ namespace CoreEngine.Spike.Editor
             material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
             material.SetColor("_BaseColor", new Color(0.86f, 0.93f, 1f, 0.3f));
             material.SetFloat("_Smoothness", 0.93f);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>
+        /// URP Lit with a normal map, a metallic map and emission switched on: the part models' painted materials
+        /// copy it (PartLooks), and being in a scene it keeps those shader variants in the build.
+        /// </summary>
+        static Material PartTextured(string folder, string name)
+        {
+            var material = LoadOrCreate(folder, name, "Universal Render Pipeline/Lit");
+            material.EnableKeyword("_NORMALMAP");
+            material.EnableKeyword("_METALLICSPECGLOSSMAP");
+            material.EnableKeyword("_EMISSION");
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            material.SetColor("_BaseColor", Color.white);
+            material.SetFloat("_Smoothness", 1f);
+            material.SetColor("_EmissionColor", Color.black);
             EditorUtility.SetDirty(material);
             return material;
         }

@@ -818,6 +818,8 @@ namespace CoreEngine.Spike.Garage
                 PartKind.Ultrasonic => "HC-SR04",
                 PartKind.Motor => Tr(part.Slot == "right" ? "side.right" : "side.left") + " TT",
                 PartKind.Battery => "4×AA",
+                PartKind.Servo => Design.Count(def.Id) > 1 ? "SG90 " + part.Id.Replace("servo", "") : "SG90",
+                PartKind.Led => Design.Count(def.Id) > 1 ? "LED " + part.Id.Replace("led", "") : "LED",
                 _ => def.Name,
             };
         }
@@ -854,7 +856,7 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < args.Length; i++)
             {
                 string a = warning.Args[i];
-                args[i] = a == "left" ? Tr("side.left") : a == "right" ? Tr("side.right") : a;
+                args[i] = a == "left" ? Tr("side.left") : a == "right" ? Tr("side.right") : Design.Find(a) != null ? PartLabel(a) : a;
             }
             return SpikeStrings.Format("chk." + warning.Code, args);
         }

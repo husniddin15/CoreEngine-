@@ -16,6 +16,9 @@ namespace CoreEngine.Spike.Garage
 
         public static string? FilePath { get; private set; }
         public static bool Active => FilePath != null;
+
+        /// <summary>The folder of a <c>-partShots &lt;folder&gt;</c> run: photographs of every part model, then quit.</summary>
+        public static string? PartShotsFolder { get; private set; }
         public static readonly StringBuilder Text = new StringBuilder();
         public static int Stage;
 
@@ -34,7 +37,10 @@ namespace CoreEngine.Spike.Garage
             initialised = true;
             string[] args = Environment.GetCommandLineArgs();
             for (int i = 0; i < args.Length - 1; i++)
+            {
                 if (args[i] == "-spikeBench") FilePath = args[i + 1];
+                if (args[i] == "-partShots") PartShotsFolder = args[i + 1];
+            }
             if (FilePath == null) return;
 
             Text.AppendLine($"unity: {Application.unityVersion}");

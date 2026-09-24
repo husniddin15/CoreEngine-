@@ -63,6 +63,12 @@ namespace CoreEngine.Spike.Garage
 
         public GameObject Root { get; }
         public Dictionary<string, GameObject> Parts { get; } = new Dictionary<string, GameObject>();
+
+        /// <summary>The LEDs of each part by part id and LED name ("ON", "L", "TX", "RX" on the Uno), for the arena to light.</summary>
+        public Dictionary<string, Dictionary<string, MeshRenderer>> Lights { get; } = new Dictionary<string, Dictionary<string, MeshRenderer>>();
+
+        /// <summary>Each servo's horn by part id, on its output spline: the arena turns it about its own y.</summary>
+        public Dictionary<string, Transform> Horns { get; } = new Dictionary<string, Transform>();
         public double BodyVolumeMm3 => body?.VolumeMm3 ?? 0;
         public BodyMeshes? Body => body;
 
@@ -118,6 +124,7 @@ namespace CoreEngine.Spike.Garage
             v.BuildWires(design);
             if (pins) v.BuildPinMarkers(design);
             v.ApplyFinishes(project);
+            v.LightFromWiring();
             return v;
         }
 
@@ -261,7 +268,15 @@ namespace CoreEngine.Spike.Garage
             var root = Group(Root.transform, part.Id, new Vector3(part.X, part.Y, part.Z) * Mm);
             root.localRotation = Quaternion.Euler(part.RotX, part.Rotation, part.RotZ);
             Parts[part.Id] = root.gameObject;
-            switch (def.Kind)
+            var lights = new Dictionary<string, MeshRenderer>();
+            if (CoreEngine.Spike.Parts.PartModels.Build(part.Part, root, lights))
+            {
+                if (lights.Count > 0) Lights[part.Id] = lights;
+                if (def.Kind == PartKind.Motor) BuildModelWheel(part, root, wheelBody);
+                if (def.Kind == PartKind.MotorDriver) BuildJumpers(design, part, root, def);
+                if (def.Kind == PartKind.Servo) BuildHorn(part, root);
+            }
+            else switch (def.Kind)
             {
                 case PartKind.Board: BuildUno(root, def); break;
                 case PartKind.MotorDriver: BuildL298N(design, part, root, def); break;
@@ -276,6 +291,61 @@ namespace CoreEngine.Spike.Garage
                 collider.size = new Vector3(def.SizeX, def.SizeY, def.SizeZ) * Mm;
                 collider.center = new Vector3(def.BoxCentre.x, def.BoxCentre.y, def.BoxCentre.z) * Mm;
                 root.gameObject.AddComponent<Pickable>().PartId = part.Id;
+            }
+        }
+
+        /// <summary>The motor's wheel on its shaft: its own mesh, since it turns; the hub in the wheels' finish.</summary>
+        void BuildModelWheel(PartInstance part, Transform t, Transform? wheelBody)
+        {
+            var hub = DesignGeometry.WheelInMotor;
+            var wheel = wheelBody ?? Group(t, part.Id + ".wheel", new Vector3(hub.x, hub.y, hub.z) * Mm);
+            var go = new GameObject("Wheel");
+            go.transform.SetParent(wheel, false);
+            go.AddComponent<MeshFilter>().sharedMesh = CoreEngine.Spike.Parts.MotorModel.WheelMesh;
+            var materials = (Material[])CoreEngine.Spike.Parts.MotorModel.WheelMaterials.Clone();
+            materials[CoreEngine.Spike.Parts.MotorModel.HubSlot] = hubMaterial;
+            go.AddComponent<MeshRenderer>().sharedMaterials = materials;
+        }
+
+        void BuildHorn(PartInstance part, Transform t)
+        {
+            var horn = new GameObject("Horn").transform;
+            horn.SetParent(t, false);
+            horn.localPosition = CoreEngine.Spike.Parts.ServoModel.HornPivot * Mm;
+            horn.gameObject.AddComponent<MeshFilter>().sharedMesh = CoreEngine.Spike.Parts.ServoModel.HornMesh;
+            horn.gameObject.AddComponent<MeshRenderer>().sharedMaterials = CoreEngine.Spike.Parts.ServoModel.HornMaterials;
+            Horns[part.Id] = horn;
+        }
+
+        /// <summary>Switches one of a part's LEDs ("ON", "L", "PWR", "LED"…) on or off.</summary>
+        public void SetLight(string partId, string name, bool on)
+        {
+            if (!Lights.TryGetValue(partId, out var lights) || !lights.TryGetValue(name, out var renderer)) return;
+            var part = design.Find(partId);
+            if (part != null) CoreEngine.Spike.Parts.PartModels.SetLight(part.Part, renderer, name, on);
+        }
+
+        /// <summary>
+        /// The power LEDs as the wiring leaves them, before any sketch runs: the Uno's ON and the L298N's PWR glow
+        /// when their board has power, as on a real robot with its batteries in.
+        /// </summary>
+        void LightFromWiring()
+        {
+            if (Lights.Count == 0) return;
+            var circuit = CircuitAnalysis.Analyse(design);
+            foreach (var entry in Lights)
+                foreach (var light in entry.Value)
+                    SetLight(entry.Key, light.Key, (light.Key == "ON" && circuit.BoardPowered) || (light.Key == "PWR" && circuit.DriverPowered));
+        }
+
+        /// <summary>The L298N's ENA and ENB jumpers, each on its pin and the one behind it until a wire takes the pin.</summary>
+        void BuildJumpers(RobotDesign design, PartInstance part, Transform t, PartDef def)
+        {
+            foreach (string id in new[] { "ENA", "ENB" })
+            {
+                var pin = def.Pin(id);
+                if (pin == null || design.WiresOn(part.Id, id) > 0) continue;
+                MeshObject(id + " jumper", t, CoreEngine.Spike.Parts.L298NModel.JumperMesh, new Vector3(pin.X, CoreEngine.Spike.Parts.L298NModel.PinFoot, pin.Z) * Mm, black);
             }
         }
 

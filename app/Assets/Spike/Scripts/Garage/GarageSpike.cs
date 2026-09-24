@@ -87,6 +87,7 @@ namespace CoreEngine.Spike.Garage
             SpikeReport.Init();
             GarageState.Load(SpikeReport.Active);
             BodyLook.Init(litMaterial, acrylicMaterial);
+            CoreEngine.Spike.Parts.PartLooks.Init(litMaterial, partMaterial);
             BuildRoom();
             BuildCamera();
             ShowRobot();
@@ -94,7 +95,8 @@ namespace CoreEngine.Spike.Garage
             SpikeStrings.LanguageChanged += ApplyLanguage;
             ApplyLanguage();
             StartCoroutine(RenderAllThumbnails());
-            if (SpikeReport.Active) StartCoroutine(SpikeReport.Stage == 0 ? Benchmark() : AfterRun());
+            if (SpikeReport.PartShotsFolder != null) StartCoroutine(PartShots(SpikeReport.PartShotsFolder));
+            else if (SpikeReport.Active) StartCoroutine(SpikeReport.Stage == 0 ? Benchmark() : AfterRun());
         }
 
         void OnDestroy()
@@ -329,7 +331,7 @@ namespace CoreEngine.Spike.Garage
             // modes need everything sharp.
             if (depthOfField != null)
             {
-                depthOfField.active = mode == EditMode.None;
+                depthOfField.active = mode == EditMode.None && !photographingParts;
                 depthOfField.focusDistance.value = distance;
             }
             ApplyStudioProjection();

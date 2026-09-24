@@ -31,6 +31,7 @@ namespace CoreEngine.Spike
         public Material wheelMaterial = null!;
         public Material sensorMaterial = null!;
         public Material? acrylicMaterial; // transparent URP Lit for acrylic body shapes (BodyLook)
+        public Material? partMaterial;    // URP Lit with normal, metallic and emission maps on: the part models (PartLooks)
         public Material rayMaterial = null!;
         public string firmwareFile = "ObstacleAvoider.hex";
 
@@ -55,6 +56,12 @@ namespace CoreEngine.Spike
         bool boardRunning;
         readonly Dictionary<string, (AvrPort port, int bit)?> pins = new Dictionary<string, (AvrPort, int)?>();
         Func<string, bool> pinHigh = null!;
+
+        // Servos on their signal pins, and the LEDs the board, the driver and LED modules show
+        readonly List<(Sg90Servo servo, ServoLink link)> servos = new List<(Sg90Servo, ServoLink)>();
+        readonly Dictionary<string, bool> lightsShown = new Dictionary<string, bool>();
+        string? unoId, driverId;
+        float txUntil;
         readonly L298NModel bridge = new L298NModel { SupplyVolts = 6.0 };
         readonly DcMotorModel motor = DcMotorModel.TtGearMotor148();
 
@@ -153,6 +160,7 @@ namespace CoreEngine.Spike
             project = GarageState.Current;
             pinHigh = pin => boardRunning && PinHigh(pin); // an unpowered board drives nothing
             BodyLook.Init(chassisMaterial, acrylicMaterial);
+            CoreEngine.Spike.Parts.PartLooks.Init(chassisMaterial, partMaterial);
             BuildArena();
             BuildRobot();
             BuildSonar();
@@ -508,8 +516,22 @@ namespace CoreEngine.Spike
             if (sonarMount != null && sensorWorks && trig != null && echo != null)
                 sonar = new HcSr04(mcu.Cpu, Atmega328P.ClockHz, trig.Value.port, trig.Value.bit, echo.Value.port, echo.Value.bit, () => distanceCm);
 
+            // Servos on whatever pins their signal leads reach.
+            foreach (var link in circuit.Servos)
+            {
+                var signal = link.Pin == null ? null : Pin(link.Pin);
+                if (signal != null) servos.Add((new Sg90Servo(signal.Value.port, signal.Value.bit, Atmega328P.ClockHz), link));
+            }
+            foreach (var part in project.Design.Parts)
+            {
+                var kind = PartCatalog.Get(part.Part)?.Kind;
+                if (kind == PartKind.Board) unoId ??= part.Id;
+                if (kind == PartKind.MotorDriver) driverId ??= part.Id;
+            }
+
             mcu.Usart0.ByteTransmitted += (value, start, end) =>
             {
+                txUntil = Time.time + 0.04f; // the Uno's TX LED flickers with every byte
                 if (value == '\n')
                 {
                     string line = serialLine.ToString().TrimEnd('\r');
@@ -574,7 +596,10 @@ namespace CoreEngine.Spike
             leftAmps = DriveWheel(leftWheel, leftVolts);
             rightAmps = DriveWheel(rightWheel, rightVolts);
 
-            // 4. Heat and charge: winding temperatures (docs/06 §5.10) and the battery drain.
+            // 4. Servos turn toward the angle their last pulse asked for.
+            foreach (var (servo, link) in servos) servo.Step(CyclesPerFixedStep / Atmega328P.ClockHz, link.Powered && !project.Battery.IsEmpty);
+
+            // 5. Heat and charge: winding temperatures (docs/06 §5.10) and the battery drain.
             double dt = Time.fixedDeltaTime;
             project.LeftMotor.Update(Math.Abs(leftAmps), motor.ResistanceOhm, dt);
             project.RightMotor.Update(Math.Abs(rightAmps), motor.ResistanceOhm, dt);
@@ -608,6 +633,33 @@ namespace CoreEngine.Spike
 
         // ------------------------------------------------------------------ camera and HUD
 
+        /// <summary>
+        /// The LEDs as the running board drives them: ON while the Uno runs, L on D13, TX while bytes go out, the
+        /// L298N's PWR while it has its supply, each LED module on its pin; and each servo's horn at its angle.
+        /// </summary>
+        void UpdateLightsAndHorns()
+        {
+            if (visuals == null) return;
+            ShowLight(unoId, "ON", boardRunning);
+            ShowLight(unoId, "L", boardRunning && PinHigh("D13"));
+            ShowLight(unoId, "TX", boardRunning && Time.time < txUntil);
+            ShowLight(driverId, "PWR", circuit.DriverPowered && !project.Battery.IsEmpty);
+            foreach (var link in circuit.Leds)
+                ShowLight(link.PartId, "LED", boardRunning && link.Live && link.Pin != null && PinHigh(link.Pin));
+            foreach (var (servo, link) in servos)
+                if (visuals.Horns.TryGetValue(link.PartId, out var horn))
+                    horn.localRotation = Quaternion.Euler(0, 90f - (float)servo.AngleDegrees, 0);
+        }
+
+        void ShowLight(string? partId, string name, bool on)
+        {
+            if (partId == null) return;
+            string key = partId + "/" + name;
+            if (lightsShown.TryGetValue(key, out bool shown) && shown == on) return;
+            lightsShown[key] = on;
+            visuals!.SetLight(partId, name, on);
+        }
+
         void BuildCamera()
         {
             followCamera = new GameObject("Camera").AddComponent<Camera>();
@@ -622,6 +674,7 @@ namespace CoreEngine.Spike
             if (Input.GetKeyDown(KeyCode.C) && !UI.CodeEditor.HasTypingFocus) topView = !topView;
             if (chassis == null) return;
             CastSonar(true);
+            UpdateLightsAndHorns();
 
             var target = chassis.transform;
             if (topView)

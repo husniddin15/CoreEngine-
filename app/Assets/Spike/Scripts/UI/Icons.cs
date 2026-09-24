@@ -9,7 +9,7 @@ namespace CoreEngine.Spike.UI
         Chip, Weight, Parts, Battery, Warning, Check, Plus, Back,
         ShapeBox, ShapeRounded, ShapeCylinder, ShapeCone, ShapeSphere, ShapeWedge, ShapeTube, Draw, Import, Export,
         Move, Rotate, Size, Undo, Redo, Duplicate, Mirror, Trash, Eye, Drop, Solid, Hole, Frame,
-        Plate, Driver, Sonar, Motor, Caster,
+        Plate, Driver, Sonar, Motor, Caster, Servo, Led,
     }
 
     /// <summary>
@@ -397,6 +397,21 @@ namespace CoreEngine.Spike.UI
                     Poly(false, false, 5, 6, 19, 6);
                     Poly(false, false, 7.5f, 6, 7.5f, 10, 16.5f, 10, 16.5f, 6);
                     Circle(12, 15, 5);
+                    break;
+                case Icon.Servo: // the case with its tabs, the horn on top
+                    Poly(true, false, 7, 10, 17, 10, 17, 20, 7, 20);
+                    Poly(false, false, 4, 13, 20, 13);
+                    Poly(false, false, 8, 6.5f, 20, 6.5f);
+                    Circle(14, 6.5f, 1.4f, true);
+                    Poly(false, false, 14, 8, 14, 10);
+                    break;
+                case Icon.Led: // a 5 mm LED on its legs, glowing
+                    Poly(false, false, 9, 16, 9, 9, 10, 6.5f, 12, 5, 14, 6.5f, 15, 9, 15, 16);
+                    Poly(false, false, 7.5f, 16, 16.5f, 16);
+                    Poly(false, false, 10.5f, 16, 10.5f, 21);
+                    Poly(false, false, 13.5f, 16, 13.5f, 21);
+                    Poly(false, false, 18, 6, 20.5f, 4.5f);
+                    Poly(false, false, 18.5f, 10, 21, 10);
                     break;
                 case Icon.Frame:
                     Poly(false, false, 4, 9, 4, 4, 9, 4);
