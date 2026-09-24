@@ -40,7 +40,7 @@ CoreEngine/
   core/        CoreEngine.Sim (C#, engine-free), tests, headless CLI
   app/         Unity 6 project
   native/      Manifold mesh booleans, built as one DLL (C++)
-  tools/       arduino-cli + Arduino AVR core + licences; fetch-lab-assets.ps1 (Garage lab, CC0)
+  tools/       arduino-cli + Arduino AVR core + licences; fetch-lab-assets.ps1 (the earlier photographed lab, CC0; unused since D20)
   content-src/ Blender sources, textures, datasheet Markdown
 ```
 
@@ -49,9 +49,10 @@ All major decisions are made ([13 §1](13-open-questions-and-risks.md)): Unity 6
 
 1. Phase 0 is done (doc 11 §3): repository and CI, the Arduino toolchain, the emulator, the Unity robot spike, the Manifold spike, the UI spike with the code editor and three languages, and the decision review. The schedule was re-estimated to 15–18 months to 1.0. Next: Phase 1, the vertical slice.
    Phase 1 has started (doc 11 §4):
-   - the Garage main screen ([ADR-0009](adr/ADR-0009-garage-main-screen.md)) with working Build, Wire and Body modes;
-   - a photographed robotics lab (CC0 assets, D19) and the redesigned menu;
-   - the Body Studio, a small CAD modeller for the robot's body: shapes, holes, drawn outlines, STL/OBJ upload.
+   - the Garage main screen ([ADR-0009](adr/ADR-0009-garage-main-screen.md)) with working Build, Wire and Body modes and the redesigned menu;
+   - the Body Studio, a Tinkercad-style modeller: the robot starts empty, the body is made from shapes in real materials, and real parts are placed and turned but never resized (D21);
+   - realistic models of every part, with painted boards and working LEDs, plus an SG90 servo and an LED module;
+   - a bright engineering lab around the turntable, modelled and baked in code (D20).
 
    Next, in Phase 1: the breadboard, wire routing, the analogue solver and the `.rbp` project file.
 2. Tools in use: .NET 10 SDK, Unity 6000.6.2f1 with Windows Build Support (IL2CPP), Visual Studio Build Tools 2026 with the C++ workload and CMake.

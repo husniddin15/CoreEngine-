@@ -108,6 +108,22 @@ Progress (2026-09-24, afternoon): the owner found the Garage "like cartoon" and 
   The benchmark drives every tool through the same mouse and key code a player uses. Still to do, from the Phase 2 Body Studio package: the workplane on faces, align, groups, hole patterns, measuring and mount points.
 - **Speed.** The release player keeps 142 fps in the Garage and the arena.
 
+Progress (2026-09-24, evening): the owner asked for a chassis the player makes, real-looking parts, and a bright lab.
+- **Build from nothing** (D21, [08 §3.1](08-body-designer-spec.md)):
+  - A new robot is empty. The body is built from shapes in real materials, Tinkercad-style, with groups whose holes cut only their own solids.
+  - Parts are placed on the robot with the mouse and turned about all three axes, but never resized. Their mounting, the wheels' drive and the sensor's aim follow from their pose.
+  - Old saves are moved to the new model by `DesignMigration`.
+- **Tinkercad's handles** replace the Move/Turn/Size tools: corner, edge and top squares, the lift cone, curled arrows with a protractor, dimension lines.
+- **Part models** ([09 Appendix B](09-components-catalog.md#appendix-b--3d-asset-production-notes)):
+  - The Uno, L298N, HC-SR04, TT motor with its wheel, 4×AA holder and ball caster are modelled from real dimensions, with painted boards.
+  - Two new parts: an SG90 servo (its horn follows the pulses on its pin) and an LED module (it lights from its pin).
+  - The boards' LEDs show the running sketch: ON, L, TX and PWR.
+- **The lab** (D20, [03 §3.1](03-game-design.md#31-the-garage-main-screen)):
+  - A bright white engineering lab around the turntable: a measuring mat, instruments with lit screens, a pegboard of tools, parts shelves, a whiteboard, a window with blinds.
+  - It is modelled in code and baked with bounced light, with no downloads; the bake takes about a minute.
+- **Tests.** 145 core tests pass. The benchmark builds the kit robot from nothing with the mouse, drags every handle, wires it, and drives it in the arena at about 130–140 fps.
+- **Speed.** In the release player the Garage runs at 135 fps and the arena at 141 fps. The part models are built the first time they are needed: 0.43 s for all eight, 0.14 s of it the Uno. Making the board painter faster cut this time to a third (the Mono player went from 4.1 s to 1.3 s).
+
 ## 5. Phase 2 — Breadth and content (months 9–18)
 
 | Work package | Days |

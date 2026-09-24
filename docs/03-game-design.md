@@ -54,23 +54,36 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 +----------------------------------------------------------------------------------------------+
 ```
 
-- **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the photographed lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are tiles with an icon, a name and one line saying what they do. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
+- **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the bright lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are tiles with an icon, a name and one line saying what they do. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
 
-- **Room**: a robotics lab, photographed rather than drawn (the owner's choice, 2026-09-24; D11).
-  - The robot turns on an aluminium turntable on a wooden workbench with an ESD mat, among real tools: a bench vice, a drill, a screwdriver, a ratchet, a tape measure, spray cans, an oil can and a lamp. Steel shelves, a tool chest, boxes and a stool stand in the room.
-  - The walls and the light come from a 360° HDR photo of a real measuring lab. The props are scanned models. All of them are CC0 from Poly Haven (D19).
-  - The camera works like a product photographer's: a 55 mm lens at f/3.2 keeps the robot sharp and blurs the room behind it. The blur turns off in Build, Wire and Body, where every part must be sharp.
+- **Room**: a bright, modern engineering lab (the owner's choice, 2026-09-24, D20: "light and white rooms, but tools should be there"). It replaced the photographed lab of D19 the same day.
+  - The robot turns on an aluminium turntable on a white lab bench, standing on a grey-blue measuring mat printed with a millimetre grid, rulers along two edges and a protractor.
+  - On the bench:
+    - a breadboard with jumpers, LEDs and resistors;
+    - a multimeter in its orange holster, its probes across the mat, reading 5.02 V;
+    - digital calipers, a notebook ("LAB NOTES"), a mug;
+    - a monitor showing the obstacle-avoider sketch, with a keyboard and mouse;
+    - a white LED lamp over the turntable.
+  - The instrument shelf holds an oscilloscope (a sine and a square wave on its screen) and a bench power supply (12.00 V, 0.235 A); a soldering station at 350 °C with its iron in the stand stands at the bench's end. A power strip runs along the back panel.
+  - Around the room:
+    - a white pegboard of tools behind the bench: screwdrivers, pliers, cutters, a wire stripper, scissors, tweezers, hex keys, coils of wire, a steel rule;
+    - shelving with labelled parts bins;
+    - a whiteboard with the H-bridge and the robot's plan drawn on it;
+    - an Uno pinout poster, a clock, a door, a stool, and a 3D printer on a side cabinet;
+    - a window with white blinds.
+  - Light: LED panels in the ceiling and daylight through the blinds, baked with bounced light; the lamp and the daylight also light the robot in real time, with soft shadows.
+  - Everything is modelled in code with the part toolkit and saved into the scene, so no file is downloaded (`app/Assets/Spike/Editor/WhiteLab/`).
+  - The camera works like a product photographer's: a 50 mm lens at f/2.8 keeps the robot sharp and blurs the room behind it. The blur turns off in Build, Wire and Body, where every part must be sharp.
   - A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor.
-  - Prototype: `app/Assets/Spike/Scripts/Garage/`; the lab is built by `app/Assets/Spike/Editor/SpikeLab.cs` (2026-09-24).
-- **Robot bar**: every saved robot as a card with a rendered thumbnail; click to select, right-click to rename, duplicate or delete; **+ New robot** starts from an empty chassis plate. The shipped game starts with an empty bar (no example robots, [§9](#9-no-missions-a-pure-sandbox)); the tutorial creates the first robot.
+- **Robot bar**: every saved robot as a card with a rendered thumbnail; click to select, right-click to rename, duplicate or delete; **+ New robot** starts empty: no chassis; the player builds the body from shapes and places every part ([§5](#5-build-mode)). The shipped game starts with an empty bar (no example robots, [§9](#9-no-missions-a-pure-sandbox)); the tutorial creates the first robot.
 - **Robot card**: name, board, sketch name with compile status and size, number of parts, mass, battery charge, and warnings from the wiring check. Warnings never block START.
 - **Build, Wire, Code, Body** open the editors of [§5](#5-build-mode)–[§7](#7-code-mode) and the Body Studio with this robot; a **Garage** button returns. In the prototype (2026-09-24) Build, Wire and Body are modes of the Garage itself: the turntable stops, the camera comes closer and the right column becomes the mode's panel; **Ctrl+Z** undoes, **Esc** or **◀** goes back.
-  - *Build*: the Parts Bin lists the catalogue with how many of each part fit (one Uno, two L298N, two TT motors…). Deck parts are selected with a click, dragged on the deck in 5 mm steps (they stop at the edge and at other parts), turned with **R** and removed with **Del** (with their wires). Motors, the sensor bracket, the caster and the battery holder have fixed mounts ([§5.2](#52-placement-rules-physical-realism)); the right motor is the left one turned round.
+  - *Build* opens the Body Studio on its **Parts** tab (2026-09-24). The library lists the catalogue with how many of each part fit (one Uno, two L298N, two TT motors, two servos, four LED modules…) and each one's mass. A click puts a part on the mouse; it slides over the robot and a click sets it down: boards stand on the surface under the mouse, motors and the caster hang under a plate. Parts keep their real size; they move, lift and turn freely about all three axes (Tinkercad's cone and curled arrows, or typed values). **Del** removes a part with its wires.
   - *Wire*: drag from one pin to another, or click one pin and then the other. Pins show as coloured dots just outside the header, terminal or lead (yellow signal, red supply, grey ground, orange motor); the label under the mouse names the pin and what it is already wired to, and the wheel zooms toward the mouse. **Look at** turns the camera to a part from the side its pins face (from above for headers, from behind for the sensor) and prints the pin names beside the pins, like the white print on a real board. **Connect from the lists** picks both ends by name, for when the mouse is awkward. As on the desk, a header pin takes one jumper and a screw terminal two wires; a full pin says so and suggests removing the old wire. **Auto** colours follow the maker's habit: red for supply, black for ground, the motor's own red and black leads, a new colour for each signal. Jumpers are drawn with their Dupont housings: on top of the Uno's female headers, over the L298N's and the sensor's male pins. The wiring check ([06 §3.8](06-electrical-simulation-spec.md)) runs after every change; clicking a wire selects it, **Del** removes it.
-  - *Body* opens the **Body Studio** full screen ([08 §3.1](08-body-designer-spec.md), 2026-09-24).
-    - The base plates keep their settings: shape (rectangle, rounded, round), length, width, thickness, corner radius, side walls, one or two decks, an M3 hole grid and its spacing, and the material (acrylic, PLA, plywood).
-    - On top of the plates the player adds shapes from a palette, each as a solid or a hole: box, rounded box, cylinder, cone, sphere, wedge and tube. Handles move, turn and size them with snapping, and the inspector takes exact millimetres.
-    - **Draw** turns an outline clicked on the deck into a plate or a cut-out; **Import** brings in an STL or OBJ model.
+  - *Body* opens the **Body Studio** full screen on its **Shapes** tab ([08 §3.1](08-body-designer-spec.md), 2026-09-24), modelled on Tinkercad and on the rma_fullstack modeller:
+    - The body is built from shapes: a plate with an M3 hole grid, box, rounded box, cylinder, cone, sphere, wedge, tube; each a solid or a hole, each in a real material (PLA, acrylic, plywood, cardboard, EVA foam, PVC foam board, aluminium) and a colour. The material sets the mass.
+    - Tinkercad's handles: white corner squares and dark edge squares size a shape, the top square sets its height, the cone lifts it, curled arrows turn it; dimension lines and a protractor show the numbers. Groups (Ctrl+G) let holes cut the solids of their group.
+    - **Draw** turns an outline clicked on the workplane into a solid or a hole; **Import** brings in an STL or OBJ model.
     - Duplicate, mirror copy, undo and redo work as in other editors.
     - Manifold rebuilds the body on a worker thread; **Export STL** saves it in millimetres for a slicer or a laser cutter ([08 §7](08-body-designer-spec.md)).
   - The arena builds the robot from the same design: its size, mass and balance, a wheel on each motor that was placed, the sensor where it sits, and the circuit its wires make. Wrong wiring behaves wrongly there, as on a desk.
@@ -100,10 +113,11 @@ Target iteration time from "edit code" to "robot moving again": **< 3 seconds** 
 - Search and filter (by interface: I2C, PWM, analog; by voltage).
 
 ### 5.2 Placement rules (physical realism)
-- Parts have real dimensions and mass ([09-components-catalog.md](09-components-catalog.md)). They cannot interpenetrate; the placement ghost turns red when colliding.
-- **Through-hole parts** (LEDs, resistors, buttons, IC-style modules with 2.54 mm pin rows, Nano) snap into breadboard holes. The breadboard's internal strips define connectivity.
+- Parts have real dimensions and mass ([09-components-catalog.md](09-components-catalog.md)) and are drawn as the real parts ([09 Appendix B](09-components-catalog.md#appendix-b--3d-asset-production-notes)). **They can be moved and turned, never resized** (the owner's rule, 2026-09-24): a real Uno is 68.6 × 53.4 mm whatever the chassis.
+- In the prototype (2026-09-24) a part is placed by where the mouse meets the robot: a board stands on the surface (its mounting face down), a TT motor or the caster hangs under a plate by its top face, a part dragged over a perforated plate sits on it as on a flat one. Parts that touch are reported. The wheel rides on its motor's shaft wherever the motor is; which side it is on and which way it drives come from the motor's pose.
+- **Through-hole parts** (LEDs, resistors, buttons, IC-style modules with 2.54 mm pin rows, Nano) snap into breadboard holes. The breadboard's internal strips define connectivity. (Planned.)
 - **Modules** (Uno, L298N, HC-SR04, sensor modules) either sit on the body via **mount points** (screw holes → standoffs/screws), **double-sided tape** (anywhere on a flat face), or **breadboard-friendly headers** (Nano, some sensors).
-- **Motors** snap to motor mounts (TT motor bracket, N20 bracket, servo horn/bracket). Wheels snap to shafts (D-shaft or servo horn).
+- **Motors** snap to motor mounts (TT motor bracket, N20 bracket, servo horn/bracket). Wheels snap to shafts (D-shaft or servo horn). (Planned: in the prototype they hang where they are put.)
 - Body parts are designed in Body Studio or imported; mount points can be added to any face (see 08).
 - Overlays: centre of mass marker, total mass, wheelbase, ground clearance.
 
@@ -232,11 +246,11 @@ English, Uzbek (Latin script) and Russian at release, for everything the player 
 
 ## 13. Art direction
 
-- Realistic proportions and PCB textures with **readable silkscreen** (pin labels are the UI).
-- The Garage looks photographed (D11, 2026-09-24):
-  - light from an HDR photo of a real lab;
-  - scanned props with physically based materials;
-  - filmic (ACES) tone mapping, a warm white balance, fine film grain;
+- Realistic proportions and PCB textures with **readable silkscreen** (pin labels are the UI). Since 2026-09-24 every part in the prototype is modelled from real dimensions with its board painted in code: copper under the mask, pads, vias, silkscreen, chip markings, normal maps from their heights ([09 Appendix B](09-components-catalog.md#appendix-b--3d-asset-production-notes)).
+- The Garage looks photographed (D11, D20, 2026-09-24):
+  - a bright, white engineering lab with baked bounced light from ceiling panels and a window;
+  - physically based materials on everything: gloss on laminate and screens, metal on tools and chassis parts;
+  - filmic (ACES) tone mapping, a clean cool white balance, fine film grain;
   - a product photo's shallow depth of field;
   - small rounded edges on every board and plug, because sharp edges catch no light and look drawn.
 - Arenas keep simpler, legible lighting. In the editors readability wins over the photo: no blur, pin labels always on top.

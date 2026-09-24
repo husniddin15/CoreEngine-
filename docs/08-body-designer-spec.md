@@ -46,31 +46,35 @@ Undo/redo covers every operation. Autosave of the body with the project.
 
 ### 3.1 The prototype Studio (2026-09-24)
 
-**Body** in the Garage opens the Body Studio full screen. The owner asked for "something like Blender 3d or CAD": simple shapes for beginners, more complex models for experts, and uploads.
+**Body** and **Build** in the Garage both open the Body Studio full screen: Body on the library's Shapes tab, Build on its Parts tab. The owner asked for "something like Blender 3d or CAD" first, then (the same day) for Tinkercad itself, as in the rma_fullstack modeller: no chassis given, the player makes their own from shapes in real materials, places every part and turns it any way, but cannot resize a real part.
+
+**A new robot is empty.** There is no default chassis. The player takes a plate or other shapes from the library, sets them down, and puts the parts on them (docs/03 §5.2).
 
 **Layout**
-- A toolbar: Garage, undo, redo, Move, Turn, Size, the snap step (1, 5 or 10 mm), Draw, Import, STL and Parts.
-- A shape palette with a Solid / Hole switch.
-- The 3D view with a grid on the deck.
-- An inspector: the selected shape, or the list of shapes and the base plates.
-- A status bar that says what the mouse does and shows the body's volume, mass and build time.
+- A toolbar: Garage, undo, redo, the snap step (1, 5 or 10 mm), Draw, Import, STL and Parts (shows or hides the parts).
+- The library, with two tabs:
+  - **Shapes**: Solid / Hole, the material (PLA, acrylic, plywood, cardboard, EVA foam, PVC foam board, aluminium) with its density, a colour, and the shapes: plate with holes, box, rounded box, cylinder, cone, sphere, wedge, tube.
+  - **Parts**: every catalogue part with how many the robot may take and its mass (Uno, L298N, HC-SR04, TT motor, 4×AA holder, ball caster, SG90 servo, LED module).
+- The 3D view with a grid on the workplane (the turntable's top).
+- An inspector: the selected shape, group or part; or the list of shapes and parts.
+- A status bar that says what the mouse does and shows the body's volume, the robot's mass and the build time.
 
 **What works**
 
 | Tool | In the prototype |
 |---|---|
-| Place shape | A click on box, rounded box, cylinder, cone, sphere, wedge or tube adds it on the deck, beside the shapes already there, as a solid or a hole (the palette's switch). |
-| Move | Arrows along x, y and z, starting just outside the shape; a drag on the shape itself moves it on the deck; arrow keys and PgUp/PgDn nudge. Steps: the snap (1, 5 or 10 mm), 0.1 mm with Shift. |
-| Turn | Rings about x, y and z, in 15° steps (1° with Shift); a ring seen edge-on turns with the mouse's sideways movement. |
-| Size | A handle on each face; the opposite face stays, or the shape grows from its centre with Alt. "Keep proportions" scales all three sizes (on by default for uploaded models). |
-| Numbers | Position, rotation and size in the inspector (typed, applied with Enter); corner radius, tube wall and cone top where the shape has one. |
-| Hole mode | Any shape turns into a hole and back (H). Every hole cuts every solid and the plates: there are no groups yet. |
-| Draw | Click corners on the deck (snapped); a click on the first corner or Enter closes the outline, which becomes a 10 mm solid or a hole through the top plate. A crossing outline is refused. |
+| Place | A click on a shape or part in the library puts it on the mouse; it rides over the robot and a click sets it down. Shapes land on the surface under the mouse; boards stand on a plate, motors and the caster hang under one. Esc puts it back. A perforated plate counts as flat under a part, as a real one does. |
+| Handles (Tinkercad's) | The selected item shows its dashed footprint and stem. A shape has white squares at its base corners and dark squares at the middles of its edges that size it (the far side stays; Shift keeps proportions; Alt sizes from the middle), and a white square on top for its height (its base stays). A cone 50 px above lifts any item. Three curled arrows turn it about x, y and z, in 15° steps (Shift 45°, Ctrl 1°), with a protractor while dragging. Dimension lines show the sizes. The handles keep one size on the screen and have a light halo, so they read on dark and light scenes. |
+| Real parts | A part keeps its real size: it has only the cone and the curls. It moves by a drag (sliding over surfaces, standing on them or hanging under them) and turns freely about all three axes. |
+| Numbers | Position, rotation and size in the inspector (typed, applied with Enter); corner radius, tube wall, cone top, a plate's hole spacing and hole size. |
+| Materials | Each shape has its own material and colour; the body's mass is the sum of each material's volume × density. The "as built" finish shows each shape in its material: grained plywood, cardboard, see-through acrylic, matte PLA, foam, brushed aluminium. |
+| Groups | Ctrl+G groups the selection, Ctrl+Shift+G ungroups, Shift+click adds to the selection. A hole cuts only the solids of its own group; a hole on its own cuts nothing (Tinkercad's rule). Each solid keeps its own material in the group. |
+| Draw | Click corners on the workplane (snapped); a click on the first corner or Enter closes the outline, which becomes a 10 mm solid or hole. A crossing outline is refused. |
 | Import | Windows' Open dialog; STL (binary or ASCII) and OBJ. The file is copied into the robot's folder, a model under 2 units long is taken as metres (×1000), one over 400 mm gets a warning, and more than 200 000 triangles are refused. A model that is not closed is shown but cannot cut or join. |
-| Edit | Duplicate (Ctrl+D), mirror copy to the other side of x = 0 (M), put on deck, delete (Del), undo (Ctrl+Z) and redo (Ctrl+Y). |
-| Export | STL of the whole body with its shapes. |
+| Edit | Duplicate (Ctrl+D), mirror copy (M), stand on the workplane (D), delete (Del), undo (Ctrl+Z) and redo (Ctrl+Y); arrow keys and PgUp/PgDn nudge. |
+| Export | STL of the whole body. |
 
-**Not yet:** the workplane on faces, align, groups, the hole pattern helpers, measuring, mount points, the wheel helper, decimation of large models, cm and inch prompts, and a per-part STL.
+**Not yet:** the workplane on faces, align, the hole pattern helpers, measuring, mount points, decimation of large models, cm and inch prompts, a per-part STL, and several selected items sized together.
 
 ## 4. Physics derivation
 
@@ -105,9 +109,11 @@ Undo/redo covers every operation. Autosave of the body with the project.
 - The Studio's view (2026-09-24, `GarageStudio.cs`).
   - **Ghosts.** Every shape has a "ghost" that the mouse picks, built from the shape's own mesh (Manifold returns it with the body). A hole's ghost is drawn see-through grey, the selected shape's see-through blue. While a handle moves a shape, its ghost moves at once: its parent carries the new place, turn and size, and its child undoes the place and turn the mesh was built with. The body catches up when the worker's build arrives.
   - **Shaders.** Two small URP shaders (`Shaders/StudioOverlay`, `Shaders/StudioGrid`). The handles are drawn on top of everything; the ghosts get a small depth offset so they win over the body faces they share.
-  - **Picking.** Handles are picked on the screen, arrows and rings as lines and size handles as points.
+  - **Picking.** Handles are picked on the screen: squares and the cone by distance, curls along their line.
+  - **Handles** (`GarageHandles.cs`, 2026-09-24): painted every frame over the 3D view with UI Toolkit's vector painter, at Tinkercad's sizes in screen pixels (from rma_fullstack's Tinkercad Parity notes): 13 px corner squares with a 2.5 px border, 8 px edge squares, the lift cone 50 px above the top, curls about 22 px round an edge. Dimension readings are small white labels. The benchmark drags every handle with the mouse on a box and checks the result (corner +10 mm, top +10 mm with the base kept, lift 15 mm, a quarter turn).
   - **Camera.** It uses an off-centre projection, like a shift lens, so the robot sits in the middle of the free area between the palette and the inspector.
   - **Plate cache.** The plates with their hole grid are kept between builds while only shapes change. That halved the rebuild of a body with 2 × 77 holes and five shapes, from about 220 ms to about 105 ms (Mono build), and dragging a shape keeps about 130–140 fps.
+- A robot built from nothing (2026-09-24). `BodyDesign.Features` is the whole body; a `Plate` feature (a plate with an M3 hole grid, rectangle, rounded or round) replaced the fixed decks, and each feature has a `Material` (density from docs/09 §9) and a colour. A `Group` feature is a parent id on its members. `BodyBuilder` builds each top-level item: a lone shape as it is, a group as the union of its solids per material and colour minus its holes. Parts take a free pose (x, y, z and three Euler angles, Unity's order); each part knows its box, the point it mounts by and which way that faces (down for a board, up for a motor or the caster). Saves of version 2 and older are moved over by `DesignMigration`: the decks become plates on four aluminium standoffs, the parts keep their places, holes keep cutting.
 - Shape tree stored in `body.json` (parametric). Derived meshes cached in the project as glb for fast load; regenerated when the kernel version changes.
 - Rendering: one mesh per part with per-face colour groups; selection outline; hole shapes rendered translucent orange (Tinkercad convention; colour-blind alternative: hatch pattern).
 - Import: our own STL and OBJ readers in the core (`MeshFile`, no dependency); glTFast (in the project since 2026-09-24 for the Garage lab) for glb caching and future sharing.
