@@ -123,6 +123,8 @@ Why three rates: the MCU needs cycle resolution (62.5 ns) for correctness; elect
 | `TutorialStep` | id, prompt text key (localized), highlight target, completion event, skippable |
 | `NotebookCard` | id, kind (datasheet / error help / why it broke), part or failure code, Markdown per language (en, uz, ru), links |
 
+First implementation (2026-09-24, `CoreEngine.Sim.Design`, 126 tests with the rest of the core): `RobotDesign` = `BodyDesign` + `PartInstance[]` (catalogue id, slot or deck x/z/rotation) + `WireInstance[]` (pin to pin, colour). `PartCatalog` holds the slice's parts with sizes, masses and pins in millimetres; `DesignGeometry` places parts and pins in the chassis frame (origin at the chassis centre 50 mm above the floor, y up, +z forward, Unity's rotation convention) and gives mass and centre of mass; `Netlist` and `CircuitAnalysis` turn the wires into a `RobotCircuit` ([06 §3.8](06-electrical-simulation-spec.md)); `DriveMap` turns driver inputs into motor voltages; `StlWriter` writes binary STL. The Garage prototype saves the design inside each robot in `garage.json`; the `.rbp` package of [§7](#7-file-formats) replaces that in Phase 1.
+
 ## 7. File formats
 
 - **Project package `.rbp`** (zip): `project.json`, `circuit.json` (components, nets, wires, breadboard placement), `body/*.glb` + `body.json` (parametric primitives kept editable; imported meshes stored as glb), `sketches/<board>/*.ino`, `eeprom/<board>.bin`, `arena.json` (reference or embedded), `thumbnail.png`, `meta.json` (schema version, app version, hashes).

@@ -93,6 +93,8 @@ Scope: Uno R3, half breadboard, jumpers, LED, resistor, button, 4×AA holder, L2
 
 Total ≈ 145 days. Exit: 5 testers finish the tutorial and build a working obstacle-avoiding robot using only in-game help; 5 sketches verified against the real Uno with the logic analyser.
 
+Progress (2026-09-24): Build, Wire and Body work in the Garage prototype ([03 §3.1](03-game-design.md)). A robot is now data (`CoreEngine.Sim.Design`: parts with real pins, wires, the circuit they make, the body), edited in the Garage and turned into the arena robot, so a player can build the obstacle avoider from an empty chassis, wire it pin by pin and drive it. Covered in part: the workbench package (parts bin, placement with 5 mm snapping, wiring tool without routing, a simple inspector, undo without redo), the power and pin rules of the electrical core in their digital form ([06 §3.8](06-electrical-simulation-spec.md)), and a first Body Studio kernel with STL export (a Phase 2 package, [08 §7](08-body-designer-spec.md)). Still to do in Phase 1: the breadboard and its insertion, wire routing, the analogue solver, redo, and the `.rbp` project file.
+
 ## 5. Phase 2 — Breadth and content (months 9–18)
 
 | Work package | Days |

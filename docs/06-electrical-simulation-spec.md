@@ -134,6 +134,16 @@ I2C: SDA/SCL are `bus` nets; the MCU TWI and each device drive `OpenDrainLow` or
 ### 3.7 Determinism and performance
 No wall clock; fixed iteration bounds; deterministic ordering of nets and stamps (sorted by id). Budget: ≤ 0.3 ms per 1 ms tick for 60 nodes on the min-spec CPU — a 60×60 LU is ≈ 70 k flops (< 50 µs); the budget is dominated by bookkeeping and the Newton loop, so islands are kept small and factorisations cached.
 
+### 3.8 First implementation: the digital slice (2026-09-24)
+
+Until the solver of §3.1–3.7 exists, `CoreEngine.Sim.Design.CircuitAnalysis` reads the Garage's wires at the level the obstacle-avoider class of robots needs. It is the same netlist idea (union-find over part/pin keys, the Uno's GND pins joined inside the board) with fixed rules instead of MNA:
+
+- **Power**: the L298N has its motor supply when +12V reaches battery + and GND battery −; its 78M05 then feeds the +5V terminal (5V-EN jumper fitted). The Uno runs from VIN on battery +, or from its 5V pin on the L298N's +5V, and needs a GND on battery −. The HC-SR04 needs 5 V (the Uno's 5V or the L298N's +5V) and a ground. From 4×AA the 78M05 gives a little under 5 V (an information note, as on the real kit, [§4.3](#43-l298n-module-power)).
+- **Damage at power-on** ([§6](#6-failure-and-damage-model)): battery + on the Uno's 5V pin burns the board (F7), battery + on the sensor's VCC burns the sensor (F26). The arena marks the part burnt when the robot is switched on with a charged battery; Check & repair replaces it.
+- **Signals**: which Uno pin reaches each L298N input and the sensor's TRIG and ECHO; two Uno pins joined by wires are reported. A floating input reads low. ENA/ENB keep their jumpers (channel enabled) unless a wire takes the pin to the Uno; then the channel follows that pin (PWM on enable is sampled once per 10 ms step until the solver arrives).
+- **Motors**: a motor is driven when M+ and M− sit on OUT1/OUT2 or OUT3/OUT4 of a powered driver; M+ on OUT2 or OUT4 reverses it. The right motor is mounted turned round, so the same voltage turns its wheel the other way (`DriveMap.MountSign`): the kit swaps the right motor's leads, and wiring both motors alike makes the robot spin. A motor on an Uno pin is reported (40 mA at most against up to 1 A).
+- Findings carry a code and arguments (`noBattery`, `shortCircuit`, `driverUnpowered`, `noBoard`, `board5vOvervoltage`, `boardUnpowered`, `noGround`, `driver5vLow`, `pinsJoined`, `sonarOvervoltage`, `sonarUnpowered`, `sonarPin`, `inputFloating`, `motorOnGpio`, `motorNotConnected`); the UI words them in English, Uzbek and Russian.
+
 ## 4. Power model
 
 ### 4.1 Batteries

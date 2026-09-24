@@ -18,7 +18,11 @@ The game starts in the Garage (`Scripts/Garage/GarageSpike.cs`): the selected ro
 - **Check & repair**: battery charge and motor winding temperatures from the core models (`BatteryPack`, `MotorWinding`); burnt motors and empty batteries are replaced for free, with a "why it broke" card.
 - **Code**: the sketch in the code editor; **Upload** compiles it with the bundled arduino-cli on a worker thread and the arena then runs the new firmware.
 - **START** runs the robot in the obstacle field; **◀ Garage** (or Esc) in the arena brings it back with its battery and motor state. The robots are saved to `garage.json` in the player's data folder.
-- Build, Wire and Body show what they will do; Notebook, Shop and Workshop show their plans. The prototype starts with two test robots; the shipped game starts empty (D16).
+- **Build** (`Scripts/Garage/GarageEdit.cs`): add parts from the Parts Bin; click a part to select it, drag it on the deck, **R** turns it, **Del** removes it; **Ctrl+Z** undoes.
+- **Wire**: click a pin, then another pin, to add a jumper wire; the label under the mouse names the pin; the wiring check runs after every change; select a wire and press **Del** to remove it. Right-drag turns the view, the middle button pans, the wheel zooms toward the mouse.
+- **Body**: shape, size, thickness, corners, walls, decks, M3 hole grid and material; Manifold rebuilds the plates on a worker thread; **Export STL** saves to `Documents\CoreEngine\Exports`.
+- START builds the arena robot from the design (`RobotSpike.cs`): wheels on the motors that were placed, mass and centre of mass from the parts, and the circuit from the wires, so wrong wiring behaves wrongly. A new Uno runs Blink until a sketch is uploaded.
+- Notebook, Shop and Workshop show their plans. The prototype starts with two test robots; the shipped game starts empty (D16).
 
 ## Phase 0 spikes
 
@@ -38,4 +42,4 @@ $unity = "C:\Program Files\Unity\Hub\Editor\6000.6.2f1\Editor\Unity.exe"
 
 The IL2CPP build (`Builds/Spike/`) is the reference for speed and takes about 12 minutes from clean; the Mono build (`Builds/SpikeMono/`) takes under a minute and is for debugging.
 
-Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about a minute. It goes through the Garage (customize, a modelled motor burn-out and repair, a real upload), presses START, measures the arena (emulator speed, frame rate, emulator cost per physics step, robot telemetry, mesh booleans, fonts, editor scrolling and typing, a simulated tab drag), returns to the Garage, writes `report.txt` and about fifteen screenshots next to it, and quits. Other programs using the CPU change the numbers noticeably on a laptop; compare the "emulator alone" line between runs.
+Benchmark: `Builds\Spike\CoreEngineSpike.exe -spikeBench report.txt` opens a 1280 × 720 window for about a minute. It goes through the Garage (customize, a modelled motor burn-out and repair, a real upload), builds a new robot from an empty chassis in Body, Build and Wire (with an STL export and two wiring mistakes that are checked and undone), presses START with that robot, measures the arena (emulator speed, frame rate, emulator cost per physics step, robot telemetry, mesh booleans, fonts, editor scrolling and typing, a simulated tab drag), returns to the Garage, writes `report.txt` and about fifteen screenshots next to it, and quits. Other programs using the CPU change the numbers noticeably on a laptop; compare the "emulator alone" line between runs.
