@@ -27,6 +27,9 @@ namespace CoreEngine.Sim.Design
         public float WallHeightMm;
         public BodyMaterial Material = BodyMaterial.Acrylic;
 
+        /// <summary>Shapes added in the Body Studio: solids joined to the plates and holes cut through everything.</summary>
+        public List<BodyFeature> Features = new List<BodyFeature>();
+
         /// <summary>Round bodies use the width as their diameter.</summary>
         public float EffectiveLength => Shape == BodyShape.Round ? WidthMm : LengthMm;
 
@@ -37,7 +40,32 @@ namespace CoreEngine.Sim.Design
             _ => 1.18f,
         };
 
-        public BodyDesign Clone() => (BodyDesign)MemberwiseClone();
+        public BodyDesign Clone()
+        {
+            var copy = (BodyDesign)MemberwiseClone();
+            copy.Features = new List<BodyFeature>();
+            foreach (var feature in Features) copy.Features.Add(feature.Clone());
+            return copy;
+        }
+
+        public BodyFeature? Feature(string id)
+        {
+            foreach (var feature in Features) if (feature.Id == id) return feature;
+            return null;
+        }
+
+        /// <summary>Adds a feature with a new id ("f1", "f2", …) and returns it.</summary>
+        public BodyFeature AddFeature(BodyFeature feature)
+        {
+            for (int n = 1; ; n++)
+            {
+                if (Feature("f" + n) != null) continue;
+                feature.Id = "f" + n;
+                break;
+            }
+            Features.Add(feature);
+            return feature;
+        }
     }
 
     /// <summary>One part on the robot: a catalogue id, and its place (a slot for fixed mounts, x/z/rotation on the deck).</summary>
@@ -362,7 +390,16 @@ namespace CoreEngine.Sim.Design
                 y += grams * py;
                 z += grams * pz;
             }
-            double plates = BodyMassG(body);
+            double density = BodyDesign.DensityGPerCm3(body.Material) / 1000.0; // g per mm³
+            double features = 0;
+            foreach (var feature in body.Features)
+            {
+                if (feature.Hole) continue;
+                double grams = feature.ApproximateVolume() * density;
+                Add(grams, feature.X, feature.Y, feature.Z);
+                features += grams;
+            }
+            double plates = Math.Max(0, BodyMassG(body) - features);
             float t = body.ThicknessMm;
             if (body.Decks >= 2)
             {
@@ -397,7 +434,9 @@ namespace CoreEngine.Sim.Design
                 : body.LengthMm * body.WidthMm;
             double volumeMm3 = area * body.ThicknessMm * Math.Max(1, body.Decks);
             if (body.WallHeightMm > 0 && body.Shape != BodyShape.Round) volumeMm3 += 2 * body.LengthMm * body.ThicknessMm * body.WallHeightMm;
-            return volumeMm3 / 1000.0 * BodyDesign.DensityGPerCm3(body.Material);
+            foreach (var feature in body.Features)
+                volumeMm3 += (feature.Hole ? -0.5 : 1) * feature.ApproximateVolume(); // a hole cuts only where there is material
+            return Math.Max(0, volumeMm3) / 1000.0 * BodyDesign.DensityGPerCm3(body.Material);
         }
 
         /// <summary>Length of a wire in millimetres (straight line; a jumper's slack comes on top).</summary>
