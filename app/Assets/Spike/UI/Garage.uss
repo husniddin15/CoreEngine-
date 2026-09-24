@@ -913,3 +913,372 @@
     top: 2px;
     height: 6px;
 }
+
+/* ---- Body Studio (docs/08): toolbar, shape palette, 3D view, inspector, status bar ---- */
+.studio {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: column;
+}
+.studio-top {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    height: 52px;
+    padding: 0 12px;
+    background-color: rgba(9, 12, 17, 0.9);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+.studio-title {
+    margin: 0 14px 0 8px;
+    font-size: 15px;
+    -unity-font-style: bold;
+    color: rgb(244, 246, 250);
+}
+.studio-group {
+    flex-direction: row;
+    align-items: center;
+    height: 34px;
+    margin-left: 6px;
+    padding-left: 8px;
+    border-left-width: 1px;
+    border-left-color: rgba(255, 255, 255, 0.08);
+}
+.studio-caption {
+    margin: 0 4px;
+    font-size: 11px;
+    color: rgb(140, 150, 165);
+}
+.tool-button {
+    flex-direction: row;
+    align-items: center;
+    height: 32px;
+    margin: 0 2px;
+    padding: 0 10px;
+    border-width: 1px;
+    border-color: rgba(0, 0, 0, 0);
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: rgb(190, 198, 210);
+    transition-duration: 0.1s;
+}
+.tool-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: rgb(255, 255, 255);
+}
+.tool-button:disabled {
+    color: rgb(95, 102, 114);
+    background-color: rgba(255, 255, 255, 0.02);
+}
+.tool-button--icon {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+}
+.tool-button--active {
+    border-color: rgba(79, 193, 255, 0.8);
+    background-color: rgba(79, 193, 255, 0.2);
+    color: rgb(255, 255, 255);
+}
+.tool-icon {
+    width: 17px;
+    height: 17px;
+}
+.tool-label {
+    margin-left: 6px;
+    font-size: 12px;
+}
+.studio-back {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+.snap-button {
+    min-width: 30px;
+    height: 26px;
+    margin: 0 1px;
+    padding: 0 6px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: rgb(200, 206, 216);
+    font-size: 12px;
+}
+.snap-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.snap-button--active {
+    border-color: rgb(79, 193, 255);
+    background-color: rgba(79, 193, 255, 0.22);
+    color: rgb(255, 255, 255);
+}
+.studio-main {
+    flex-direction: row;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.studio-palette {
+    width: 200px;
+    padding: 12px 12px 4px 12px;
+    background-color: rgba(10, 13, 19, 0.88);
+    border-right-width: 1px;
+    border-right-color: rgba(255, 255, 255, 0.07);
+}
+.palette-title {
+    margin: 2px 0 6px 0;
+    font-size: 11px;
+    letter-spacing: 1px;
+    -unity-font-style: bold;
+    color: rgb(150, 160, 175);
+}
+.palette-note {
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: rgb(140, 150, 165);
+    white-space: normal;
+}
+.palette-switch {
+    flex-direction: row;
+    margin-bottom: 10px;
+}
+.switch-button {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    margin: 0 2px;
+    padding: 0 6px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: rgb(190, 198, 210);
+    font-size: 12px;
+}
+.switch-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.switch-button--active {
+    border-color: rgb(79, 193, 255);
+    background-color: rgba(79, 193, 255, 0.2);
+    color: rgb(255, 255, 255);
+}
+.switch-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 5px;
+}
+.shape-grid {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.shape-button {
+    width: 84px;
+    height: 74px;
+    margin: 0 0 8px 0;
+    padding: 6px 4px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.04);
+    color: rgb(110, 200, 255);
+    transition-duration: 0.1s;
+}
+.shape-button:hover {
+    border-color: rgba(79, 193, 255, 0.7);
+    background-color: rgba(79, 193, 255, 0.1);
+    translate: 0 -1px;
+}
+.shape-button--hole {
+    color: rgb(200, 206, 218);
+    border-color: rgba(200, 206, 218, 0.18);
+}
+.shape-icon {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 5px;
+}
+.shape-label {
+    font-size: 11px;
+    color: rgb(220, 224, 230);
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+.studio-viewport {
+    flex-grow: 1;
+}
+.studio-right {
+    width: 312px;
+    min-height: 0;
+    padding: 10px;
+}
+.side-panel--studio {
+    max-height: none;
+    min-height: 0;
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+}
+.side-panel--studio > .side-header {
+    display: none;
+}
+.side-panel--studio > .side-content {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 0;
+}
+.studio-status {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 14px;
+    background-color: rgba(9, 12, 17, 0.9);
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.07);
+}
+.studio-status-text {
+    flex-shrink: 1;
+    font-size: 11px;
+    color: rgb(185, 192, 204);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.studio-stats {
+    margin-left: 12px;
+    font-size: 11px;
+    color: rgb(120, 200, 150);
+    white-space: nowrap;
+}
+.studio-section {
+    margin: 14px 0 6px 0;
+    padding-top: 8px;
+    border-top-width: 1px;
+    border-top-color: rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    letter-spacing: 1px;
+    -unity-font-style: bold;
+    color: rgb(79, 193, 255);
+}
+.shape-row {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 6px;
+    margin-bottom: 2px;
+    border-radius: 5px;
+    background-color: rgba(255, 255, 255, 0.03);
+}
+.shape-row:hover {
+    background-color: rgba(79, 193, 255, 0.12);
+}
+.shape-row-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    color: rgb(110, 200, 255);
+}
+.shape-row-name {
+    flex-grow: 1;
+    font-size: 12px;
+    color: rgb(225, 229, 236);
+}
+.shape-row-tag {
+    margin-right: 6px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background-color: rgba(200, 206, 218, 0.16);
+    color: rgb(200, 206, 218);
+    font-size: 10px;
+}
+.feature-title {
+    flex-direction: row;
+    align-items: center;
+    margin: 2px 0 8px 0;
+}
+.feature-title-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    color: rgb(79, 193, 255);
+}
+.vec-row {
+    flex-direction: row;
+    margin-bottom: 2px;
+}
+.vec-field {
+    flex-grow: 1;
+    flex-basis: 0;
+    flex-direction: row;
+    align-items: center;
+    margin: 0 3px 0 0;
+}
+.vec-field > .unity-label {
+    min-width: 0;
+    width: 12px;
+    margin: 0 3px 0 0;
+    padding: 0;
+    font-size: 11px;
+    -unity-font-style: bold;
+}
+.vec-x > .unity-label {
+    color: rgb(255, 110, 110);
+}
+.vec-y > .unity-label {
+    color: rgb(130, 225, 110);
+}
+.vec-z > .unity-label {
+    color: rgb(110, 160, 255);
+}
+.vec-field .unity-base-text-field__input, .detail-field .unity-base-text-field__input {
+    height: 24px;
+    padding: 0 5px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-radius: 4px;
+    background-color: rgb(30, 36, 48);
+    color: rgb(236, 238, 243);
+    -unity-text-align: middle-right;
+}
+.detail-field {
+    margin: 6px 0 2px 0;
+}
+.detail-field > .unity-label {
+    min-width: 0;
+    margin-right: 8px;
+    font-size: 12px;
+    color: rgb(150, 160, 175);
+}
+.icon-small-button {
+    flex-direction: row;
+    align-items: center;
+    padding: 0 8px;
+}
+.small-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 5px;
+}
+.body-toggle .unity-toggle__checkmark {
+    width: 16px;
+    height: 16px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.28);
+    border-radius: 3px;
+    background-color: rgb(30, 36, 48);
+    -unity-background-image-tint-color: rgb(79, 193, 255);
+}

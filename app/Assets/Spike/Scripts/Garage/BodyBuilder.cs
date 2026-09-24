@@ -17,7 +17,8 @@ namespace CoreEngine.Spike.Garage
         public float[] StlPositions = Array.Empty<float>();
         public int[] StlTriangles = Array.Empty<int>();
         public double BuildMs;
-        public readonly List<string> NotClosed = new List<string>(); // ids of imported shapes shown as they are
+        public readonly List<string> NotClosed = new List<string>(); // ids of imported shapes shown as they are, as Loose
+        public BodyDesign Source = null!;                           // the design this was built from
     }
 
     /// <summary>The body as Unity meshes, with what the Body Studio shows and exports.</summary>
@@ -31,7 +32,8 @@ namespace CoreEngine.Spike.Garage
         public float[] StlPositions = Array.Empty<float>();      // millimetres, for STL export
         public int[] StlTriangles = Array.Empty<int>();
         public double BuildMs;
-        public List<string> NotClosed = new List<string>();
+        public List<string> NotClosed = new List<string>();        // the ids of the Loose meshes, in the same order
+        public BodyDesign Source = null!;                           // the design snapshot the meshes show
 
         public void Destroy()
         {
@@ -56,53 +58,57 @@ namespace CoreEngine.Spike.Garage
         /// <summary>Manifold is used by one thread at a time: the Body Studio's worker or the main thread.</summary>
         static readonly object ManifoldLock = new object();
 
+        /// <summary>
+        /// The last plates built, kept while only the Studio's shapes change: the plates with their hole grid are most
+        /// of the work (2 × 77 holes cost about 150 ms), and a shape dragged over the deck leaves them as they are.
+        /// </summary>
+        static string plateKey = "";
+        static Solid? cachedTop, cachedBottom;
+        static int cachedHoles;
+
         /// <summary>Imported meshes by full path, centred and scaled to a 1 × 1 × 1 box (shapes scale them to their size).</summary>
         static readonly Dictionary<string, MeshFileData> Imports = new Dictionary<string, MeshFileData>();
 
-        public static BodyMeshes Build(BodyDesign body, string importFolder) => ToMeshes(BuildData(body, importFolder));
+        public static BodyMeshes Build(BodyDesign body, string importFolder) => ToMeshes(BuildData(body.Clone(), importFolder));
 
-        /// <summary>The Manifold part of a build: no Unity objects, so it may run on a worker thread.</summary>
+        /// <summary>
+        /// The Manifold part of a build: no Unity objects, so it may run on a worker thread. The body must not
+        /// change meanwhile (pass a snapshot); it is kept as the result's <see cref="BodyData.Source"/>.
+        /// </summary>
         public static BodyData BuildData(BodyDesign body, string importFolder)
         {
             lock (ManifoldLock)
             {
                 var watch = System.Diagnostics.Stopwatch.StartNew();
-                var result = new BodyData();
-                var solids = new List<Solid>();
+                var result = new BodyData { Source = body };
+                var solids = new List<Solid>(); // the shapes made for this build, freed at the end
                 var holes = new List<Solid>();
                 try
                 {
-                    if (body.Decks >= 2)
-                    {
-                        using var top = Plate(body, walls: true, out int holeCount);
-                        using var bottom = Plate(body, walls: false, out _);
-                        solids.Add(top.Translate(0, DesignGeometry.TopDeckBottom, 0));
-                        solids.Add(bottom.Translate(0, DesignGeometry.BottomPlateBottom(body), 0));
-                        result.Holes = holeCount;
-                    }
-                    else
-                    {
-                        using var plate = Plate(body, walls: true, out int holeCount);
-                        solids.Add(plate.Translate(0, DesignGeometry.BottomPlateBottom(body), 0));
-                        result.Holes = holeCount;
-                    }
+                    var plates = Plates(body);
+                    result.Holes = cachedHoles;
 
                     foreach (var feature in body.Features)
                     {
                         var solid = FeatureSolid(feature, importFolder, out bool closed);
-                        if (solid == null) continue;
                         if (!closed)
                         {
-                            result.Loose.Add(solid.ToMeshData());
+                            // Manifold cannot use an open mesh (it has no inside): show it as the file has it.
+                            solid?.Dispose();
+                            var open = OpenMesh(feature, importFolder);
+                            if (open == null) continue;
+                            result.Loose.Add(open);
                             result.NotClosed.Add(feature.Id);
-                            solid.Dispose();
                             continue;
                         }
+                        if (solid == null) continue;
                         result.Features.Add((feature.Id, solid.ToMeshData(), feature.Hole));
                         (feature.Hole ? holes : solids).Add(solid);
                     }
 
-                    using var joined = Solid.Batch(solids, Native.OpAdd);
+                    var parts = new List<Solid>(plates);
+                    parts.AddRange(solids);
+                    using var joined = Solid.Batch(parts, Native.OpAdd);
                     Solid final;
                     if (holes.Count > 0)
                     {
@@ -142,6 +148,37 @@ namespace CoreEngine.Spike.Garage
             }
         }
 
+        /// <summary>The plates of a body in the chassis frame: from the cache when their settings have not changed.</summary>
+        static List<Solid> Plates(BodyDesign body)
+        {
+            string key = FormattableString.Invariant(
+                $"{body.Shape}|{body.LengthMm}|{body.WidthMm}|{body.ThicknessMm}|{body.CornerRadiusMm}|{body.Decks}|{body.HoleGrid}|{body.HolePitchMm}|{body.HoleDiameterMm}|{body.WallHeightMm}");
+            if (key != plateKey || cachedTop == null)
+            {
+                cachedTop?.Dispose();
+                cachedBottom?.Dispose();
+                cachedBottom = null;
+                if (body.Decks >= 2)
+                {
+                    using var top = Plate(body, walls: true, out cachedHoles);
+                    using var bottom = Plate(body, walls: false, out _);
+                    cachedTop = top.Translate(0, DesignGeometry.TopDeckBottom, 0);
+                    cachedBottom = bottom.Translate(0, DesignGeometry.BottomPlateBottom(body), 0);
+                    _ = cachedBottom.Status; // evaluate now, once, rather than in every later build
+                }
+                else
+                {
+                    using var plate = Plate(body, walls: true, out cachedHoles);
+                    cachedTop = plate.Translate(0, DesignGeometry.BottomPlateBottom(body), 0);
+                }
+                _ = cachedTop.Status;
+                plateKey = key;
+            }
+            var plates = new List<Solid> { cachedTop! };
+            if (cachedBottom != null) plates.Add(cachedBottom);
+            return plates;
+        }
+
         /// <summary>Unity meshes from Manifold's output (main thread), scaled from millimetres to metres.</summary>
         public static BodyMeshes ToMeshes(BodyData data)
         {
@@ -153,6 +190,7 @@ namespace CoreEngine.Spike.Garage
                 StlTriangles = data.StlTriangles,
                 BuildMs = data.BuildMs,
                 NotClosed = new List<string>(data.NotClosed),
+                Source = data.Source,
             };
             result.Body = data.Body.ToUnityMesh(0.001f);
             result.Body.name = "Body";
@@ -235,14 +273,8 @@ namespace CoreEngine.Spike.Garage
                 {
                     var mesh = LoadImport(Path.Combine(importFolder, f.MeshFile));
                     if (mesh == null) return null;
-                    var positions = new float[mesh.Positions.Length];
-                    for (int i = 0; i < positions.Length; i += 3)
-                    {
-                        positions[i] = mesh.Positions[i] * sx;
-                        positions[i + 1] = mesh.Positions[i + 1] * sy;
-                        positions[i + 2] = mesh.Positions[i + 2] * sz;
-                    }
-                    shape = Solid.FromMesh(positions, mesh.Triangles, out closed);
+                    var (positions, triangles) = Sized(mesh, f.MirrorX ? -sx : sx, sy, sz);
+                    shape = Solid.FromMesh(positions, triangles, out closed);
                     break;
                 }
             }
@@ -250,6 +282,65 @@ namespace CoreEngine.Spike.Garage
             using (shape)
                 return shape.Transform(Matrix4x4.TRS(new Vector3(f.X, f.Y, f.Z), Quaternion.Euler(f.RotX, f.RotY, f.RotZ), Vector3.one));
         }
+
+        /// <summary>
+        /// An imported mesh at its size (a negative x mirrors it; the triangles then turn the other way so their
+        /// front faces stay outside).
+        /// </summary>
+        static (float[] positions, int[] triangles) Sized(MeshFileData mesh, float sx, float sy, float sz)
+        {
+            var positions = new float[mesh.Positions.Length];
+            for (int i = 0; i < positions.Length; i += 3)
+            {
+                positions[i] = mesh.Positions[i] * sx;
+                positions[i + 1] = mesh.Positions[i + 1] * sy;
+                positions[i + 2] = mesh.Positions[i + 2] * sz;
+            }
+            var triangles = mesh.Triangles;
+            if (sx < 0)
+            {
+                triangles = (int[])triangles.Clone();
+                for (int t = 0; t < triangles.Length; t += 3) (triangles[t + 1], triangles[t + 2]) = (triangles[t + 2], triangles[t + 1]);
+            }
+            return (positions, triangles);
+        }
+
+        /// <summary>
+        /// An imported mesh that is not a closed solid, placed like any shape but without Manifold: every
+        /// triangle with its own flat normal (the file's triangles face outward, as Manifold's do).
+        /// </summary>
+        static MeshData? OpenMesh(BodyFeature f, string importFolder)
+        {
+            if (f.Kind != FeatureKind.Imported) return null;
+            var mesh = LoadImport(Path.Combine(importFolder, f.MeshFile));
+            if (mesh == null) return null;
+            float sx = Math.Max(0.2f, f.SizeX), sy = Math.Max(0.2f, f.SizeY), sz = Math.Max(0.2f, f.SizeZ);
+            var (positions, triangles) = Sized(mesh, f.MirrorX ? -sx : sx, sy, sz);
+            var m = Matrix4x4.TRS(new Vector3(f.X, f.Y, f.Z), Quaternion.Euler(f.RotX, f.RotY, f.RotZ), Vector3.one);
+            var data = new MeshData { NumProp = 6, Properties = new float[triangles.Length * 6], Triangles = new int[triangles.Length] };
+            for (int t = 0; t < triangles.Length; t += 3)
+            {
+                var a = m.MultiplyPoint3x4(Point(positions, triangles[t]));
+                var b = m.MultiplyPoint3x4(Point(positions, triangles[t + 1]));
+                var c = m.MultiplyPoint3x4(Point(positions, triangles[t + 2]));
+                var n = Vector3.Cross(b - a, c - a).normalized;
+                int k = 0;
+                foreach (var p in new[] { a, b, c })
+                {
+                    int v = t + k++, o = v * 6;
+                    data.Properties[o] = p.x;
+                    data.Properties[o + 1] = p.y;
+                    data.Properties[o + 2] = p.z;
+                    data.Properties[o + 3] = n.x;
+                    data.Properties[o + 4] = n.y;
+                    data.Properties[o + 5] = n.z;
+                    data.Triangles[v] = v;
+                }
+            }
+            return data;
+        }
+
+        static Vector3 Point(float[] positions, int index) => new Vector3(positions[3 * index], positions[3 * index + 1], positions[3 * index + 2]);
 
         /// <summary>A unit shape made along +z (Manifold's cylinders), stood up along +y and scaled to its size.</summary>
         static Solid Upright(Solid alongZ, float sx, float sy, float sz)

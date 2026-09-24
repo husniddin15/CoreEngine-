@@ -7,6 +7,8 @@ namespace CoreEngine.Spike.UI
     {
         Play, Build, Wire, Code, Body, Customize, Repair, Garage, Notebook, Shop, Workshop, Gear,
         Chip, Weight, Parts, Battery, Warning, Check, Plus, Back,
+        ShapeBox, ShapeRounded, ShapeCylinder, ShapeCone, ShapeSphere, ShapeWedge, ShapeTube, Draw, Import, Export,
+        Move, Rotate, Size, Undo, Redo, Duplicate, Mirror, Trash, Eye, Drop, Solid, Hole, Frame,
     }
 
     /// <summary>
@@ -79,6 +81,40 @@ namespace CoreEngine.Spike.UI
             {
                 p.BeginPath();
                 p.Arc(P(x, y), r * scale, Angle.Degrees(from), Angle.Degrees(to));
+                p.Stroke();
+            }
+            // Ellipses from four cubic curves (0.5523 puts the control points on a circle's tangents).
+            void Ellipse(float cx, float cy, float rx, float ry, bool fill = false)
+            {
+                float kx = rx * 0.5523f, ky = ry * 0.5523f;
+                p.BeginPath();
+                p.MoveTo(P(cx + rx, cy));
+                p.BezierCurveTo(P(cx + rx, cy + ky), P(cx + kx, cy + ry), P(cx, cy + ry));
+                p.BezierCurveTo(P(cx - kx, cy + ry), P(cx - rx, cy + ky), P(cx - rx, cy));
+                p.BezierCurveTo(P(cx - rx, cy - ky), P(cx - kx, cy - ry), P(cx, cy - ry));
+                p.BezierCurveTo(P(cx + kx, cy - ry), P(cx + rx, cy - ky), P(cx + rx, cy));
+                p.ClosePath();
+                if (fill) p.Fill();
+                else p.Stroke();
+            }
+            void FrontHalf(float cx, float cy, float rx, float ry) // the near half of a flat circle seen from above
+            {
+                float kx = rx * 0.5523f, ky = ry * 0.5523f;
+                p.BeginPath();
+                p.MoveTo(P(cx + rx, cy));
+                p.BezierCurveTo(P(cx + rx, cy + ky), P(cx + kx, cy + ry), P(cx, cy + ry));
+                p.BezierCurveTo(P(cx - kx, cy + ry), P(cx - rx, cy + ky), P(cx - rx, cy));
+                p.Stroke();
+            }
+            void Head(float x, float y, float dx, float dy, float size) // an arrow's chevron at (x, y) pointing along (dx, dy)
+            {
+                var d = new Vector2(dx, dy).normalized;
+                var n = new Vector2(-d.y, d.x);
+                var back = new Vector2(x, y) - d * size;
+                p.BeginPath();
+                p.MoveTo(P(back.x + n.x * size * 0.75f, back.y + n.y * size * 0.75f));
+                p.LineTo(P(x, y));
+                p.LineTo(P(back.x - n.x * size * 0.75f, back.y - n.y * size * 0.75f));
                 p.Stroke();
             }
 
@@ -201,6 +237,148 @@ namespace CoreEngine.Spike.UI
                     break;
                 case Icon.Back:
                     Poly(false, false, 15, 5, 8, 12, 15, 19);
+                    break;
+
+                // ---- Body Studio
+                case Icon.ShapeBox:
+                    Poly(true, false, 12, 3, 20.5f, 7.5f, 20.5f, 16.5f, 12, 21, 3.5f, 16.5f, 3.5f, 7.5f);
+                    Poly(false, false, 3.5f, 7.5f, 12, 12, 20.5f, 7.5f);
+                    Line(12, 12, 12, 21);
+                    break;
+                case Icon.ShapeRounded:
+                    p.BeginPath();
+                    p.MoveTo(P(9, 4));
+                    p.ArcTo(P(20, 4), P(20, 20), 5 * scale);
+                    p.ArcTo(P(20, 20), P(4, 20), 5 * scale);
+                    p.ArcTo(P(4, 20), P(4, 4), 5 * scale);
+                    p.ArcTo(P(4, 4), P(20, 4), 5 * scale);
+                    p.ClosePath();
+                    p.Stroke();
+                    Arc(9.5f, 9.5f, 2.5f, 180, 270);
+                    break;
+                case Icon.ShapeCylinder:
+                    Ellipse(12, 6.5f, 7.5f, 2.8f);
+                    Line(4.5f, 6.5f, 4.5f, 17.5f);
+                    Line(19.5f, 6.5f, 19.5f, 17.5f);
+                    FrontHalf(12, 17.5f, 7.5f, 2.8f);
+                    break;
+                case Icon.ShapeCone:
+                    Line(12, 3, 4.5f, 17.5f);
+                    Line(12, 3, 19.5f, 17.5f);
+                    FrontHalf(12, 17.5f, 7.5f, 2.8f);
+                    break;
+                case Icon.ShapeSphere:
+                    Circle(12, 12, 8.5f);
+                    FrontHalf(12, 12, 8.5f, 3f);
+                    break;
+                case Icon.ShapeWedge:
+                    Poly(true, false, 3.5f, 19.5f, 3.5f, 8.5f, 15, 19.5f);
+                    Poly(false, false, 3.5f, 8.5f, 8.5f, 5, 20, 16, 15, 19.5f);
+                    break;
+                case Icon.ShapeTube:
+                    Ellipse(12, 6.5f, 7.5f, 2.8f);
+                    Ellipse(12, 6.5f, 4f, 1.4f);
+                    Line(4.5f, 6.5f, 4.5f, 17.5f);
+                    Line(19.5f, 6.5f, 19.5f, 17.5f);
+                    FrontHalf(12, 17.5f, 7.5f, 2.8f);
+                    break;
+                case Icon.Draw: // a pencil
+                    Poly(true, false, 4, 20, 5, 15.5f, 16, 4.5f, 19.5f, 8, 8.5f, 19);
+                    Line(13.5f, 7, 17, 10.5f);
+                    break;
+                case Icon.Import:
+                    Poly(false, false, 4, 14, 4, 20, 20, 20, 20, 14);
+                    Line(12, 16, 12, 4);
+                    Head(12, 4, 0, -1, 4);
+                    break;
+                case Icon.Export:
+                    Poly(false, false, 4, 14, 4, 20, 20, 20, 20, 14);
+                    Line(12, 4, 12, 16);
+                    Head(12, 16, 0, 1, 4);
+                    break;
+                case Icon.Move:
+                    Line(12, 3, 12, 21);
+                    Line(3, 12, 21, 12);
+                    Head(12, 3, 0, -1, 3);
+                    Head(12, 21, 0, 1, 3);
+                    Head(3, 12, -1, 0, 3);
+                    Head(21, 12, 1, 0, 3);
+                    break;
+                case Icon.Rotate:
+                {
+                    Arc(12, 12, 7.5f, -60, 210);
+                    float a = 210 * Mathf.Deg2Rad;
+                    Head(12 + 7.5f * Mathf.Cos(a), 12 + 7.5f * Mathf.Sin(a), -Mathf.Sin(a), Mathf.Cos(a), 3.5f);
+                    break;
+                }
+                case Icon.Size:
+                    Line(6.5f, 17.5f, 17.5f, 6.5f);
+                    Head(17.5f, 6.5f, 1, -1, 3.5f);
+                    Head(6.5f, 17.5f, -1, 1, 3.5f);
+                    Poly(false, false, 3.5f, 9, 3.5f, 3.5f, 9, 3.5f);
+                    Poly(false, false, 15, 20.5f, 20.5f, 20.5f, 20.5f, 15);
+                    break;
+                case Icon.Undo:
+                    p.BeginPath();
+                    p.MoveTo(P(19, 18.5f));
+                    p.BezierCurveTo(P(19, 11), P(15, 8), P(9, 8));
+                    p.LineTo(P(5, 8));
+                    p.Stroke();
+                    Head(5, 8, -1, 0, 3.5f);
+                    break;
+                case Icon.Redo:
+                    p.BeginPath();
+                    p.MoveTo(P(5, 18.5f));
+                    p.BezierCurveTo(P(5, 11), P(9, 8), P(15, 8));
+                    p.LineTo(P(19, 8));
+                    p.Stroke();
+                    Head(19, 8, 1, 0, 3.5f);
+                    break;
+                case Icon.Duplicate:
+                    Poly(true, false, 8.5f, 8.5f, 20, 8.5f, 20, 20, 8.5f, 20);
+                    Poly(false, false, 4, 15.5f, 4, 4, 15.5f, 4);
+                    break;
+                case Icon.Mirror:
+                    for (int i = 0; i < 4; i++) Line(12, 3 + i * 5, 12, 5.5f + i * 5);
+                    Poly(true, false, 9, 6, 9, 18, 3, 18);
+                    Poly(true, true, 15, 6, 15, 18, 21, 18);
+                    break;
+                case Icon.Trash:
+                    Line(4, 6.5f, 20, 6.5f);
+                    Poly(false, false, 9.5f, 6.5f, 9.5f, 4, 14.5f, 4, 14.5f, 6.5f);
+                    Poly(false, false, 6, 6.5f, 7, 20.5f, 17, 20.5f, 18, 6.5f);
+                    Line(10, 10, 10, 17);
+                    Line(14, 10, 14, 17);
+                    break;
+                case Icon.Eye:
+                    p.BeginPath();
+                    p.MoveTo(P(2.5f, 12));
+                    p.BezierCurveTo(P(6, 6), P(18, 6), P(21.5f, 12));
+                    p.BezierCurveTo(P(18, 18), P(6, 18), P(2.5f, 12));
+                    p.ClosePath();
+                    p.Stroke();
+                    Circle(12, 12, 3);
+                    break;
+                case Icon.Drop: // put on the deck
+                    Line(12, 3.5f, 12, 14.5f);
+                    Head(12, 14.5f, 0, 1, 3.5f);
+                    Line(4, 19.5f, 20, 19.5f);
+                    break;
+                case Icon.Solid:
+                    Poly(true, true, 5, 5, 19, 5, 19, 19, 5, 19);
+                    break;
+                case Icon.Hole:
+                    Poly(true, false, 5, 5, 19, 5, 19, 19, 5, 19);
+                    Line(5, 12, 12, 5);
+                    Line(5, 19, 19, 5);
+                    Line(12, 19, 19, 12);
+                    break;
+                case Icon.Frame:
+                    Poly(false, false, 4, 9, 4, 4, 9, 4);
+                    Poly(false, false, 15, 4, 20, 4, 20, 9);
+                    Poly(false, false, 20, 15, 20, 20, 15, 20);
+                    Poly(false, false, 9, 20, 4, 20, 4, 15);
+                    Circle(12, 12, 2, true);
                     break;
             }
         }

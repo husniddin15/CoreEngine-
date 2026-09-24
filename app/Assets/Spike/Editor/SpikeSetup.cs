@@ -355,6 +355,9 @@ namespace CoreEngine.Spike.Editor
             go.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
             var garage = go.AddComponent<GarageSpike>();
             garage.litMaterial = Lit(materials, "GarageLit", Color.white, 0.5f); // template for runtime materials
+            // The Body Studio's see-through shapes, handles and grid (Shaders/): referenced here so that the build has them.
+            garage.overlayMaterial = LoadOrCreate(materials, "StudioOverlay", "CoreEngine/StudioOverlay");
+            garage.gridMaterial = LoadOrCreate(materials, "StudioGrid", "CoreEngine/StudioGrid");
             garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
             garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
             EditorSceneManager.SaveScene(scene, GarageScenePath);

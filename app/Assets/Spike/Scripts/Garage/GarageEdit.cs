@@ -44,7 +44,7 @@ namespace CoreEngine.Spike.Garage
             public bool LeftPressed, LeftHeld, RightPressed, RightHeld, MiddlePressed, MiddleHeld;
             public float Scroll;
             public KeyCode Key;
-            public bool Ctrl, Scripted;
+            public bool Ctrl, Shift, Alt, Scripted;
         }
 
         readonly Queue<PointerFrame> scriptedInput = new Queue<PointerFrame>();
@@ -60,8 +60,9 @@ namespace CoreEngine.Spike.Garage
         readonly List<Label> pinTags = new List<Label>();
         string listFrom = "", listTo = "";
 
-        // Undo, saving and the body rebuild, which runs on a worker thread so the sliders stay smooth
+        // Undo and redo, saving and the body rebuild, which runs on a worker thread so the sliders stay smooth
         readonly List<RobotDesign> undo = new List<RobotDesign>();
+        readonly List<RobotDesign> redo = new List<RobotDesign>();
         float saveAt = -1, lastBodyEdit = -10, bodyRebuildAt;
         bool bodyDirty;
         Task<BodyData>? bodyTask;
@@ -96,14 +97,15 @@ namespace CoreEngine.Spike.Garage
             // The turntable stops facing the camera's side so that the deck frame and the view agree.
             turntable.localRotation = Quaternion.identity;
             orbitTarget = DefaultTarget;
-            // Body looks down on the plates so the hole grid shows; Wire comes closer to the small pins.
-            distance = next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.45f : 0.50f;
-            pitch = next == EditMode.Body ? 50f : 42f;
+            // Wire comes closer to the small pins; the Body Studio keeps some room around the robot for new shapes.
+            distance = next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.52f : 0.50f;
+            pitch = 42f;
             yaw = 200f;
             selectedPart = null;
             selectedWire = -1;
             wireStart = null;
             focusedPart = null;
+            if (next == EditMode.Body) OpenStudio();
             ShowRobot();
             OpenSide(titleKey, render);
             UpdateHint();
@@ -113,6 +115,7 @@ namespace CoreEngine.Spike.Garage
         void LeaveMode(bool show = true)
         {
             if (mode == EditMode.None) return;
+            if (mode == EditMode.Body) CloseStudio();
             bodyTask?.Wait(); // the next model is built from the final design anyway
             bodyTask = null;
             bodyDirty = false;
@@ -145,14 +148,21 @@ namespace CoreEngine.Spike.Garage
             hoveredPin = null;
             dragging = false;
             undo.Clear();
+            redo.Clear();
+            selectedFeature = null;
+            CancelDrawing();
         }
 
         // ------------------------------------------------------------------ changes, undo, saving
 
-        void PushUndo()
+        void PushUndo() => RecordUndo(Design.Clone());
+
+        /// <summary>Keeps the design as it was before a change; a new change forgets what could be redone.</summary>
+        void RecordUndo(RobotDesign before)
         {
-            undo.Add(Design.Clone());
+            undo.Add(before);
             if (undo.Count > 60) undo.RemoveAt(0);
+            redo.Clear();
         }
 
         void Undo()
@@ -162,19 +172,51 @@ namespace CoreEngine.Spike.Garage
                 ShowToast(Tr("edit.nothingToUndo"));
                 return;
             }
+            redo.Add(Design.Clone());
             Robot.Design = undo[undo.Count - 1];
             undo.RemoveAt(undo.Count - 1);
+            AfterHistoryStep();
+        }
+
+        void Redo()
+        {
+            if (redo.Count == 0)
+            {
+                ShowToast(Tr("edit.nothingToRedo"));
+                return;
+            }
+            undo.Add(Design.Clone());
+            Robot.Design = redo[redo.Count - 1];
+            redo.RemoveAt(redo.Count - 1);
+            AfterHistoryStep();
+        }
+
+        void AfterHistoryStep()
+        {
             if (selectedPart != null && Design.Find(selectedPart) == null) selectedPart = null;
+            if (selectedFeature != null && Design.Body.Feature(selectedFeature) == null) selectedFeature = null;
             selectedWire = -1;
             wireStart = null;
             DesignChanged();
         }
 
-        /// <summary>After any change: new model, card and panel; the save follows shortly.</summary>
+        /// <summary>
+        /// After any change: new model, card and panel; the save follows shortly. In the Body Studio the model is
+        /// rebuilt on the worker thread, so an undo does not stop the frame for Manifold.
+        /// </summary>
         void DesignChanged()
         {
             designEpoch++;
-            ShowRobot();
+            if (mode == EditMode.Body)
+            {
+                bodyDirty = true;
+                FlushBody();
+                RefreshStudioChrome();
+            }
+            else
+            {
+                ShowRobot();
+            }
             RefreshCard();
             RefreshBar();
             renderSide?.Invoke();
@@ -198,6 +240,7 @@ namespace CoreEngine.Spike.Garage
                 }
             }
             if (bodyDirty && Time.unscaledTime >= bodyRebuildAt) FlushBody();
+            UpdateStudioScene();
             UpdatePinTags();
             if (saveAt > 0 && Time.unscaledTime >= saveAt)
             {
@@ -248,10 +291,12 @@ namespace CoreEngine.Spike.Garage
                 lastMouse = mouse;
                 if (mode == EditMode.Build) BeginPartDrag(mouse);
                 if (mode == EditMode.Wire) BeginWireGesture(mouse);
+                if (mode == EditMode.Body) BeginStudioPress(mouse);
             }
             if (leftDown && input.LeftHeld)
             {
                 if (dragging) UpdatePartDrag(mouse);
+                else if (drag.grip != Grip.None) UpdateStudioDrag(mouse);
                 else if (!wireGesture && (mouse - pressPosition).magnitude > 4) Orbit(mouse);
             }
             if (leftDown && !input.LeftHeld)
@@ -259,6 +304,7 @@ namespace CoreEngine.Spike.Garage
                 leftDown = false;
                 bool click = (mouse - pressPosition).magnitude <= 4;
                 if (dragging) EndPartDrag();
+                else if (drag.grip != Grip.None) EndStudioDrag();
                 else if (wireGesture) EndWireGesture(mouse, click);
                 else if (click) SceneClick(mouse);
             }
@@ -320,6 +366,8 @@ namespace CoreEngine.Spike.Garage
                 MiddleHeld = Input.GetMouseButton(2),
                 Scroll = Input.mouseScrollDelta.y,
                 Ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl),
+                Shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift),
+                Alt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt),
             };
         }
 
@@ -343,7 +391,9 @@ namespace CoreEngine.Spike.Garage
 
         void UpdateKeys()
         {
+            if (mode == EditMode.Body && StudioKeys()) return;
             if (input.Ctrl && KeyPressed(KeyCode.Z)) Undo();
+            if (input.Ctrl && KeyPressed(KeyCode.Y)) Redo();
             if (KeyPressed(KeyCode.Escape))
             {
                 if (wireStart != null) CancelWire();
@@ -364,6 +414,11 @@ namespace CoreEngine.Spike.Garage
 
         void SceneClick(Vector2 mouse)
         {
+            if (mode == EditMode.Body)
+            {
+                StudioClick(mouse);
+                return;
+            }
             if (mode == EditMode.Build && !PartUnder(mouse, out _)) SelectNothing();
             if (mode != EditMode.Wire) return;
             int wire = WireUnder(mouse);
@@ -414,6 +469,11 @@ namespace CoreEngine.Spike.Garage
         /// <summary>The label that follows the mouse: part names in Build, pins and wires in Wire.</summary>
         void UpdateHover(Vector2 mouse, bool overUi)
         {
+            if (mode == EditMode.Body)
+            {
+                UpdateStudioHover(mouse, overUi);
+                return;
+            }
             string text = "";
             hoveredPin = null;
             if (!overUi && (!leftDown || wireGesture) && !rightDown && !panning)
@@ -504,7 +564,7 @@ namespace CoreEngine.Spike.Garage
             dragging = false;
             if (dragMoved && dragBefore != null)
             {
-                undo.Add(dragBefore);
+                RecordUndo(dragBefore);
                 saveAt = Time.unscaledTime + 0.5f;
                 renderSide?.Invoke();
             }
@@ -1342,6 +1402,8 @@ namespace CoreEngine.Spike.Garage
                               $"{(meshes?.VolumeMm3 ?? 0) / 1000:F1} cm³, rebuilt by Manifold in {meshes?.BuildMs ?? 0:F1} ms");
             report.AppendLine($"  STL export: {Path.GetFileName(stl)}, {actual} bytes for {(meshes?.StlTriangles.Length ?? 0) / 3} triangles " +
                               $"(expected {expected}): {(actual == expected ? "OK" : "WRONG")}");
+
+            yield return StudioByMouse();
 
             OnAction("act.build");
             foreach (string part in new[] { PartCatalog.Uno, PartCatalog.L298N, PartCatalog.HcSr04, PartCatalog.TtMotor, PartCatalog.TtMotor, PartCatalog.Battery4AA, PartCatalog.Caster })

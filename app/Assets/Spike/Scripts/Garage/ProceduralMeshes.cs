@@ -25,6 +25,39 @@ namespace CoreEngine.Spike.Garage
             new[] { new Vector2(0.012f, 0.021f), new Vector2(0.012f, 0) },
         }, new[] { false, false, false }, 64, "Hub");
 
+        static Mesh? arrow, ring, square;
+
+        /// <summary>The Body Studio's move handle: an arrow one unit long along +x, a thin shaft and a cone tip.</summary>
+        public static Mesh Arrow => arrow ??= Lathe(new[]
+        {
+            new[] { new Vector2(0.14f, 0), new Vector2(0.14f, 0.016f) },
+            new[] { new Vector2(0.14f, 0.016f), new Vector2(0.76f, 0.016f) },
+            new[] { new Vector2(0.76f, 0.016f), new Vector2(0.76f, 0.06f) },
+            new[] { new Vector2(0.76f, 0.06f), new Vector2(1f, 0) },
+        }, new[] { false, false, false, false }, 24, "GizmoArrow");
+
+        /// <summary>The Body Studio's turn handle: a thin ring of radius 1 about the x axis.</summary>
+        public static Mesh Ring => ring ??= MakeRing();
+
+        /// <summary>A flat square in the xz plane, 0.4 m across, facing up (the Body Studio's grid).</summary>
+        public static Mesh Square => square ??= Build(
+            new List<Vector3> { new Vector3(-0.2f, 0, -0.2f), new Vector3(-0.2f, 0, 0.2f), new Vector3(0.2f, 0, 0.2f), new Vector3(0.2f, 0, -0.2f) },
+            new List<Vector3> { Vector3.up, Vector3.up, Vector3.up, Vector3.up },
+            new List<int> { 0, 1, 2, 0, 2, 3 }, "StudioGrid");
+
+        static Mesh MakeRing()
+        {
+            const int points = 10;
+            const float radius = 0.014f;
+            var loop = new Vector2[points];
+            for (int i = 0; i < points; i++)
+            {
+                float theta = -2 * Mathf.PI * i / points;
+                loop[i] = new Vector2(radius * Mathf.Cos(theta), 1f + radius * Mathf.Sin(theta));
+            }
+            return Lathe(new[] { loop }, new[] { true }, 96, "GizmoRing");
+        }
+
         static Mesh MakeTyre()
         {
             // The cross-section is a superellipse (squarish with round corners), traversed so that the

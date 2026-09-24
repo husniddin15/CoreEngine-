@@ -262,6 +262,7 @@ namespace CoreEngine.Spike.Garage
                 shown.HighlightWire(selectedWire);
                 shown.HighlightPins(hoveredPin, wireStart);
             }
+            if (mode == EditMode.Body) RebuildGhosts();
         }
 
         void Update()
@@ -322,6 +323,7 @@ namespace CoreEngine.Spike.Garage
                 depthOfField.active = mode == EditMode.None;
                 depthOfField.focusDistance.value = distance;
             }
+            ApplyStudioProjection();
         }
 
         bool IsPointerOverUi() => IsPointerOverUi(Input.mousePosition);
@@ -383,12 +385,14 @@ namespace CoreEngine.Spike.Garage
             settings.Add(new IconView(Icon.Gear));
             top.Add(settings);
             root.Add(top);
+            garageChrome.Add(top);
 
             // Middle: robot card | free view of the robot | actions and side panel.
             var middle = Layout("middle");
             middle.Add(BuildCard());
             middle.Add(Layout("centre"));
             var right = Layout("right-column");
+            rightColumn = right;
             actions = Layout("actions");
             for (int i = 0; i < ActionKeys.Length; i++)
             {
@@ -417,12 +421,14 @@ namespace CoreEngine.Spike.Garage
             right.Add(sidePanel);
             middle.Add(right);
             root.Add(middle);
+            garageChrome.Add(middle);
 
             var hintRow = Layout("garage-hint-row");
             hintRow.pickingMode = PickingMode.Ignore; // the row spans the screen; clicks must reach the robot
             hint = Classed(new Label { pickingMode = PickingMode.Ignore }, "garage-hint");
             hintRow.Add(hint);
             root.Add(hintRow);
+            garageChrome.Add(hintRow);
 
             // Robot bar.
             var bar = new VisualElement();
@@ -431,6 +437,7 @@ namespace CoreEngine.Spike.Garage
             barContent.AddToClassList("bar-scroll");
             bar.Add(barContent);
             root.Add(bar);
+            garageChrome.Add(bar);
 
             toast = Classed(new Label { pickingMode = PickingMode.Ignore }, "toast"); // a notice must not block clicks on the robot
             toast.style.display = DisplayStyle.None;
@@ -627,7 +634,7 @@ namespace CoreEngine.Spike.Garage
             {
                 case "act.build": EnterMode(EditMode.Build, key, RenderBuild); break;
                 case "act.wire": EnterMode(EditMode.Wire, key, RenderWire); break;
-                case "act.body": EnterMode(EditMode.Body, key, RenderBody); break;
+                case "act.body": EnterMode(EditMode.Body, key, RenderStudio); break;
                 case "act.code":
                     LeaveMode();
                     OpenCode();
@@ -1040,6 +1047,7 @@ namespace CoreEngine.Spike.Garage
             if (editor == null) renderOverlay?.Invoke();
             RefreshCard();
             RefreshBar();
+            RefreshStudioChrome();
         }
 
         // ------------------------------------------------------------------ thumbnails
