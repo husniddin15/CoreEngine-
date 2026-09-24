@@ -42,6 +42,25 @@ public class BodyStudioTests
     }
 
     [Fact]
+    public void AMirroredCopySitsOnTheOtherSide()
+    {
+        var bracket = new BodyFeature { Kind = FeatureKind.Wedge, X = 40, Y = 20, Z = -10, RotX = 10, RotY = 30, RotZ = -15 };
+        var mirrored = bracket.MirroredX();
+        Assert.Equal((-40f, 20f, -10f), (mirrored.X, mirrored.Y, mirrored.Z));
+        Assert.Equal((10f, -30f, 15f), (mirrored.RotX, mirrored.RotY, mirrored.RotZ));
+
+        var outline = BodyFeature.FromOutline(new float[] { 0, 0, 30, 0, 0, 20 }, 15, 5, false)!;
+        var other = outline.MirroredX();
+        Assert.Equal(-outline.Outline[0], other.Outline[0]);
+        Assert.Equal(outline.Outline[1], other.Outline[1]);
+        Assert.Equal(Math.Abs(BodyFeature.OutlineArea(outline.Outline)), Math.Abs(BodyFeature.OutlineArea(other.Outline)), 6);
+
+        var imported = new BodyFeature { Kind = FeatureKind.Imported, MeshFile = "arm.stl" };
+        Assert.True(imported.MirroredX().MirrorX);
+        Assert.False(imported.MirroredX().MirroredX().MirrorX);
+    }
+
+    [Fact]
     public void StlComesBackWhereItWasExported()
     {
         // A tetrahedron written by the game's STL writer (y up turned to z up) and read back (z up turned to y up).

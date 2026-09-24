@@ -23,12 +23,29 @@ namespace CoreEngine.Sim.Design
         public float Detail;                          // rounded box: corner radius (mm); cone: top radius / base radius; tube: wall (mm)
         public List<float> Outline = new List<float>(); // extrusion: x, z pairs of the outline, scaled to a 1 × 1 square
         public string MeshFile = "";                  // imported: the file's name in the robot's import folder
+        public bool MirrorX;                          // imported: the mesh is mirrored left-right (a mirrored copy)
 
         public BodyFeature Clone()
         {
             var copy = (BodyFeature)MemberwiseClone();
             copy.Outline = new List<float>(Outline);
             return copy;
+        }
+
+        /// <summary>
+        /// A copy mirrored across the chassis centre plane (x = 0), for the other side of a symmetric robot. The
+        /// shapes are symmetric about their own x axis, so mirroring turns the rotation about y and z the other
+        /// way; an outline and an imported mesh are mirrored themselves.
+        /// </summary>
+        public BodyFeature MirroredX()
+        {
+            var m = Clone();
+            m.X = -X;
+            m.RotY = -RotY;
+            m.RotZ = -RotZ;
+            for (int i = 0; i < m.Outline.Count; i += 2) m.Outline[i] = -m.Outline[i];
+            if (Kind == FeatureKind.Imported) m.MirrorX = !MirrorX;
+            return m;
         }
 
         /// <summary>A sensible starting shape of each kind, standing on a surface at height <paramref name="floor"/>.</summary>
