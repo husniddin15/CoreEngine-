@@ -20,13 +20,14 @@ All answers below were given by the owner on 2026-09-23.
 | D8 | **Languages** | English, Uzbek (Latin) and Russian at release | [10 §5](10-content-arenas-tutorial-notebook.md) | Decided |
 | D9 | **Validation hardware** | The owner already has an Uno kit | Add a USB logic analyser (≈ $10–15) if the kit has none | Decided |
 | D10 | **Toolchain delivery** | Bundle arduino-cli + AVR core, fully offline | [ADR-0003](adr/ADR-0003-compile-pipeline.md) | Decided |
-| D11 | **Art direction** | Realistic parts with readable labels; stylized room and arenas | [03 §13](03-game-design.md) | Decided |
+| D11 | **Art direction** | Realistic parts with readable labels. The Garage is a photographed robotics lab (the owner, 2026-09-24: the drawn room looked "like cartoon"); arenas are simpler and legible | [03 §13](03-game-design.md) | Decided |
 | D12 | **Legal entity and bank** | Company (LLC) in Uzbekistan with a USD SWIFT account | Confirm with the bank that USD wires from Valve arrive, and with an accountant, before Steamworks sign-up ([12 §2.1](12-business-steam-legal.md)) | Decided; bank check open |
 | D13 | **Mega 2560 at release** | Yes, as the first paid pack | Same AVR core, so it is the cheapest board to add | Decided |
 | D14 | **Multiplayer / LAN** | Not in 1.0 | — | Open (after release) |
 | D15 | **Release pack line-up** | Mega 2560 Pack + 2 customization packs + supporter bundle | [09 Appendix C](09-components-catalog.md) | Decided |
 | D16 | **Missions or sandbox** | Pure sandbox: no missions, challenges, leaderboards or example robots. A short interactive tutorial; a Notebook with datasheet cards, error help and "why it broke" cards | [ADR-0008](adr/ADR-0008-pure-sandbox-full-release.md), [10](10-content-arenas-tutorial-notebook.md) | Decided |
 | D17 | **Workshop robots with paid parts** | Free players can open and run them; saving an edited copy needs the pack | [04 §14.1](04-technical-design.md) | Decided |
+| D19 | **Third-party art** | CC0 assets from Poly Haven for the Garage lab: HDR panorama "Vintage Measuring Lab", textures and scanned props. CC0 needs no credit; the credits name Poly Haven anyway. The files are downloaded by `tools/fetch-lab-assets.ps1`, not kept in git; new assets need the owner's approval | [04 §10](04-technical-design.md#10-rendering), [polyhaven.com/license](https://polyhaven.com/license) | Decided 2026-09-24 |
 | D18 | **Player accounts** | None at release (Steam only); an optional email account after release | Needs a server, a privacy policy and parental-consent rules for children; first define what the account is for, for example saves outside Steam or school licences | Decided for 1.0; design open |
 
 Still open for the owner: the name check (D2), the bank confirmation (D12), the purpose of email accounts (D18), and three small content questions in [10 §7](10-content-arenas-tutorial-notebook.md).

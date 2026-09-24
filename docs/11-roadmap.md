@@ -95,6 +95,12 @@ Total ≈ 145 days. Exit: 5 testers finish the tutorial and build a working obst
 
 Progress (2026-09-24): Build, Wire and Body work in the Garage prototype ([03 §3.1](03-game-design.md)). A robot is now data (`CoreEngine.Sim.Design`: parts with real pins, wires, the circuit they make, the body), edited in the Garage and turned into the arena robot, so a player can build the obstacle avoider from an empty chassis, wire it pin by pin and drive it. Covered in part: the workbench package (parts bin, placement with 5 mm snapping, wiring tool without routing, a simple inspector, undo without redo), the power and pin rules of the electrical core in their digital form ([06 §3.8](06-electrical-simulation-spec.md)), and a first Body Studio kernel with STL export (a Phase 2 package, [08 §7](08-body-designer-spec.md)). Still to do in Phase 1: the breadboard and its insertion, wire routing, the analogue solver, redo, and the `.rbp` project file. After the owner's first try (wires could not be made: pins were small and hidden in the headers, and a drag turned the camera), wiring gained drag-to-wire, visible pin markers, "Look at" with pin names, connecting from lists and the one-jumper-per-pin rule, and the benchmark now drives these through the same mouse code a player uses. Rendering gained soft shadows, ambient occlusion and post-processing ([04 §10](04-technical-design.md)).
 
+Progress (2026-09-24, afternoon): the owner found the Garage "like cartoon" and asked for three things: a real-looking render, a CAD-like Body Studio (simple shapes for beginners, complex models for experts, STL/OBJ upload), and a better menu.
+- **Render.** The Garage is now a photographed robotics lab built from CC0 Poly Haven assets (D19, [04 §10](04-technical-design.md#10-rendering)).
+- **Menu.** It has icons, a status chip, action tiles and thumbnail cards, and fits English, Uzbek and Russian ([03 §3.1](03-game-design.md#31-the-garage-main-screen)).
+- **Body Studio.** The core model and kernel are done: shapes that are solids or holes, extrusions, and imported STL/OBJ meshes ([08 §7](08-body-designer-spec.md#7-technical-design)). The Studio editor, with shape palette, gizmo and sketch tool, is the next step.
+- **Speed.** The release player keeps 142 fps in the Garage and the arena.
+
 ## 5. Phase 2 — Breadth and content (months 9–18)
 
 | Work package | Days |

@@ -39,21 +39,29 @@ All spaces are parts of one continuous 3D scene so switching is instant and the 
 The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's idea, modelled on War Thunder's hangar). Everything the player can do is one click from the robot.
 
 ```
-+--------------------------------------------------------------------------------------------+
-| CoreEngine   Garage  Notebook  Shop  Workshop     Arena: [Obstacle field v]  [ START ]  EN |
-+----------------+------------------------------------------------------+--------------------+
-| ROBOT CARD     |                                                      | Build              |
-| name, board    |                                                      | Wire               |
-| sketch status  |          the selected robot on a turntable           | Code               |
-| parts, mass    |          (drag to orbit, wheel to zoom)              | Body               |
-| battery %      |                                                      | Customize          |
-| warnings       |                                                      | Check & repair     |
-+----------------+------------------------------------------------------+--------------------+
-| [robot] [robot] [robot] [+ New robot]                                                      |
-+--------------------------------------------------------------------------------------------+
++----------------------------------------------------------------------------------------------+
+| [#] COREENGINE  (Garage) Notebook Shop Workshop   ARENA [Obstacle field v] [> START] EN OZ RU (*)|
++----------------+--------------------------------------------------------+--------------------+
+| ROBOT          |                                                        | [Build]  [Wire]    |
+| Obstacle avoider                                                        |  what     what     |
+| (READY)        |          the selected robot on a turntable             | [Code]   [Body]    |
+| board, sketch  |          on the lab bench, the room out of focus       |                    |
+| parts, mass    |          (drag to orbit, wheel to zoom)                | [Customize]        |
+| battery ====   |                                                        | [Check & repair]   |
+| ! warnings     |                                                        |                    |
++----------------+--------------------------------------------------------+--------------------+
+| [thumbnail  name *] [thumbnail  name *] [ + New robot ]                                      |
++----------------------------------------------------------------------------------------------+
 ```
 
-- **Room**: the turntable stands on the player's desk in the maker room (D11): a pegboard with tools behind it, a drawer cabinet for parts, a lamp, a cutting mat. A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor. Prototype: `app/Assets/Spike/Scripts/Garage/` (2026-09-24).
+- **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the photographed lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are tiles with an icon, a name and one line saying what they do. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
+
+- **Room**: a robotics lab, photographed rather than drawn (the owner's choice, 2026-09-24; D11).
+  - The robot turns on an aluminium turntable on a wooden workbench with an ESD mat, among real tools: a bench vice, a drill, a screwdriver, a ratchet, a tape measure, spray cans, an oil can and a lamp. Steel shelves, a tool chest, boxes and a stool stand in the room.
+  - The walls and the light come from a 360° HDR photo of a real measuring lab. The props are scanned models. All of them are CC0 from Poly Haven (D19).
+  - The camera works like a product photographer's: a 55 mm lens at f/3.2 keeps the robot sharp and blurs the room behind it. The blur turns off in Build, Wire and Body, where every part must be sharp.
+  - A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor.
+  - Prototype: `app/Assets/Spike/Scripts/Garage/`; the lab is built by `app/Assets/Spike/Editor/SpikeLab.cs` (2026-09-24).
 - **Robot bar**: every saved robot as a card with a rendered thumbnail; click to select, right-click to rename, duplicate or delete; **+ New robot** starts from an empty chassis plate. The shipped game starts with an empty bar (no example robots, [§9](#9-no-missions-a-pure-sandbox)); the tutorial creates the first robot.
 - **Robot card**: name, board, sketch name with compile status and size, number of parts, mass, battery charge, and warnings from the wiring check. Warnings never block START.
 - **Build, Wire, Code, Body** open the editors of [§5](#5-build-mode)–[§7](#7-code-mode) and the Body Studio with this robot; a **Garage** button returns. In the prototype (2026-09-24) Build, Wire and Body are modes of the Garage itself: the turntable stops, the camera comes closer and the right column becomes the mode's panel; **Ctrl+Z** undoes, **Esc** or **◀** goes back.
@@ -219,7 +227,14 @@ English, Uzbek (Latin script) and Russian at release, for everything the player 
 
 ## 13. Art direction
 
-- Realistic proportions and PCB textures with **readable silkscreen** (pin labels are the UI). Slightly stylized lighting and materials to stay legible at desk scale.
+- Realistic proportions and PCB textures with **readable silkscreen** (pin labels are the UI).
+- The Garage looks photographed (D11, 2026-09-24):
+  - light from an HDR photo of a real lab;
+  - scanned props with physically based materials;
+  - filmic (ACES) tone mapping, a warm white balance, fine film grain;
+  - a product photo's shallow depth of field;
+  - small rounded edges on every board and plug, because sharp edges catch no light and look drawn.
+- Arenas keep simpler, legible lighting. In the editors readability wins over the photo: no blur, pin labels always on top.
 - Scale cues everywhere: cutting-mat grid (1 cm), ruler, breadboard hole pitch (2.54 mm).
 - Robots are 10–30 cm; arenas are table (1.2 × 0.8 m) or floor (3 × 3 m) sized.
 - Damage states: burnt (dark, cracked), smoke VFX, heat shimmer on hot regulators.

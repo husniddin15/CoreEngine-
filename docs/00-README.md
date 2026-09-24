@@ -40,13 +40,19 @@ CoreEngine/
   core/        CoreEngine.Sim (C#, engine-free), tests, headless CLI
   app/         Unity 6 project
   native/      Manifold mesh booleans, built as one DLL (C++)
-  tools/       arduino-cli + Arduino AVR core + licences
+  tools/       arduino-cli + Arduino AVR core + licences; fetch-lab-assets.ps1 (Garage lab, CC0)
   content-src/ Blender sources, textures, datasheet Markdown
 ```
 
-## Status and next steps (2026-09-23)
+## Status and next steps (2026-09-24)
 All major decisions are made ([13 §1](13-open-questions-and-risks.md)): Unity 6 (6.6 now, 6.7 LTS when released); name "CoreEngine"; a solo developer working with AI; a pure sandbox with a short tutorial and the Notebook; one full 1.0 release, free to play with low-priced paid packs (Mega 2560 first); English, Uzbek and Russian; payouts through a company in Uzbekistan.
 
 1. Phase 0 is done (doc 11 §3): repository and CI, the Arduino toolchain, the emulator, the Unity robot spike, the Manifold spike, the UI spike with the code editor and three languages, and the decision review. The schedule was re-estimated to 15–18 months to 1.0. Next: Phase 1, the vertical slice.
+   Phase 1 has started (doc 11 §4):
+   - the Garage main screen ([ADR-0009](adr/ADR-0009-garage-main-screen.md)) with working Build, Wire and Body modes;
+   - a photographed robotics lab (CC0 assets, D19) and the redesigned menu;
+   - the core of the Body Studio (shapes, holes, STL/OBJ import).
+
+   Next: the Body Studio editor.
 2. Tools in use: .NET 10 SDK, Unity 6000.6.2f1 with Windows Build Support (IL2CPP), Visual Studio Build Tools 2026 with the C++ workload and CMake.
 3. Open items: the name check (D2), the bank confirmation (D12), the purpose of email accounts (D18), a logic analyser if the Uno kit has none (D9), and compile time (13 §2 Q11).
