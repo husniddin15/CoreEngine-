@@ -199,11 +199,11 @@ namespace CoreEngine.Spike.Editor
             return profile;
         }
 
-        static void AddPostProcessing()
+        static void AddPostProcessing(VolumeProfile profile)
         {
             var volume = new GameObject("PostProcessing").AddComponent<Volume>();
             volume.isGlobal = true;
-            volume.sharedProfile = CreatePostProfile();
+            volume.sharedProfile = profile;
         }
 
         static void ConfigurePhysics()
@@ -307,7 +307,7 @@ namespace CoreEngine.Spike.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.ambientMode = AmbientMode.Skybox;
-            AddPostProcessing();
+            AddPostProcessing(CreatePostProfile());
 
             var go = new GameObject("Spike");
             var spike = go.AddComponent<RobotSpike>();
@@ -337,7 +337,19 @@ namespace CoreEngine.Spike.Editor
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             RenderSettings.skybox = AssetDatabase.GetBuiltinExtraResource<Material>("Default-Skybox.mat");
             RenderSettings.ambientMode = AmbientMode.Skybox;
-            AddPostProcessing();
+            // The photographed robotics lab when its CC0 files are there (tools/fetch-lab-assets.ps1), else the drawn room.
+            bool lab = SpikeLab.AssetsPresent;
+            if (lab)
+            {
+                SpikeLab.ConfigureImports();
+                SpikeLab.Build(materials);
+                AddPostProcessing(SpikeLab.PostProfile(EnsureFolder(SpikeFolder + "/Rendering")));
+            }
+            else
+            {
+                AddPostProcessing(CreatePostProfile());
+                Debug.LogWarning("SpikeSetup: the lab files are missing (tools/fetch-lab-assets.ps1); the Garage keeps its drawn room");
+            }
 
             var go = new GameObject("Garage");
             go.AddComponent<UIDocument>().panelSettings = CreatePanelSettings();
@@ -346,6 +358,11 @@ namespace CoreEngine.Spike.Editor
             garage.styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/Garage.uss");
             garage.editorStyleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(SpikeFolder + "/UI/UiSpike.uss");
             EditorSceneManager.SaveScene(scene, GarageScenePath);
+            if (lab)
+            {
+                SpikeLab.BakeLighting(EnsureFolder(SpikeFolder + "/Rendering"));
+                EditorSceneManager.SaveScene(scene, GarageScenePath);
+            }
         }
 
         static Material Lit(string folder, string name, Color color, float smoothness)

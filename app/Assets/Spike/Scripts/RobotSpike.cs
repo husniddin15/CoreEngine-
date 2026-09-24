@@ -290,6 +290,20 @@ namespace CoreEngine.Spike
                 box.material = plastic;
             }
 
+            // The Body Studio's solid shapes collide too: a convex hull around each (holes are left out).
+            var bodyMeshes = BodyBuilder.Build(body, project.ImportFolder);
+            var shapes = new List<Mesh>(bodyMeshes.Loose);
+            foreach (var feature in bodyMeshes.Features) if (!feature.hole) shapes.Add(feature.mesh);
+            foreach (var mesh in shapes)
+            {
+                var shape = new GameObject("ShapeCollider");
+                shape.transform.SetParent(root.transform, false);
+                var hull = shape.AddComponent<MeshCollider>();
+                hull.sharedMesh = mesh;
+                hull.convex = true;
+                hull.material = plastic;
+            }
+
             if (design.Count(PartCatalog.Caster) > 0)
             {
                 var c = DesignGeometry.CasterCentre(body);
@@ -304,9 +318,12 @@ namespace CoreEngine.Spike
                 };
             }
 
-            // Mass and centre of mass from the parts (docs/09 masses); the wheels are bodies of their own.
+            // Mass and centre of mass from the parts (docs/09 masses) and the body's exact volume from Manifold;
+            // the wheels are bodies of their own.
             chassis = root.AddComponent<ArticulationBody>();
-            chassis.mass = Mathf.Max(0.02f, (float)design.MassKg() - design.Count(PartCatalog.TtMotor) * WheelMass);
+            double bodyGrams = bodyMeshes.VolumeMm3 / 1000.0 * BodyDesign.DensityGPerCm3(body.Material);
+            double partsGrams = design.MassKg() * 1000 - DesignGeometry.BodyMassG(body);
+            chassis.mass = Mathf.Max(0.02f, (float)((partsGrams + bodyGrams) / 1000) - design.Count(PartCatalog.TtMotor) * WheelMass);
             var com = DesignGeometry.CentreOfMass(design, wheels: false);
             chassis.automaticCenterOfMass = false;
             chassis.centerOfMass = new Vector3(com.x, com.y, com.z) * Mm;
@@ -333,7 +350,7 @@ namespace CoreEngine.Spike
             }
 
             // The same model as on the Garage turntable, with the wheel parts on the turning wheel bodies.
-            visuals = RobotVisuals.Build(root.transform, leftWheel?.transform, rightWheel?.transform, project, chassisMaterial);
+            visuals = RobotVisuals.Build(root.transform, leftWheel?.transform, rightWheel?.transform, project, chassisMaterial, prebuiltBody: bodyMeshes);
         }
 
         ArticulationBody BuildWheel(Transform parent, Vector3 position, string slot)

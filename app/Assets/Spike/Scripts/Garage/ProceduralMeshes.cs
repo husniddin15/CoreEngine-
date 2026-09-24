@@ -136,6 +136,87 @@ namespace CoreEngine.Spike.Garage
             return Build(vertices, normals, triangles, "Tube");
         }
 
+        static readonly Dictionary<(int, int, int, int), Mesh> roundedBoxes = new Dictionary<(int, int, int, int), Mesh>();
+
+        /// <summary>
+        /// A box with rounded edges and corners, centred, in metres; one mesh per size, kept for reuse. Sharp edges
+        /// catch no light, which is what makes simple shapes look drawn; a real board or plug has a small round.
+        /// Each face is a grid whose outer rows follow the rounding at even angles.
+        /// </summary>
+        public static Mesh RoundedBox(Vector3 size, float radius)
+        {
+            var key = ((int)Mathf.Round(size.x * 1e5f), (int)Mathf.Round(size.y * 1e5f), (int)Mathf.Round(size.z * 1e5f), (int)Mathf.Round(radius * 1e6f));
+            if (roundedBoxes.TryGetValue(key, out var cached) && cached != null) return cached;
+            var half = size / 2;
+            radius = Mathf.Min(radius, Mathf.Min(half.x, Mathf.Min(half.y, half.z)) * 0.999f);
+            var inner = half - Vector3.one * radius;
+            const int steps = 3;
+            float[] Axis(float h, float r)
+            {
+                // x = (h - r) + r tan(phi): the points land on the rounding at even angles up to 45°.
+                var list = new List<float>();
+                for (int k = steps; k >= 1; k--) list.Add(-((h - r) + r * Mathf.Tan(Mathf.PI / 4 * k / steps)));
+                list.Add(-(h - r));
+                list.Add(h - r);
+                for (int k = 1; k <= steps; k++) list.Add((h - r) + r * Mathf.Tan(Mathf.PI / 4 * k / steps));
+                return list.ToArray();
+            }
+            var coords = new[] { Axis(half.x, radius), Axis(half.y, radius), Axis(half.z, radius) };
+            var vertices = new List<Vector3>();
+            var normals = new List<Vector3>();
+            var triangles = new List<int>();
+            // (normal axis, sign, u axis, v axis), chosen so that cross(v, u) points out of the face.
+            var faces = new[] { (1, 1, 0, 2), (1, -1, 2, 0), (0, 1, 2, 1), (0, -1, 1, 2), (2, 1, 1, 0), (2, -1, 0, 1) };
+            foreach (var (n, sign, u, v) in faces)
+            {
+                int start = vertices.Count;
+                var us = coords[u];
+                var vs = coords[v];
+                for (int i = 0; i < us.Length; i++)
+                {
+                    for (int j = 0; j < vs.Length; j++)
+                    {
+                        var p = Vector3.zero;
+                        p[n] = sign * half[n];
+                        p[u] = us[i];
+                        p[v] = vs[j];
+                        var clamped = new Vector3(Mathf.Clamp(p.x, -inner.x, inner.x), Mathf.Clamp(p.y, -inner.y, inner.y), Mathf.Clamp(p.z, -inner.z, inner.z));
+                        var d = p - clamped;
+                        Vector3 normal;
+                        if (d.sqrMagnitude > 1e-14f)
+                        {
+                            normal = d.normalized;
+                            p = clamped + normal * radius;
+                        }
+                        else
+                        {
+                            normal = Vector3.zero;
+                            normal[n] = sign;
+                        }
+                        vertices.Add(p);
+                        normals.Add(normal);
+                    }
+                }
+                int rows = vs.Length;
+                for (int i = 0; i + 1 < us.Length; i++)
+                {
+                    for (int j = 0; j + 1 < vs.Length; j++)
+                    {
+                        int a = start + i * rows + j;
+                        triangles.Add(a);
+                        triangles.Add(a + 1);
+                        triangles.Add(a + rows);
+                        triangles.Add(a + rows);
+                        triangles.Add(a + 1);
+                        triangles.Add(a + rows + 1);
+                    }
+                }
+            }
+            var mesh = Build(vertices, normals, triangles, "RoundedBox");
+            roundedBoxes[key] = mesh;
+            return mesh;
+        }
+
         static Mesh Build(List<Vector3> vertices, List<Vector3> normals, List<int> triangles, string name)
         {
             var mesh = new Mesh { name = name, indexFormat = vertices.Count > 65535 ? IndexFormat.UInt32 : IndexFormat.UInt16 };

@@ -55,6 +55,7 @@ namespace CoreEngine.Spike.Garage
         BodyMeshes? body;
         Material black = null!, holes = null!, metal = null!, darkMetal = null!, gold = null!, tin = null!, activePin = null!, selectedWire = null!;
         Transform wiresRoot = null!, pinsRoot = null!;
+        string importFolder = "";
         string? hoveredPin, chosenPin;
         int highlightedWire = -1;
         RobotDesign design = null!;
@@ -99,6 +100,7 @@ namespace CoreEngine.Spike.Garage
             EnsureMeshes();
             var v = new RobotVisuals(chassis, template);
             v.design = project.Design;
+            v.importFolder = project.ImportFolder;
             v.black = v.Mat(new Color(0.06f, 0.06f, 0.07f), 0.35f, 0f);
             v.holes = v.Mat(new Color(0.01f, 0.01f, 0.012f), 0.1f, 0f);
             v.metal = v.Mat(new Color(0.80f, 0.81f, 0.83f), 0.8f, 1f);
@@ -229,11 +231,11 @@ namespace CoreEngine.Spike.Garage
 
         void BuildBody(BodyDesign design, BodyMeshes? prebuilt)
         {
-            body = prebuilt ?? BodyBuilder.Build(design);
-            if (body.Bottom != null)
+            body = prebuilt ?? BodyBuilder.Build(design, importFolder);
+            MeshObject("Body", Root.transform, body.Body, Vector3.zero, bodyMaterial);
+            foreach (var loose in body.Loose) MeshObject("Imported", Root.transform, loose, Vector3.zero, bodyMaterial);
+            if (design.Decks >= 2)
             {
-                MeshObject("BottomPlate", Root.transform, body.Bottom, new Vector3(0, DesignGeometry.BottomPlateBottom(design) * Mm, 0), bodyMaterial);
-                MeshObject("TopDeck", Root.transform, body.Top, new Vector3(0, DesignGeometry.TopDeckBottom * Mm, 0), bodyMaterial);
                 var brass = Mat(new Color(0.78f, 0.62f, 0.25f), 0.7f, 1f);
                 float height = (DesignGeometry.TopDeckBottom - DesignGeometry.BottomPlateTop) * Mm;
                 foreach (var (x, z) in StandoffPlaces(design))
@@ -242,10 +244,6 @@ namespace CoreEngine.Spike.Garage
                     standoff.transform.localRotation = Quaternion.Euler(0, 0, 90); // the hub mesh turns about x; stand it up
                     standoff.transform.localScale = new Vector3(height / 0.024f, 0.0025f / 0.021f, 0.0025f / 0.021f);
                 }
-            }
-            else
-            {
-                MeshObject("Plate", Root.transform, body.Top, new Vector3(0, DesignGeometry.BottomPlateBottom(design) * Mm, 0), bodyMaterial);
             }
         }
 
@@ -365,8 +363,7 @@ namespace CoreEngine.Spike.Garage
                 if (pin == null) continue;
                 var exit = new Vector3(pin.ExitX, pin.ExitY, pin.ExitZ);
                 // A thin dark square on the face the wire enters: 2.6 mm across, 0.26 mm deep.
-                var opening = Box(t, new Vector3(pin.X, pin.Y, pin.Z) * Mm - exit * 0.0001f, new Vector3(2.6f, 2.6f, 2.6f) * Mm, holes, "Opening " + id);
-                opening.transform.localScale = Vector3.Scale(new Vector3(2.6f, 2.6f, 2.6f) * Mm, Vector3.one - Abs(exit) * 0.9f);
+                Box(t, new Vector3(pin.X, pin.Y, pin.Z) * Mm - exit * 0.0001f, Vector3.Scale(new Vector3(2.6f, 2.6f, 2.6f) * Mm, Vector3.one - Abs(exit) * 0.9f), holes, "Opening " + id);
                 // The screw sits on top, above the opening, pushed in from the face.
                 var screw = new Vector3(pin.X, centreMm.y + sizeMm.y / 2, pin.Z) * Mm - exit * (Mathf.Min(sizeMm.x, sizeMm.z) * 0.5f * Mm);
                 Cylinder(t, screw + new Vector3(0, 0.0004f, 0), 0.0035f, 0.0008f, Axis.Y, metal, "Screw " + id);
@@ -616,8 +613,13 @@ namespace CoreEngine.Spike.Garage
             return go;
         }
 
-        static GameObject Box(Transform parent, Vector3 position, Vector3 size, Material material, string name) =>
-            Shape(parent, cube!, position, size, Quaternion.identity, material, name);
+        /// <summary>A box with slightly rounded edges (a fifth of its thinnest side, at most 0.6 mm), like a real part.</summary>
+        static GameObject Box(Transform parent, Vector3 position, Vector3 size, Material material, string name)
+        {
+            float thinnest = Mathf.Min(size.x, Mathf.Min(size.y, size.z));
+            if (thinnest < 0.0004f) return Shape(parent, cube!, position, size, Quaternion.identity, material, name);
+            return Shape(parent, ProceduralMeshes.RoundedBox(size, Mathf.Min(0.0006f, thinnest * 0.2f)), position, Vector3.one, Quaternion.identity, material, name);
+        }
 
         static GameObject Sphere(Transform parent, Vector3 position, float diameter, Material material, string name) =>
             Shape(parent, sphere!, position, Vector3.one * diameter, Quaternion.identity, material, name);

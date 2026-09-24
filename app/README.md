@@ -7,12 +7,13 @@ The simulation core is not copied into the project: `Packages/manifest.json` loa
 ## Before opening the project
 
 1. `powershell -ExecutionPolicy Bypass -File native\manifold\build.ps1` puts `manifoldc.dll` into `Assets/Plugins/x86_64/` ([native/README.md](../native/README.md)).
-2. Unity Hub: add `app/`, open it with 6000.6.2f1 (Windows Build Support (IL2CPP) module installed).
-3. Menu **CoreEngine → Spike → Configure Project** creates the URP pipeline, physics and player settings, the plugin settings, and the two scenes `Assets/Spike/Garage.unity` (first in the build) and `Assets/Spike/RobotSpike.unity`.
+2. `powershell -ExecutionPolicy Bypass -File tools\fetch-lab-assets.ps1` downloads the Garage lab (about 50 MB of CC0 files from Poly Haven, checked by MD5) into `Assets/ThirdParty/PolyHaven/`, which git ignores. Without it the Garage falls back to a drawn room.
+3. Unity Hub: add `app/`, open it with 6000.6.2f1 (Windows Build Support (IL2CPP) module installed).
+4. Menu **CoreEngine → Spike → Configure Project** creates the URP pipeline, physics and player settings, the plugin settings, and the two scenes `Assets/Spike/Garage.unity` (first in the build) and `Assets/Spike/RobotSpike.unity`. It builds the lab from the downloaded files (`Editor/SpikeLab.cs`) and bakes its light probes into `Assets/Spike/Garage/`, which git also ignores.
 
 ## The Garage (main screen prototype, ADR-0009)
 
-The game starts in the Garage (`Scripts/Garage/GarageSpike.cs`): the selected robot turns on a turntable on the player's desk, with the robot card on the left, the actions on the right and the robot bar with rendered thumbnails at the bottom. Drag to orbit, mouse wheel to zoom.
+The game starts in the Garage (`Scripts/Garage/GarageSpike.cs`). The selected robot turns on an aluminium turntable on a workbench in a photographed robotics lab. The robot card is on the left, the six action tiles on the right, and the robot bar with rendered thumbnails at the bottom. Drag to orbit, mouse wheel to zoom.
 
 - **Customize**: free finishes and the two launch packs' finishes; a locked finish can be tried (shown everywhere, never saved).
 - **Check & repair**: battery charge and motor winding temperatures from the core models (`BatteryPack`, `MotorWinding`); burnt motors and empty batteries are replaced for free, with a "why it broke" card.

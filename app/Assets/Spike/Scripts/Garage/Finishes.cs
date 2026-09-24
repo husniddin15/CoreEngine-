@@ -45,7 +45,7 @@ namespace CoreEngine.Spike.Garage
         {
             new Finish("blue-acrylic", FinishTarget.Body, new Color(0.13f, 0.33f, 0.78f), 0.80f, 0f, null, "Blue acrylic", "Koʻk akril", "Синий акрил"),
             new Finish("smoked-acrylic", FinishTarget.Body, new Color(0.22f, 0.24f, 0.27f), 0.85f, 0f, null, "Smoked acrylic", "Tutunli akril", "Дымчатый акрил"),
-            new Finish("white-pla", FinishTarget.Body, new Color(0.90f, 0.90f, 0.87f), 0.30f, 0f, null, "White PLA", "Oq PLA", "Белый PLA"),
+            new Finish("white-pla", FinishTarget.Body, new Color(0.82f, 0.82f, 0.80f), 0.30f, 0f, null, "White PLA", "Oq PLA", "Белый PLA"),
             new Finish("orange-pla", FinishTarget.Body, new Color(0.95f, 0.45f, 0.10f), 0.35f, 0f, null, "Orange PLA", "Toʻq sariq PLA", "Оранжевый PLA"),
             new Finish("black-pla", FinishTarget.Body, new Color(0.07f, 0.07f, 0.08f), 0.35f, 0f, null, "Black PLA", "Qora PLA", "Чёрный PLA"),
             new Finish("carbon-fibre", FinishTarget.Body, new Color(0.05f, 0.05f, 0.06f), 0.90f, 0.35f, CarbonMetalPack, "Carbon fibre", "Karbon tola", "Карбон"),

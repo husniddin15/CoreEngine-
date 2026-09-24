@@ -17,6 +17,7 @@ namespace CoreEngine.Spike.Garage
     public sealed class RobotProject
     {
         public string Name = "Robot";
+        public string Id = Guid.NewGuid().ToString("N"); // names the folder of the robot's imported models
         public RobotDesign Design = DesignPresets.ObstacleAvoiderKit();
         public string SketchFile = "ObstacleAvoider.ino";
         public string SketchText = "";    // the player's edited sketch; empty means the file in StreamingAssets
@@ -103,11 +104,16 @@ namespace CoreEngine.Spike.Garage
 
         public double MassKg => Design.MassKg();
 
+        /// <summary>STL and OBJ files imported into the Body Studio are copied here, so the robot keeps them.</summary>
+        public string ImportFolder => Path.Combine(Application.persistentDataPath, "Imports", Id);
+
         /// <summary>Fills in what older saves lack.</summary>
         public void Upgrade()
         {
+            if (string.IsNullOrEmpty(Id)) Id = Guid.NewGuid().ToString("N");
             Design ??= DesignPresets.ObstacleAvoiderKit();
             Design.Body ??= new BodyDesign();
+            Design.Body.Features ??= new List<BodyFeature>();
             Design.Parts ??= new List<PartInstance>();
             Design.Wires ??= new List<WireInstance>();
         }

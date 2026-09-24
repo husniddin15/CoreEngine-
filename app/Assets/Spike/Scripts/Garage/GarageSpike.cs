@@ -34,13 +34,14 @@ namespace CoreEngine.Spike.Garage
 
         static readonly string[] ArenaKeys = { "arena.obstacles", "arena.line", "arena.maze", "arena.sumo" };
         static readonly string[] ActionKeys = { "act.build", "act.wire", "act.code", "act.body", "act.customize", "act.repair" };
+        static readonly Icon[] ActionIcons = { Icon.Build, Icon.Wire, Icon.Code, Icon.Body, Icon.Customize, Icon.Repair };
 
         // 3D
         Camera view = null!;
         Transform turntable = null!;
         Transform robotAnchor = null!;
         RobotVisuals? shown;
-        float yaw = 215f, pitch = 12f, distance = 0.72f;
+        float yaw = 215f, pitch = 14f, distance = 0.62f;
         float idleSeconds = 10f;
         bool orbiting;
         Vector3 lastMouse;
@@ -50,7 +51,7 @@ namespace CoreEngine.Spike.Garage
         VisualElement root = null!, actions = null!, sidePanel = null!, overlay = null!, overlayPanel = null!;
         ScrollView sideContent = null!, barContent = null!;
         Label sideTitle = null!, toast = null!;
-        Label cardName = null!, cardBoard = null!, cardSketch = null!, cardParts = null!, cardMass = null!, cardBatteryText = null!;
+        Label cardName = null!, cardBoard = null!, cardSketch = null!, cardParts = null!, cardMass = null!, cardBatteryText = null!, cardStatus = null!;
         ProgressBar cardBattery = null!;
         VisualElement cardWarnings = null!, cardBatteryRow = null!;
         Button startButton = null!;
@@ -105,8 +106,57 @@ namespace CoreEngine.Spike.Garage
 
         // ------------------------------------------------------------------ room, turntable, camera
 
+        /// <summary>The photographed lab of the editor setup, when its files were fetched (tools/fetch-lab-assets.ps1).</summary>
+        bool labMode;
+        DepthOfField? depthOfField;
+
+        /// <summary>
+        /// In the lab the room, its lights and its camera look come from the scene (SpikeLab); the Garage adds a
+        /// display turntable: a brushed aluminium disc with a black rubber top, 30 cm across and 2 cm high, standing
+        /// on the bench's anti-static mat.
+        /// </summary>
+        void BuildLabTurntable()
+        {
+            var aluminium = Mat(new Color(0.78f, 0.79f, 0.80f), 0.58f);
+            aluminium.SetFloat("_Metallic", 1f);
+            var rubber = Mat(new Color(0.035f, 0.035f, 0.04f), 0.32f);
+            turntable = new GameObject("Turntable").transform;
+            turntable.position = new Vector3(0, 0.003f, 0);
+            var disc = ProceduralMeshes.Lathe(new[]
+            {
+                new[] { new Vector2(0, 0), new Vector2(0, 0.148f) },
+                new[] { new Vector2(0, 0.148f), new Vector2(0.002f, 0.150f), new Vector2(0.017f, 0.150f), new Vector2(0.0195f, 0.1475f) },
+                new[] { new Vector2(0.0195f, 0.1475f), new Vector2(0.0195f, 0) },
+            }, new[] { false, false, false }, 128, "TurntableDisc");
+            var pad = ProceduralMeshes.Lathe(new[]
+            {
+                new[] { new Vector2(0.0195f, 0.139f), new Vector2(0.021f, 0.1385f), new Vector2(0.0215f, 0.137f) },
+                new[] { new Vector2(0.0215f, 0.137f), new Vector2(0.0215f, 0) },
+            }, new[] { false, false }, 128, "TurntablePad");
+            foreach (var (name, mesh, material) in new[] { ("Disc", disc, aluminium), ("Pad", pad, rubber) })
+            {
+                var go = new GameObject(name);
+                go.transform.SetParent(turntable, false);
+                go.transform.localRotation = Quaternion.Euler(0, 0, 90); // the lathe turns its profile about x; stand it up
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>().sharedMaterial = material;
+            }
+            robotAnchor = new GameObject("RobotAnchor").transform;
+            robotAnchor.SetParent(turntable, false);
+            robotAnchor.localPosition = new Vector3(0, 0.0215f + 0.05f, 0); // chassis origin is 5 cm above the wheels' contact
+        }
+
         void BuildRoom()
         {
+            labMode = GameObject.Find("LabSet") != null;
+            var volume = FindAnyObjectByType<Volume>();
+            if (volume != null && volume.profile.TryGet(out DepthOfField dof)) depthOfField = dof;
+            if (labMode)
+            {
+                BuildLabTurntable();
+                return;
+            }
+
             // The player's desk in the maker room (D11): the robot's turntable in the middle, a pegboard
             // with tools behind it, a drawer cabinet for parts, a lamp, a cutting mat, a breadboard and a
             // multimeter. The desk top is y = 0; the camera looks toward -z.
@@ -194,7 +244,7 @@ namespace CoreEngine.Spike.Garage
         {
             view = new GameObject("GarageCamera").AddComponent<Camera>();
             view.tag = "MainCamera";
-            view.fieldOfView = 44f;
+            view.fieldOfView = 38f;
             view.nearClipPlane = 0.02f;
             view.farClipPlane = 30f;
             view.GetUniversalAdditionalCameraData().renderPostProcessing = true;
@@ -265,6 +315,13 @@ namespace CoreEngine.Spike.Garage
         {
             view.transform.position = orbitTarget + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, 0, -distance);
             view.transform.LookAt(orbitTarget);
+            // Depth of field keeps the robot sharp and softens the room behind it, like a photo; the editing
+            // modes need everything sharp.
+            if (depthOfField != null)
+            {
+                depthOfField.active = mode == EditMode.None;
+                depthOfField.focusDistance.value = distance;
+            }
         }
 
         bool IsPointerOverUi() => IsPointerOverUi(Input.mousePosition);
@@ -289,23 +346,29 @@ namespace CoreEngine.Spike.Garage
             if (SpikeFonts.Ui != null) root.style.unityFontDefinition = FontDefinition.FromSDFFont(SpikeFonts.Ui);
             document.rootVisualElement.Add(root);
 
-            // Top bar: navigation, arena picker, START, languages, settings.
+            // Top bar: logo, navigation, arena picker, START, languages, settings.
             var top = new VisualElement();
             top.AddToClassList("top-bar");
-            top.Add(Classed(new Label("CoreEngine"), "app-title"));
-            AddNav(top, "nav.garage", true, CloseSide);
-            AddNav(top, "nav.notebook", false, () => ShowPage("nav.notebook", "page.notebookInfo"));
-            AddNav(top, "nav.shop", false, ShowShop);
-            AddNav(top, "nav.workshop", false, () => ShowPage("nav.workshop", "page.workshopInfo"));
+            var logo = Layout("logo");
+            logo.Add(Classed(new IconView(Icon.Chip), "logo-mark"));
+            logo.Add(Classed(new Label("COREENGINE"), "app-title"));
+            top.Add(logo);
+            AddNav(top, "nav.garage", Icon.Garage, true, CloseSide);
+            AddNav(top, "nav.notebook", Icon.Notebook, false, () => ShowPage("nav.notebook", "page.notebookInfo"));
+            AddNav(top, "nav.shop", Icon.Shop, false, ShowShop);
+            AddNav(top, "nav.workshop", Icon.Workshop, false, () => ShowPage("nav.workshop", "page.workshopInfo"));
             top.Add(Layout("spacer"));
-            top.Add(Classed(Localized(new Label(), "arena"), "arena-label"));
+            var arena = Layout("arena-group");
+            arena.Add(Classed(Localized(new Label(), "arena"), "arena-label"));
             arenaField = new DropdownField(new List<string>(), 0) { focusable = false };
             arenaField.AddToClassList("arena-field");
             arenaField.RegisterValueChangedCallback(_ => OnArenaChosen());
-            top.Add(arenaField);
-            startButton = new Button(StartRun);
+            arena.Add(arenaField);
+            top.Add(arena);
+            startButton = new Button(StartRun) { focusable = false };
             startButton.AddToClassList("start-button");
-            localized.Add((startButton, "start"));
+            startButton.Add(Classed(new IconView(Icon.Play), "start-icon"));
+            startButton.Add(Classed(Localized(new Label(), "start"), "start-label"));
             top.Add(startButton);
             for (int i = 0; i < SpikeStrings.LanguageButtons.Length; i++)
             {
@@ -315,8 +378,9 @@ namespace CoreEngine.Spike.Garage
                 languageButtons.Add(button);
                 top.Add(button);
             }
-            var settings = new Button(() => ShowToast(Tr("settings.info"))) { text = "⚙", focusable = false };
+            var settings = new Button(() => ShowToast(Tr("settings.info"))) { focusable = false };
             settings.AddToClassList("icon-button");
+            settings.Add(new IconView(Icon.Gear));
             top.Add(settings);
             root.Add(top);
 
@@ -326,13 +390,15 @@ namespace CoreEngine.Spike.Garage
             middle.Add(Layout("centre"));
             var right = Layout("right-column");
             actions = Layout("actions");
-            foreach (string key in ActionKeys)
+            for (int i = 0; i < ActionKeys.Length; i++)
             {
-                string action = key;
-                var button = new Button(() => OnAction(action));
-                button.AddToClassList("action-button");
-                localized.Add((button, key));
-                actions.Add(button);
+                string action = ActionKeys[i];
+                var tile = new Button(() => OnAction(action)) { focusable = false };
+                tile.AddToClassList("action-tile");
+                tile.Add(Classed(new IconView(ActionIcons[i]), "tile-icon"));
+                tile.Add(Classed(Localized(new Label(), action), "tile-title"));
+                tile.Add(Classed(Localized(new Label(), action + ".sub"), "tile-sub"));
+                actions.Add(tile);
             }
             right.Add(actions);
             sidePanel = new VisualElement();
@@ -352,8 +418,11 @@ namespace CoreEngine.Spike.Garage
             middle.Add(right);
             root.Add(middle);
 
+            var hintRow = Layout("garage-hint-row");
+            hintRow.pickingMode = PickingMode.Ignore; // the row spans the screen; clicks must reach the robot
             hint = Classed(new Label { pickingMode = PickingMode.Ignore }, "garage-hint");
-            root.Add(hint);
+            hintRow.Add(hint);
+            root.Add(hintRow);
 
             // Robot bar.
             var bar = new VisualElement();
@@ -381,14 +450,18 @@ namespace CoreEngine.Spike.Garage
         {
             var card = new VisualElement();
             card.AddToClassList("robot-card");
+            card.Add(Classed(Localized(new Label(), "card.robot"), "card-eyebrow"));
             cardName = Classed(new Label(), "card-name");
             card.Add(cardName);
-            cardBoard = CardRow(card, "card.board");
-            cardSketch = CardRow(card, "card.sketch");
-            cardParts = CardRow(card, "card.parts");
-            cardMass = CardRow(card, "card.mass");
+            cardStatus = Classed(new Label(), "status-chip");
+            card.Add(cardStatus);
+            card.Add(Layout("card-divider"));
+            cardBoard = CardRow(card, "card.board", Icon.Chip);
+            cardSketch = CardRow(card, "card.sketch", Icon.Code);
+            cardParts = CardRow(card, "card.parts", Icon.Parts);
+            cardMass = CardRow(card, "card.mass", Icon.Weight);
             cardBatteryRow = new VisualElement();
-            cardBatteryText = CardRow(cardBatteryRow, "card.battery");
+            cardBatteryText = CardRow(cardBatteryRow, "card.battery", Icon.Battery);
             cardBattery = new ProgressBar { lowValue = 0, highValue = 100 };
             cardBattery.AddToClassList("battery-bar");
             cardBatteryRow.Add(cardBattery);
@@ -398,9 +471,10 @@ namespace CoreEngine.Spike.Garage
             return card;
         }
 
-        Label CardRow(VisualElement parent, string key)
+        Label CardRow(VisualElement parent, string key, Icon icon)
         {
             var row = Layout("card-row");
+            row.Add(Classed(new IconView(icon), "card-icon"));
             row.Add(Classed(Localized(new Label(), key), "card-key"));
             var value = Classed(new Label(), "card-value");
             row.Add(value);
@@ -408,12 +482,13 @@ namespace CoreEngine.Spike.Garage
             return value;
         }
 
-        void AddNav(VisualElement top, string key, bool active, Action onClick)
+        void AddNav(VisualElement top, string key, Icon icon, bool active, Action onClick)
         {
             var button = new Button(onClick) { focusable = false };
             button.AddToClassList("nav-button");
             button.EnableInClassList("nav-button--active", active);
-            localized.Add((button, key));
+            button.Add(Classed(new IconView(icon), "nav-icon"));
+            button.Add(Localized(new Label(), key));
             top.Add(button);
         }
 
@@ -428,7 +503,7 @@ namespace CoreEngine.Spike.Garage
                 : robot.RunsFactoryBlink ? $"{robot.SketchFile}\n" + Tr("card.factoryBlink")
                 : $"{robot.SketchFile}\n" + SpikeStrings.Format("card.compiled", robot.ProgramBytes);
             cardParts.text = robot.PartCount.ToString();
-            cardMass.text = $"{robot.MassKg * 1000:F0} g";
+            cardMass.text = $"{robot.MassKg * 1000:F0} {Tr("unit.g")}";
             bool hasBattery = robot.Design.Count(PartCatalog.Battery4AA) > 0;
             cardBatteryRow.style.display = hasBattery ? DisplayStyle.Flex : DisplayStyle.None;
             double charge = robot.Battery.StateOfCharge * 100;
@@ -455,8 +530,17 @@ namespace CoreEngine.Spike.Garage
             }
             if (robot.Electronics && robot.CodeNotUploaded) warnings.Add(Tr("warn.notUploaded"));
             if (robot.IsTrying) warnings.Add(Tr("warn.trying"));
-            foreach (string warning in warnings) cardWarnings.Add(Classed(new Label(warning), warning.StartsWith("★") ? "try-line" : "warn-line"));
-            if (warnings.Count == 0 || (warnings.Count == 1 && robot.IsTrying)) cardWarnings.Add(Classed(new Label(Tr("card.ready")), "ok-line"));
+            int toCheck = warnings.Count - (robot.IsTrying ? 1 : 0);
+            cardStatus.text = toCheck == 0 ? Tr("card.statusReady") : SpikeStrings.Format("card.statusCheck", toCheck);
+            cardStatus.EnableInClassList("status-chip--warn", toCheck > 0);
+            foreach (string warning in warnings)
+            {
+                bool trying = warning.StartsWith("★");
+                var row = Layout(trying ? "try-row" : "warn-row");
+                if (!trying) row.Add(Classed(new IconView(Icon.Warning), "warn-icon"));
+                row.Add(Classed(new Label(warning.TrimStart('⚠', '★', ' ')), trying ? "try-line" : "warn-line"));
+                cardWarnings.Add(row);
+            }
 
             // Warnings never block START (ADR-0009): a robot without a board simply stands in the arena.
         }
@@ -475,15 +559,21 @@ namespace CoreEngine.Spike.Garage
                 var texture = i < thumbnails.Count ? thumbnails[i] : null;
                 if (texture != null) thumb.style.backgroundImage = Background.FromTexture2D(texture);
                 card.Add(thumb);
-                card.Add(Classed(new Label(robot.Name), "bar-name"));
+                var plate = Layout("bar-plate");
+                var nameRow = Layout("bar-name-row");
+                nameRow.Add(Classed(new Label(robot.Name), "bar-name"));
+                nameRow.Add(Classed(Layout("status-dot"), robot.Electronics ? "status-dot--ready" : "status-dot--idle"));
+                plate.Add(nameRow);
                 string sub = robot.Electronics ? "Arduino Uno R3" : robot.Design.Parts.Count == 0 ? Tr("bar.empty") : SpikeStrings.Format("bar.parts", robot.Design.Parts.Count);
-                card.Add(Classed(new Label(sub), "bar-sub"));
+                plate.Add(Classed(new Label(sub), "bar-sub"));
+                card.Add(plate);
                 barContent.Add(card);
             }
             var add = new Button(NewRobot) { focusable = false };
             add.AddToClassList("bar-card");
             add.AddToClassList("bar-new");
-            add.Add(Classed(new Label(Tr("bar.new")), "bar-new-label"));
+            add.Add(Classed(new IconView(Icon.Plus), "bar-new-icon"));
+            add.Add(Classed(new Label(Tr("bar.new").TrimStart('+', ' ')), "bar-new-label"));
             barContent.Add(add);
         }
 
@@ -985,6 +1075,8 @@ namespace CoreEngine.Spike.Garage
             // and try again on the next frame. The image is copied out at once: a render texture can lose
             // its content, a Texture2D keeps it.
             var request = new RenderPipeline.StandardRequest { destination = target };
+            float? focus = depthOfField?.focusDistance.value;
+            if (depthOfField != null) depthOfField.focusDistance.value = 0.5f; // the thumbnail camera's distance
             if (!RenderPipeline.SupportsRenderRequest(camera, request))
             {
                 Debug.LogWarning("GarageSpike: the render pipeline cannot render thumbnails on request");
@@ -1009,6 +1101,7 @@ namespace CoreEngine.Spike.Garage
                     yield return null;
                 }
             }
+            if (depthOfField != null && focus != null) depthOfField.focusDistance.value = focus.Value;
             camera.targetTexture = null;
             RenderTexture.ReleaseTemporary(target);
             Destroy(camera.gameObject);

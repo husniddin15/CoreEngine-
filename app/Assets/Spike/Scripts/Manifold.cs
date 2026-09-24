@@ -71,6 +71,81 @@ namespace CoreEngine.Spike
         public static Solid Cylinder(double height, double radius, int segments) =>
             new Solid(Native.manifold_cylinder(Native.manifold_alloc_manifold(), height, radius, radius, segments, 1));
 
+        /// <summary>A cylinder or cone along +z, centred, from radius <paramref name="low"/> at the bottom to <paramref name="high"/> at the top.</summary>
+        public static Solid Cone(double height, double low, double high, int segments) =>
+            new Solid(Native.manifold_cylinder(Native.manifold_alloc_manifold(), height, low, high, segments, 1));
+
+        public static Solid Sphere(double radius, int segments) =>
+            new Solid(Native.manifold_sphere(Native.manifold_alloc_manifold(), radius, segments));
+
+        /// <summary>The convex hull of points.</summary>
+        public static Solid HullOf(IReadOnlyList<Vector3> points)
+        {
+            var xyz = new double[points.Count * 3];
+            for (int i = 0; i < points.Count; i++)
+            {
+                xyz[3 * i] = points[i].x;
+                xyz[3 * i + 1] = points[i].y;
+                xyz[3 * i + 2] = points[i].z;
+            }
+            return new Solid(Native.manifold_hull_pts(Native.manifold_alloc_manifold(), xyz, (nuint)points.Count));
+        }
+
+        /// <summary>A polygon in the xy plane (counter-clockwise) extruded along +z from 0 to <paramref name="height"/>.</summary>
+        public static Solid Extrude(IReadOnlyList<Vector2> polygon, double height)
+        {
+            var xy = new double[polygon.Count * 2];
+            for (int i = 0; i < polygon.Count; i++)
+            {
+                xy[2 * i] = polygon[i].x;
+                xy[2 * i + 1] = polygon[i].y;
+            }
+            IntPtr simple = Native.manifold_simple_polygon(Native.manifold_alloc_simple_polygon(), xy, (nuint)polygon.Count);
+            IntPtr polygons = Native.manifold_polygons(Native.manifold_alloc_polygons(), new[] { simple }, 1);
+            try
+            {
+                return new Solid(Native.manifold_extrude(Native.manifold_alloc_manifold(), polygons, height, 0, 0, 1, 1));
+            }
+            finally
+            {
+                Native.manifold_delete_polygons(polygons);
+                Native.manifold_delete_simple_polygon(simple);
+            }
+        }
+
+        /// <summary>
+        /// A solid from any triangle mesh (millimetres). Manifold merges vertices that touch; when the mesh is still
+        /// not a closed solid, <paramref name="closed"/> is false and the result must not take part in booleans.
+        /// </summary>
+        public static Solid FromMesh(float[] positions, int[] triangles, out bool closed)
+        {
+            var tris = new uint[triangles.Length];
+            for (int i = 0; i < tris.Length; i++) tris[i] = (uint)triangles[i];
+            IntPtr gl = Native.manifold_meshgl(Native.manifold_alloc_meshgl(), positions, (nuint)(positions.Length / 3), 3, tris, (nuint)(tris.Length / 3));
+            IntPtr merged = Native.manifold_meshgl_merge(Native.manifold_alloc_meshgl(), gl);
+            try
+            {
+                var solid = new Solid(Native.manifold_of_meshgl(Native.manifold_alloc_manifold(), merged));
+                closed = solid.Status == 0 && Native.manifold_num_tri(solid.handle) > 0;
+                return solid;
+            }
+            finally
+            {
+                Native.manifold_delete_meshgl(merged);
+                Native.manifold_delete_meshgl(gl);
+            }
+        }
+
+        /// <summary>Applies a Unity matrix (rotation, scale and translation; the columns go to Manifold's 3 × 4 matrix).</summary>
+        public Solid Transform(Matrix4x4 m) =>
+            new Solid(Native.manifold_transform(Native.manifold_alloc_manifold(), handle,
+                m.m00, m.m10, m.m20, m.m01, m.m11, m.m21, m.m02, m.m12, m.m22, m.m03, m.m13, m.m23));
+
+        public Solid Scale(double x, double y, double z) =>
+            new Solid(Native.manifold_scale(Native.manifold_alloc_manifold(), handle, x, y, z));
+
+        public int TriangleCount => (int)Native.manifold_num_tri(handle);
+
         public Solid Translate(double x, double y, double z) =>
             new Solid(Native.manifold_translate(Native.manifold_alloc_manifold(), handle, x, y, z));
 
@@ -173,6 +248,26 @@ namespace CoreEngine.Spike
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_batch_boolean(IntPtr mem, IntPtr ms, int op);
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_batch_hull(IntPtr mem, IntPtr ms);
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_calculate_normals(IntPtr mem, IntPtr m, int normalIdx, double minSharpAngle);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_sphere(IntPtr mem, double radius, int circularSegments);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_scale(IntPtr mem, IntPtr m, double x, double y, double z);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr manifold_transform(IntPtr mem, IntPtr m, double x1, double y1, double z1, double x2, double y2, double z2,
+                                                       double x3, double y3, double z3, double x4, double y4, double z4);
+        // ManifoldVec3 and ManifoldVec2 are plain doubles, so arrays of doubles marshal as arrays of them.
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_hull_pts(IntPtr mem, double[] ps, nuint length);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_alloc_simple_polygon();
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_alloc_polygons();
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_simple_polygon(IntPtr mem, double[] ps, nuint length);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_polygons(IntPtr mem, IntPtr[] ps, nuint length);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void manifold_delete_simple_polygon(IntPtr p);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void manifold_delete_polygons(IntPtr p);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr manifold_extrude(IntPtr mem, IntPtr cs, double height, int slices, double twistDegrees, double scaleX, double scaleY);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr manifold_meshgl(IntPtr mem, float[] vertProps, nuint nVerts, nuint nProps, uint[] triVerts, nuint nTris);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_meshgl_merge(IntPtr mem, IntPtr m);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr manifold_of_meshgl(IntPtr mem, IntPtr mesh);
+        [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern nuint manifold_num_tri(IntPtr m);
 
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int manifold_status(IntPtr m);
         [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int manifold_genus(IntPtr m);

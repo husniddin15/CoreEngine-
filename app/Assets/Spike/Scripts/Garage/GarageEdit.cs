@@ -125,8 +125,8 @@ namespace CoreEngine.Spike.Garage
             tooltip.style.display = DisplayStyle.None;
             if (wirePreview != null) wirePreview.enabled = false;
             orbitTarget = DefaultTarget;
-            distance = 0.72f;
-            pitch = 12f;
+            distance = 0.62f;
+            pitch = 14f;
             idleSeconds = 0;
             saveAt = -1;
             GarageState.Save();
@@ -217,7 +217,8 @@ namespace CoreEngine.Spike.Garage
             bodyRebuildAt = Time.unscaledTime + 0.03f;
             bodyTaskEpoch = designEpoch;
             var snapshot = Design.Body.Clone();
-            bodyTask = Task.Run(() => BodyBuilder.BuildData(snapshot));
+            string imports = Robot.ImportFolder; // Unity's paths are read on the main thread
+            bodyTask = Task.Run(() => BodyBuilder.BuildData(snapshot, imports));
         }
 
         /// <summary>For the benchmark: until the model shows the current body.</summary>
@@ -612,7 +613,7 @@ namespace CoreEngine.Spike.Garage
             {
                 sideContent.Add(Classed(new Label(partDef.Name), "part-title"));
                 sideContent.Add(Classed(new Label(PlaceText(design, part, partDef)), "info-text"));
-                sideContent.Add(Classed(new Label($"{partDef.SizeX:0.#} × {partDef.SizeZ:0.#} × {partDef.SizeY:0.#} mm · {partDef.MassG:0.#} g"), "info-text"));
+                sideContent.Add(Classed(new Label($"{partDef.SizeX:0.#} × {partDef.SizeZ:0.#} × {partDef.SizeY:0.#} {Tr("unit.mm")} · {partDef.MassG:0.#} {Tr("unit.g")}"), "info-text"));
                 var buttons = Layout("repair-buttons");
                 if (partDef.Mount == MountKind.Deck) buttons.Add(SmallButton("build.rotate", RotateSelected));
                 buttons.Add(SmallButton("build.remove", RemoveSelectedPart));
@@ -1262,7 +1263,7 @@ namespace CoreEngine.Spike.Garage
             folder ??= ExportFolder();
             try
             {
-                var data = BodyBuilder.BuildData(Design.Body.Clone()); // exactly the current body, whatever the model shows
+                var data = BodyBuilder.BuildData(Design.Body.Clone(), Robot.ImportFolder); // exactly the current body, whatever the model shows
                 Directory.CreateDirectory(folder);
                 string path = Path.Combine(folder, SafeName(Robot.Name) + "-body.stl");
                 using (var stream = File.Create(path))

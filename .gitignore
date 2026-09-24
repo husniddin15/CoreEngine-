@@ -11,6 +11,13 @@ TestResults/
 # ---- Arduino toolchain, fetched by tools/fetch-toolchain.ps1 (never committed) ----
 tools/arduino/
 
+# ---- Downloaded third-party assets (never committed): the Garage lab's CC0 Poly Haven files, fetched by tools/fetch-lab-assets.ps1 ----
+app/Assets/ThirdParty/
+app/Assets/ThirdParty.meta
+# the Garage lab's baked light and reflection probes; Configure Project bakes them again
+app/Assets/Spike/Garage/
+app/Assets/Spike/Garage.meta
+
 # ---- Unity project (app/), added in Phase 0.4 ----
 app/[Ll]ibrary/
 app/[Tt]emp/
