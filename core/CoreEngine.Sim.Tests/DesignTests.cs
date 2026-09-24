@@ -127,6 +127,31 @@ public class DesignTests
     }
 
     [Fact]
+    public void WiresLeaveTerminalsSidewaysAndTurnWithThePart()
+    {
+        var d = DesignPresets.EmptyChassis();
+        var driver = d.AddPart(PartCatalog.L298N)!;
+        Assert.Equal((-1f, 0f, 0f), DesignGeometry.PinExit(d, driver.Id, "OUT1")!.Value);
+        Assert.Equal((0f, 1f, 0f), DesignGeometry.PinExit(d, driver.Id, "IN1")!.Value);
+        driver.Rotation = 90; // OUT1 then faces +z: Unity turns (-1, 0) by +90° about y to (0, 1)
+        var exit = DesignGeometry.PinExit(d, driver.Id, "OUT1")!.Value;
+        Assert.Equal(0, exit.x, 3);
+        Assert.Equal(1, exit.z, 3);
+        Assert.Equal("D9", PartCatalog.Get(PartCatalog.Uno)!.Pin("D9")!.ShortLabel);
+    }
+
+    [Fact]
+    public void HeaderPinsTakeOneJumperAndTerminalsTwo()
+    {
+        var d = DesignPresets.ObstacleAvoiderKit();
+        Assert.False(d.HasRoomOn("uno1", "D5"));       // the IN1 jumper sits on it
+        Assert.True(d.HasRoomOn("uno1", "D4"));
+        Assert.False(d.HasRoomOn("driver1", "+5V"));   // the Uno's and the sensor's supply wires
+        Assert.True(d.HasRoomOn("driver1", "+12V"));   // room for a second wire, for example to VIN
+        Assert.False(d.HasRoomOn("battery1", "+"));    // a lead goes to one place
+    }
+
+    [Fact]
     public void KitWiresFitStandardJumpers()
     {
         var d = DesignPresets.ObstacleAvoiderKit();

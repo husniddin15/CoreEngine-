@@ -125,6 +125,26 @@ namespace CoreEngine.Sim.Design
             return wire;
         }
 
+        /// <summary>Wires that end on a pin.</summary>
+        public int WiresOn(string partId, string pinId)
+        {
+            int n = 0;
+            foreach (var w in Wires)
+            {
+                if (w.FromPart == partId && w.FromPin == pinId) n++;
+                if (w.ToPart == partId && w.ToPin == pinId) n++;
+            }
+            return n;
+        }
+
+        /// <summary>True when the pin can take one more wire (see <see cref="PinDef.Capacity"/>).</summary>
+        public bool HasRoomOn(string partId, string pinId)
+        {
+            var part = Find(partId);
+            var pin = part == null ? null : PartCatalog.Get(part.Part)?.Pin(pinId);
+            return pin != null && WiresOn(partId, pinId) < pin.Capacity;
+        }
+
         public bool HasSlot(string partId, string slot)
         {
             foreach (var part in Parts) if (part.Part == partId && part.Slot == slot) return true;
@@ -261,6 +281,16 @@ namespace CoreEngine.Sim.Design
             var place = Place(design, part);
             var (x, z) = Rotate(pin.X, pin.Z, place.rotation);
             return (place.x + x, place.y + pin.Y, place.z + z);
+        }
+
+        /// <summary>The direction a wire leaves a pin, in the chassis frame (unit length).</summary>
+        public static (float x, float y, float z)? PinExit(RobotDesign design, string partId, string pinId)
+        {
+            var part = design.Find(partId);
+            var pin = part == null ? null : PartCatalog.Get(part.Part)?.Pin(pinId);
+            if (part == null || pin == null) return null;
+            var (x, z) = Rotate(pin.ExitX, pin.ExitZ, Place(design, part).rotation);
+            return (x, pin.ExitY, z);
         }
 
         /// <summary>Unity's rotation about +y: (x, z) → (x cos θ + z sin θ, −x sin θ + z cos θ).</summary>

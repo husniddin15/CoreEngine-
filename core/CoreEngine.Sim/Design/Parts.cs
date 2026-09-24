@@ -14,10 +14,20 @@ namespace CoreEngine.Sim.Design
     /// </summary>
     public enum MountKind { Deck, Motor, Front, Caster, Lower }
 
-    /// <summary>A pin, terminal or lead end, in millimetres in the part's own frame (y up, +z to the part's front).</summary>
+    /// <summary>
+    /// How a wire meets a pin: a jumper's male end in a female header (the Uno), a jumper's female end on a
+    /// male header pin (L298N, HC-SR04), a stripped end in a screw terminal, or the part's own lead.
+    /// </summary>
+    public enum PinStyle { Header, Pin, Terminal, Lead }
+
+    /// <summary>
+    /// A pin, terminal or lead end, in millimetres in the part's own frame (y up, +z to the part's front), and
+    /// the direction a wire leaves it: up for header pins, sideways out of a screw terminal, along a lead.
+    /// </summary>
     public sealed class PinDef
     {
-        public PinDef(string id, string label, PinKind kind, float x, float y, float z)
+        public PinDef(string id, string label, PinKind kind, float x, float y, float z,
+            PinStyle style = PinStyle.Header, float exitX = 0, float exitY = 1, float exitZ = 0)
         {
             Id = id;
             Label = label;
@@ -25,6 +35,10 @@ namespace CoreEngine.Sim.Design
             X = x;
             Y = y;
             Z = z;
+            Style = style;
+            ExitX = exitX;
+            ExitY = exitY;
+            ExitZ = exitZ;
         }
 
         public string Id { get; }
@@ -33,6 +47,26 @@ namespace CoreEngine.Sim.Design
         public float X { get; }
         public float Y { get; }
         public float Z { get; }
+        public PinStyle Style { get; }
+        public float ExitX { get; }
+        public float ExitY { get; }
+        public float ExitZ { get; }
+
+        /// <summary>
+        /// Wires the pin takes: one jumper per header pin and one place per lead end; a screw terminal
+        /// clamps two stripped wires.
+        /// </summary>
+        public int Capacity => Style == PinStyle.Terminal ? 2 : 1;
+
+        /// <summary>The printed name: the label before its first " · " ("D9", "+12V", "GND").</summary>
+        public string ShortLabel
+        {
+            get
+            {
+                int dot = Label.IndexOf(" · ", StringComparison.Ordinal);
+                return dot > 0 ? Label.Substring(0, dot) : Label;
+            }
+        }
     }
 
     /// <summary>A catalogue part (docs/09): real name, size, mass and pins. The frame's origin is the
@@ -88,30 +122,30 @@ namespace CoreEngine.Sim.Design
         {
             UnoDef(),
             new PartDef(L298N, "L298N motor driver", PartKind.MotorDriver, MountKind.Deck, 43, 27, 43, 26, 2,
-                new PinDef("ENA", "ENA · enable A (jumper fitted)", PinKind.Signal, -6.35f, 11, 19),
-                new PinDef("IN1", "IN1 · input 1", PinKind.Signal, -3.81f, 11, 19),
-                new PinDef("IN2", "IN2 · input 2", PinKind.Signal, -1.27f, 11, 19),
-                new PinDef("IN3", "IN3 · input 3", PinKind.Signal, 1.27f, 11, 19),
-                new PinDef("IN4", "IN4 · input 4", PinKind.Signal, 3.81f, 11, 19),
-                new PinDef("ENB", "ENB · enable B (jumper fitted)", PinKind.Signal, 6.35f, 11, 19),
-                new PinDef("+12V", "+12V · motor supply (5–35 V)", PinKind.Power, -5, 10, -17),
-                new PinDef("GND", "GND", PinKind.Ground, 0, 10, -17),
-                new PinDef("+5V", "+5V · 78M05 output (5V-EN jumper fitted)", PinKind.Power, 5, 10, -17),
-                new PinDef("OUT1", "OUT1 · motor A", PinKind.Motor, -18, 10, 5),
-                new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -18, 10, -2),
-                new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 18, 10, -2),
-                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 18, 10, 5)),
+                new PinDef("ENA", "ENA · enable A (jumper fitted)", PinKind.Signal, -6.35f, 11, 19, PinStyle.Pin),
+                new PinDef("IN1", "IN1 · input 1", PinKind.Signal, -3.81f, 11, 19, PinStyle.Pin),
+                new PinDef("IN2", "IN2 · input 2", PinKind.Signal, -1.27f, 11, 19, PinStyle.Pin),
+                new PinDef("IN3", "IN3 · input 3", PinKind.Signal, 1.27f, 11, 19, PinStyle.Pin),
+                new PinDef("IN4", "IN4 · input 4", PinKind.Signal, 3.81f, 11, 19, PinStyle.Pin),
+                new PinDef("ENB", "ENB · enable B (jumper fitted)", PinKind.Signal, 6.35f, 11, 19, PinStyle.Pin),
+                new PinDef("+12V", "+12V · motor supply (5–35 V)", PinKind.Power, -5, 6, -21, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("GND", "GND", PinKind.Ground, 0, 6, -21, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("+5V", "+5V · 78M05 output (5V-EN jumper fitted)", PinKind.Power, 5, 6, -21, PinStyle.Terminal, 0, 0, -1),
+                new PinDef("OUT1", "OUT1 · motor A", PinKind.Motor, -22, 6, 4.5f, PinStyle.Terminal, -1, 0, 0),
+                new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -22, 6, -1.5f, PinStyle.Terminal, -1, 0, 0),
+                new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 22, 6, -1.5f, PinStyle.Terminal, 1, 0, 0),
+                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 22, 6, 4.5f, PinStyle.Terminal, 1, 0, 0)),
             new PartDef(HcSr04, "HC-SR04 ultrasonic sensor", PartKind.Ultrasonic, MountKind.Front, 45, 20, 15, 8.5f, 1,
-                new PinDef("VCC", "VCC · 5 V", PinKind.Power, -3.81f, -9, -2),
-                new PinDef("TRIG", "TRIG · trigger input", PinKind.Signal, -1.27f, -9, -2),
-                new PinDef("ECHO", "ECHO · echo output", PinKind.Signal, 1.27f, -9, -2),
-                new PinDef("GND", "GND", PinKind.Ground, 3.81f, -9, -2)),
+                new PinDef("VCC", "VCC · 5 V", PinKind.Power, -3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("TRIG", "TRIG · trigger input", PinKind.Signal, -1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("ECHO", "ECHO · echo output", PinKind.Signal, 1.27f, -9, -3.5f, PinStyle.Pin, 0, 0, -1),
+                new PinDef("GND", "GND", PinKind.Ground, 3.81f, -9, -3.5f, PinStyle.Pin, 0, 0, -1)),
             new PartDef(TtMotor, "TT gear motor 1:48", PartKind.Motor, MountKind.Motor, 19, 22, 70, 30.6f, 2,
-                new PinDef("M+", "M+ · red lead", PinKind.Motor, 0, 4, 34),
-                new PinDef("M-", "M− · black lead", PinKind.Motor, 0, -4, 34)),
+                new PinDef("M+", "M+ · red lead", PinKind.Motor, 0, 4, 45.5f, PinStyle.Lead, 0, 0, 1),
+                new PinDef("M-", "M− · black lead", PinKind.Motor, 0, -4, 45.5f, PinStyle.Lead, 0, 0, 1)),
             new PartDef(Battery4AA, "Battery holder 4×AA", PartKind.Battery, MountKind.Lower, 58, 15, 62, 20, 1,
-                new PinDef("+", "+ · red lead (≈ 6 V)", PinKind.Power, 12, 8, -31),
-                new PinDef("-", "− · black lead", PinKind.Ground, -12, 8, -31)),
+                new PinDef("+", "+ · red lead (≈ 6 V)", PinKind.Power, 12, 5, -31.5f, PinStyle.Lead, 0, 0, -1),
+                new PinDef("-", "− · black lead", PinKind.Ground, -12, 5, -31.5f, PinStyle.Lead, 0, 0, -1)),
             new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 30, 25, 30, 15, 1),
         };
 
