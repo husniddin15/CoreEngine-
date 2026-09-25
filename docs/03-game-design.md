@@ -124,6 +124,7 @@ Target iteration time from "edit code" to "robot moving again": **< 3 seconds** 
 - **Motors** snap to motor mounts (TT motor bracket, N20 bracket, servo horn/bracket). Wheels snap to shafts (D-shaft or servo horn). (Planned: in the prototype they hang where they are put.)
 - Body parts are designed in Body Studio or imported; mount points can be added to any face (see 08).
 - Overlays: centre of mass marker, total mass, wheelbase, ground clearance.
+- **Balance check** (2026-09-25; the owner's robot drove forward but would not turn: it had no ball caster and dragged the front of its plate). A robot on two wheels needs a third point that rolls, a ball caster, on the side its weight is. The check stands the robot on its wheels, lets its weight tip it round their axle and sees what touches the floor first: a caster's ball, or a corner of a part or of the body, which then drags. The robot card and Check & repair say so ("Tips onto its front: the body drags on the floor, so it turns slowly. Put a ball caster there."), and so does the arena's event log. Like every warning, it never blocks START: the robot tips and drags in the arena as it would on a desk.
 
 ### 5.3 Interaction
 - Drag & drop from bin; **R** rotate 90°, **Shift+R** 15°; **G** grab; **Del** remove; **Ctrl+D** duplicate (with wiring cleared); **Ctrl+Z/Y** undo/redo (all modes).
@@ -288,7 +289,8 @@ English, Uzbek (Latin script) and Russian at release, for everything the player 
 | Component destroyed | Smoke, burnt texture, event log entry with the measured value vs datasheet limit | "Why it broke" card; "Replace part" (always free) |
 | Brown-out reset | ON LED flickers, Serial restarts, event log: "VCC dipped to 3.9 V for 2 ms when motor started" | "Why it broke" card: decoupling, separate motor supply, battery internal resistance |
 | Sensor misread | Sensor view shows the cone missing the object | HC-SR04 datasheet card: geometry and timing |
-| Stalled motor | Motor stops, current rises, L298N heats up, event log | "Why it broke" card: stall current and heat |
+| Stalled motor | Motor stops, current rises, L298N heats up, event log (in the prototype when it draws most of its stall current, V / R, for 0.3 s) | "Why it broke" card: stall current and heat |
+| Robot tips and drags | It leans onto its front or back and a plate or part scrapes the floor; it turns slowly; the balance check and the event log say what drags | Put a ball caster there ([§5.2](#52-placement-rules-physical-realism)) |
 
 ## 16. Out of scope for the 1.0 release (recorded here so they are not forgotten)
 Missions, challenges, leaderboards and example robots (owner decision, ADR-0008); player accounts (an optional email account may come after release, [13 D18](13-open-questions-and-risks.md)); multiplayer; VR; block coding (candidate after release); debugger with breakpoints (after release); schematic export (after release); non-AVR boards except as later paid packs; freeform sculpting; mobile ports.

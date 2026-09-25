@@ -49,6 +49,8 @@ Physic materials (static/dynamic friction, bounciness) — values to be calibrat
 
 Friction combine mode: minimum for the caster pairs, average otherwise. Bounciness 0 everywhere except loose objects (0.1).
 
+In the prototype (2026-09-25) the chassis and parts also combine by **minimum**: averaged with the floor's 0.9 / 0.8 they slid at 0.65 / 0.58. And PhysX's patch friction (Unity's default) applies a material's value at each of the two friction anchors of an edge or face in contact, about twice over, so the chassis material holds half the pair's value, 0.2 / 0.175. Measured with the owner's robot without a caster turning on the spot, its plate's edge on the floor: its resistance matched 0.33 times the edge's load; with both faults it could not turn at all. Unity's "improved patch friction" was tried and left off: it kept that resistance at about a third of the table's value. A single corner touching gets only the material's own value; a robot mostly drags an edge or a face.
+
 ## 3. Robot assembly → physics graph
 
 The Body Studio assembly ([08 §2](08-body-designer-spec.md)) is converted at "Play" into one `ArticulationBody` tree per robot:
