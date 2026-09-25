@@ -129,7 +129,7 @@ Pin table: D0–D13 and A0–A7 with the same MCU functions as the Uno (pins 3, 
 
 | id | Part | Tier | Dims / mass | Pins / terminals | Datasheet values | Model parameters ([07 §4.1](07-physics-world-sensors-spec.md) derivation) | Mounts | Failure |
 |---|---|---|---|---|---|---|---|---|
-| `motor-tt-1-48` | TT gear motor 1:48, 3–6 V ("yellow motor"), with leads | MVP | 70 × 22 × 18 mm (body + gearbox), 30.6 g; double 5.4 mm D-shaft with 3.6 mm flats [VERIFY], the wheel on either end (`PartInstance.WheelOtherEnd`); 2 × M3 holes 17.5 mm apart [VERIFY] | 2 `motor` | 90 rpm at 3 V / 200 rpm at 6 V (measured 250); no-load 150 mA; stall 1.1–1.5 A; stall torque 0.4 / 0.8 kg·cm ([R4 §2](research/R4-electrical-physics-facts.md), Adafruit 3777) | R 4.0 Ω, L 1 mH [VERIFY], Ke 4.26 mV·s/rad, N 48, η 0.26 datasheet-fit (measured set TBD), J_wheel-ref 4.6 kg·cm² [VERIFY] | `tt_motor_bracket` | F18 |
+| `motor-tt-1-48` | TT gear motor 1:48, 3–6 V ("yellow motor"), with leads | MVP | 70 × 22 × 18 mm (body + gearbox), 30.6 g; double 5.4 mm D-shaft with 3.6 mm flats [VERIFY], coming out of the middle of the gearbox's side, halfway up it (so a 65 mm wheel's centre is 11 mm under the plate the motor hangs from), the wheel on either end (`PartInstance.WheelOtherEnd`); 2 × M3 holes 17.5 mm apart [VERIFY] | 2 `motor` | 90 rpm at 3 V / 200 rpm at 6 V (measured 250); no-load 150 mA; stall 1.1–1.5 A; stall torque 0.4 / 0.8 kg·cm ([R4 §2](research/R4-electrical-physics-facts.md), Adafruit 3777) | R 4.0 Ω, L 1 mH [VERIFY], Ke 4.26 mV·s/rad, N 48, η 0.26 datasheet-fit (measured set TBD), J_wheel-ref 4.6 kg·cm² [VERIFY] | `tt_motor_bracket` | F18 |
 | `motor-tt-1-48-enc` | TT motor with 20-slot encoder disc | v1 | + disc Ø 24 mm on the rear shaft | 2 `motor` + disc | as above | + `Encoder` behaviour, 20 pulses/rev | same | — |
 | `motor-n20-100` | N20 micro metal gearmotor 6 V 100:1 (≈ 310 rpm) | v1 | 12 × 10 × 24 mm (+ 9 mm gearbox), 9.5 g; 3 mm D-shaft | 2 solder tabs | 310 rpm, 2.4 kg·cm stall, 1.6 A stall (Pololu HP); free-run 100–120 mA ([R4 §2](research/R4-electrical-physics-facts.md)) | R 3.75 Ω, Ke 1.72 mV·s/rad, N 100, η 0.87, L 0.5 mH [VERIFY] | `n20_bracket` | F18 |
 | `motor-n20-30` / `-300` | N20 30:1 (1000 rpm) / 300:1 (100 rpm) variants | v1.x | same | — | Pololu table | scaled | same | — |
@@ -221,7 +221,7 @@ All coordinates in mm from the part's lower-left corner in its top view; hole di
 | 4×AA holder (2×2) | 62 × 58 | (31, 8), (31, 50) | 3.0 | Or tape/zip tie |
 | 2×18650 holder | 78 × 40 | (10, 20), (68, 20) | 3.0 | — |
 | 9 V battery | 48 × 26 | none | — | Tape/zip tie/holder clip |
-| Ball caster | 30 × 30 | (5, 15), (25, 15) | 3.0 | Height 25 mm; choose so the chassis is level with 65 mm wheels on TT motors |
+| Ball caster | 30 × 30 | (5, 15), (25, 15) | 3.0 | 43.5 mm from the plate to the floor, on 21.7 mm brass spacers: level with 65 mm wheels on TT motors under the same plate (since 2026-09-25) |
 | 16×2 LCD | 80 × 36 | (2.5, 2.5), (77.5, 2.5), (2.5, 33.5), (77.5, 33.5) | 2.5 | Backpack adds 10 mm below |
 | SSD1306 0.96" | 27 × 27 | (1.75, 1.75), (25.25, 1.75), (1.75, 25.25), (25.25, 25.25) | 2.0 | — |
 | GY-521 | 21 × 16 | (3, 8), (18, 8) | 3.0 | — |
