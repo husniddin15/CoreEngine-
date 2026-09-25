@@ -187,6 +187,8 @@ Warnings never block Play. Examples: 5 V on the Uno's VIN, which feeds the board
 ### 8.2 Cameras
 Orbit, top-down, follow-robot, chase, free-fly, and **sensor view** (see what the ultrasonic cone or line sensor "sees").
 
+In the prototype (2026-09-25; the owner: the arena "only shows from back") the arena has six viewpoints, as buttons over its view (icon and name), the keys 1 to 6, or C for the next: **Follow** (behind the robot), **Free** (all round it: a drag turns the view, the middle button or Shift moves it), **Top** (straight down on the robot, the arena's far wall at the top, as on a map), **Side**, **Robot's eye** (from the distance sensor, looking where it measures; the beams are hidden there and a dot shows where they land) and **Arena** (the whole arena from above). The wheel zooms any of them; a drag over the view in any viewpoint turns it into Free, starting from where the camera is. Each viewpoint glides in.
+
 ### 8.3 Overlays and telemetry
 - On-board LEDs (ON, L, TX, RX) behave like the real board.
 - Net voltage colouring, current-flow animation (moving dots, density ∝ current), component temperature glow, sensor visualisation (ultrasonic cone + hit point, line-sensor spots, IR beams, servo target angle).
