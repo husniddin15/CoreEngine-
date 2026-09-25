@@ -22,6 +22,9 @@ namespace CoreEngine.Spike.Garage
         public static readonly StringBuilder Text = new StringBuilder();
         public static int Stage;
 
+        /// <summary>With <c>-spikeTurn</c>, the benchmark runs only its turning test (a quick check of the arena's physics).</summary>
+        public static bool TurnOnly { get; private set; }
+
         /// <summary>Started when a scene change begins, so the next scene can report the load time.</summary>
         public static System.Diagnostics.Stopwatch? Transition;
 
@@ -42,6 +45,7 @@ namespace CoreEngine.Spike.Garage
                 if (args[i] == "-partShots") PartShotsFolder = args[i + 1];
             }
             if (FilePath == null) return;
+            TurnOnly = Array.IndexOf(args, "-spikeTurn") >= 0;
 
             Text.AppendLine($"unity: {Application.unityVersion}");
 #if ENABLE_IL2CPP

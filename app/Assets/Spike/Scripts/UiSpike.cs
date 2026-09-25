@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using CoreEngine.Sim.Design;
 using CoreEngine.Spike.Garage;
 using CoreEngine.Spike.UI;
 using UnityEngine;
@@ -58,7 +59,9 @@ namespace CoreEngine.Spike
         Toggle autoscroll = null!;
         readonly List<string> events = new List<string>();
         ListView eventView = null!;
-        bool leftStalled, rightStalled, leftBurnt, rightBurnt;
+        bool leftStalled, rightStalled, leftBurnt, rightBurnt, stanceNoted;
+        int leftStallChecks, rightStallChecks;
+        static readonly double WindingOhm = Sim.Components.DcMotorModel.TtGearMotor148().ResistanceOhm;
 
         float fpsTimer, refreshTimer;
         int fpsFrames;
@@ -527,32 +530,54 @@ namespace CoreEngine.Spike
         void CheckStalls()
         {
             if (robot == null || robot.Circuit == null) return;
-            leftStalled = Stall(leftStalled, robot.LeftAmps, robot.LeftWheelSpeed, "event.left");
-            rightStalled = Stall(rightStalled, robot.RightAmps, robot.RightWheelSpeed, "event.right");
+            if (!stanceNoted)
+            {
+                // A robot on two wheels without a caster where its weight is: it tips over and drags (RobotStance).
+                stanceNoted = true;
+                if (!robot.Stance.Rolls) AddEvent(SpikeStrings.Format("event.tips", SpikeStrings.Get("tip." + robot.Stance.Side), DraggingName(robot.Stance, robot.Project.Design)));
+            }
+            leftStalled = Stall(leftStalled, ref leftStallChecks, robot.LeftVolts, robot.LeftAmps, robot.LeftWheelSpeed, "event.left");
+            rightStalled = Stall(rightStalled, ref rightStallChecks, robot.RightVolts, robot.RightAmps, robot.RightWheelSpeed, "event.right");
             leftBurnt = Burnt(leftBurnt, robot.Project.LeftMotor, "event.left");
             rightBurnt = Burnt(rightBurnt, robot.Project.RightMotor, "event.right");
         }
 
-        bool Stall(bool wasStalled, double amps, double speed, string sideKey)
+        /// <summary>
+        /// Driven but hardly turning for 0.3 s (three checks; not just starting from rest): the current near what
+        /// the winding takes standing still (V / R), whatever the supply: 0.75 A at the 3 V an L298N leaves of four AA
+        /// cells. Until 2026-09-25 it took a fixed 0.9 A, which such a motor never reaches, so the owner's stuck
+        /// motors were never reported.
+        /// </summary>
+        bool Stall(bool wasStalled, ref int checks, double volts, double amps, double speed, string sideKey)
         {
-            bool stalled = Math.Abs(amps) > 0.9 && Math.Abs(speed) < 0.5;
-            if (stalled && !wasStalled)
-            {
-                events.Add($"{robot!.ArenaSeconds,7:F2} s  " + SpikeStrings.Format("event.stall", SpikeStrings.Get(sideKey), Math.Abs(amps)));
-                eventView.RefreshItems();
-                eventView.ScrollToItem(events.Count - 1);
-            }
+            bool now = !double.IsNaN(volts) && Math.Abs(volts) > 0.5 && Math.Abs(speed) < 0.5 && Math.Abs(amps) > 0.8 * Math.Abs(volts) / WindingOhm;
+            checks = now ? checks + 1 : 0;
+            bool stalled = checks >= 3;
+            if (stalled && !wasStalled) AddEvent(SpikeStrings.Format("event.stall", SpikeStrings.Get(sideKey), Math.Abs(amps)));
             return stalled;
+        }
+
+        void AddEvent(string text)
+        {
+            events.Add($"{robot!.ArenaSeconds,7:F2} s  " + text);
+            eventView.RefreshItems();
+            eventView.ScrollToItem(events.Count - 1);
+        }
+
+        /// <summary>The event log's lines, oldest first (the benchmark reads them).</summary>
+        public IReadOnlyList<string> Events => events;
+
+        /// <summary>What drags on the floor when the robot tips: the body, or a part by its name.</summary>
+        public static string DraggingName(RobotStance stance, RobotDesign design)
+        {
+            if (string.IsNullOrEmpty(stance.Dragging)) return SpikeStrings.Get("tip.body");
+            var part = design.Find(stance.Dragging!);
+            return part == null ? SpikeStrings.Get("tip.body") : PartCatalog.Get(part.Part)?.Name ?? part.Part;
         }
 
         bool Burnt(bool wasBurnt, Sim.Components.MotorWinding winding, string sideKey)
         {
-            if (winding.Burnt && !wasBurnt)
-            {
-                events.Add($"{robot!.ArenaSeconds,7:F2} s  " + SpikeStrings.Format("event.burnt", SpikeStrings.Get(sideKey), winding.TemperatureC));
-                eventView.RefreshItems();
-                eventView.ScrollToItem(events.Count - 1);
-            }
+            if (winding.Burnt && !wasBurnt) AddEvent(SpikeStrings.Format("event.burnt", SpikeStrings.Get(sideKey), winding.TemperatureC));
             return winding.Burnt;
         }
 

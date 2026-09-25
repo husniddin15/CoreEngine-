@@ -96,6 +96,7 @@ namespace CoreEngine.Spike.Garage
             ApplyLanguage();
             StartCoroutine(RenderAllThumbnails());
             if (SpikeReport.PartShotsFolder != null) StartCoroutine(PartShots(SpikeReport.PartShotsFolder));
+            else if (SpikeReport.Active && SpikeReport.TurnOnly && SpikeReport.Stage == 0) SpikeBenchmark.StartSpin(0, arenaScene);
             else if (SpikeReport.Active) StartCoroutine(SpikeReport.Stage == 0 ? Benchmark() : AfterRun());
         }
 
@@ -520,6 +521,8 @@ namespace CoreEngine.Spike.Garage
             {
                 int problems = CircuitAnalysis.Analyse(design).Warnings.FindAll(w => !w.Info).Count;
                 if (problems > 0 && robot.Electronics) warnings.Add(SpikeStrings.Format("warn.wiring", problems));
+                var stance = RobotStance.Of(design);
+                if (!stance.Rolls) warnings.Add(StanceWarning(stance, design));
             }
             if (robot.Electronics && robot.CodeNotUploaded) warnings.Add(Tr("warn.notUploaded"));
             if (robot.IsTrying) warnings.Add(Tr("warn.trying"));
@@ -766,6 +769,9 @@ namespace CoreEngine.Spike.Garage
             sideContent.Add(problems == 0
                 ? Classed(new Label("✓ " + Tr("rep.wiringOk")), "ok-line")
                 : Classed(new Label("⚠ " + SpikeStrings.Format("rep.wiringBad", problems)), "warn-line"));
+            var stance = RobotStance.Of(design);
+            if (!stance.Rolls) sideContent.Add(Classed(new Label(StanceWarning(stance, design)), "warn-line"));
+            else if (design.Count(PartCatalog.TtMotor) == 2) sideContent.Add(Classed(new Label("✓ " + Tr("stance.rolls")), "ok-line"));
 
             Section("rep.parts", Icon.Parts);
             foreach (var part in design.Parts)
@@ -1123,6 +1129,13 @@ namespace CoreEngine.Spike.Garage
             ShowCardPictures(); // Customize shows the robot
         }
 
+        /// <summary>
+        /// A robot on two wheels that tips onto one end and drags it (the owner's robot without a caster,
+        /// 2026-09-25: it drove forward but would not turn): which way, what drags, and the cure.
+        /// </summary>
+        static string StanceWarning(RobotStance stance, RobotDesign design) =>
+            SpikeStrings.Format("stance.drags", Tr("tip." + stance.Side), UiSpike.DraggingName(stance, design));
+
         // ------------------------------------------------------------------ benchmark (-spikeBench)
 
         IEnumerator Benchmark()
@@ -1236,6 +1249,18 @@ namespace CoreEngine.Spike.Garage
             yield return Frames(4);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-return"));
             report.AppendLine("  screenshot: -garage-return");
+
+            // The owner's third robot without a caster (2026-09-25): the card and Check & repair say it tips and drags.
+            GarageState.Robots.Add(new RobotProject { Name = "No caster", Design = DesignPresets.NoCasterTwoWheeler(), BodyFinish = Finishes.AsBuilt });
+            Select(GarageState.Robots.Count - 1);
+            OnAction("act.repair");
+            yield return Frames(4);
+            string warning = StanceWarning(RobotStance.Of(Robot.Design), Robot.Design).TrimStart('⚠', ' ');
+            bool onCard = cardWarnings.Query<Label>().ToList().Exists(label => label.text == warning);
+            bool inRepair = sideContent.Query<Label>().ToList().Exists(label => label.text.Contains(warning));
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-no-caster"));
+            report.AppendLine($"  a robot on two wheels without a caster: the card says \"{warning}\": {Yes(onCard)}; Check & repair says so: {Yes(inRepair)}; " +
+                              $"the kit says it stands on its wheels and caster: {Yes(RobotStance.Of(DesignPresets.ObstacleAvoiderKit()).Rolls)}; screenshot -garage-no-caster");
 
             // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
             // and ENB (D10, Timer1), running its compiled sketch in the arena.

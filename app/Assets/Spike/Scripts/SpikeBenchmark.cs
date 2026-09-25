@@ -4,8 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using CoreEngine.Sim.Avr;
+using CoreEngine.Sim.Design;
 using CoreEngine.Spike.Garage;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace CoreEngine.Spike
 {
@@ -45,6 +47,74 @@ namespace CoreEngine.Spike
                               $"{full:F2} V (180/255 = 71 %); moved {Vector3.Distance(start, spike.RobotPosition):F2} m in 3 s; screenshot -pwm-robot");
         }
 
+        /// <summary>The owner's third robot, turning on the spot: as saved (no caster), then with a caster under its front.</summary>
+        static readonly string[] SpinRobots = { "as saved, without a ball caster", "with a ball caster under its front" };
+        static float noCasterTurn;
+
+        static string Yes(bool ok) => ok ? "yes" : "NO";
+
+        /// <summary>Puts the owner's third robot in the arena running its turnRight(), held (SpinInPlace.ino).</summary>
+        internal static void StartSpin(int which, string arenaScene)
+        {
+            var design = DesignPresets.NoCasterTwoWheeler();
+            if (which == 1) // the kit's caster under the plate's front: 43.5 mm tall, as high as the plate's underside
+                design.Parts.Add(new PartInstance { Id = "caster1", Part = PartCatalog.Caster, X = -15, Y = 43.55f - 33.5f, Z = 110 });
+            GarageState.Robots.Add(new RobotProject
+            {
+                Name = "Turning robot " + (which + 1),
+                Design = design,
+                SketchFile = "SpinInPlace.ino",
+                FirmwarePath = Path.Combine(Application.streamingAssetsPath, "Firmware", "SpinInPlace.hex"),
+                ProgramBytes = 980,
+                BodyFinish = Finishes.AsBuilt,
+            });
+            GarageState.Selected = GarageState.Robots.Count - 1;
+            SpikeReport.Stage = 4 + which;
+            SceneManager.LoadScene(arenaScene);
+        }
+
+        /// <summary>
+        /// How fast the robot turns on the spot and how far it leans, over 3 s of physics once it has settled
+        /// (the owner, 2026-09-25: without a caster it drove forward but would not turn).
+        /// </summary>
+        IEnumerator SpinRun(StringBuilder report, int which)
+        {
+            var spike = GetComponent<RobotSpike>();
+            var ui = FindAnyObjectByType<UiSpike>();
+            yield return new WaitForSecondsRealtime(1.5f);
+            float heading = spike.RobotHeading, turned = 0, lean = 0, from = Time.fixedTime;
+            double amps = 0;
+            int samples = 0;
+            while (Time.fixedTime - from < 3f)
+            {
+                yield return new WaitForFixedUpdate();
+                float now = spike.RobotHeading;
+                turned += Mathf.DeltaAngle(heading, now);
+                heading = now;
+                lean += spike.RobotLean;
+                amps += Math.Abs(spike.LeftAmps) + Math.Abs(spike.RightAmps);
+                samples++;
+            }
+            float rate = Math.Abs(turned) / Math.Max(0.01f, Time.fixedTime - from);
+            lean /= Math.Max(1, samples);
+            string events = ui == null ? "" : string.Join("; ", ui.Events).Replace("  ", " ").Trim();
+            if (ui != null) ui.Visible = false;
+            spike.ShowView(ArenaView.Side, now: true);
+            yield return null;
+            yield return null;
+            string shot = which == 0 ? "spin-no-caster" : "spin-caster";
+            yield return SpikeReport.Capture(SpikeReport.Shot(shot));
+            var stance = spike.Stance;
+            string check = which == 0
+                ? $"it still turns: {Yes(rate > 30)}; it leans as the balance check says: {Yes(!stance.Rolls && Math.Abs(lean - stance.TiltDegrees) < 3)}; " +
+                  $"the event log says so: {Yes(events.Contains(UI.SpikeStrings.Format("event.tips", UI.SpikeStrings.Get("tip.front"), UI.SpikeStrings.Get("tip.body"))))}"
+                : $"level: {Yes(lean < 2)}; faster than without the caster: {Yes(rate > noCasterTurn * 1.2f)}";
+            if (which == 0) noCasterTurn = rate;
+            report.AppendLine($"turning on the spot, the owner's third robot {SpinRobots[which]} (SpinInPlace.ino, its turnRight() held): " +
+                              $"{rate:F0}° a second to the {(turned > 0 ? "right" : "left")}, leaning {lean:F1}° (balance check: {stance}); " +
+                              $"motors {amps / Math.Max(1, samples) / 2:F2} A each on average; {check}; event log: {(events.Length == 0 ? "empty" : events)}; screenshot -{shot}");
+        }
+
         IEnumerator Start()
         {
             SpikeReport.Init();
@@ -53,7 +123,15 @@ namespace CoreEngine.Spike
             if (SpikeReport.Stage == 3)
             {
                 yield return PwmRun(report);
-                SpikeReport.Finish();
+                StartSpin(0, SceneManager.GetActiveScene().name);
+                yield break;
+            }
+            if (SpikeReport.Stage == 4 || SpikeReport.Stage == 5)
+            {
+                int which = SpikeReport.Stage - 4;
+                yield return SpinRun(report, which);
+                if (which == 0) StartSpin(1, SceneManager.GetActiveScene().name);
+                else SpikeReport.Finish();
                 yield break;
             }
             bool fromGarage = SpikeReport.Stage == 1;

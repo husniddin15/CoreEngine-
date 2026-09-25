@@ -164,6 +164,15 @@ namespace CoreEngine.Spike
         public Atmega328P? Mcu => mcu;
         public Vector3 RobotPosition => chassis != null ? chassis.transform.position : Vector3.zero;
 
+        /// <summary>How the robot rests on the floor: on its wheels and caster, or tipped onto something that drags.</summary>
+        public RobotStance Stance { get; private set; } = RobotStance.Steady;
+
+        /// <summary>Which way the robot faces, in degrees about the vertical (the benchmark's turning test).</summary>
+        public float RobotHeading => chassis != null ? chassis.transform.eulerAngles.y : 0;
+
+        /// <summary>How far the robot leans from level, in degrees.</summary>
+        public float RobotLean => chassis != null ? Vector3.Angle(chassis.transform.up, Vector3.up) : 0;
+
         void Awake()
         {
             Time.fixedDeltaTime = 0.01f;
@@ -335,7 +344,18 @@ namespace CoreEngine.Spike
             // caster, or anything hanging lower), half a millimetre up so it settles rather than starting inside.
             var root = new GameObject("Robot");
             root.transform.position = new Vector3(0, (0.5f - DesignGeometry.LowestPoint(design)) * Mm, 0);
-            var plastic = new PhysicsMaterial("Plastic") { staticFriction = 0.4f, dynamicFriction = 0.35f };
+            // A plate or part scraping the floor slides at 0.4 / 0.35 (docs/07 §2). PhysX's patch friction applies
+            // a material's value at each of the two anchors of an edge or face in contact, about twice over, so the
+            // material has half of it; and the floor's 0.9 / 0.8 does not come into it (Minimum, not the average).
+            // Measured with the owner's robot without a caster turning on the spot (2026-09-25): the plate's edge
+            // then resists with 0.33 times its load; before, with 0.4 / 0.35 averaged with the floor's, it was stuck.
+            var plastic = new PhysicsMaterial("Plastic")
+            {
+                staticFriction = 0.2f,
+                dynamicFriction = 0.175f,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+            };
+            Stance = RobotStance.Of(design);
 
             // Every solid piece of the body collides as its convex hull (holes are left out), and so does an
             // imported mesh that is not closed.
