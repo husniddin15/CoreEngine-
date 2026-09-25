@@ -52,6 +52,7 @@ namespace CoreEngine.Spike
         const float AcceptIncidenceDeg = 45f;
 
         Atmega328P? mcu;
+        PinDuty? duty; // how much of each 10 ms step each pin was high: PWM, as the motors average it
         HcSr04? sonar;
         bool boardRunning;
         readonly Dictionary<string, (AvrPort port, int bit)?> pins = new Dictionary<string, (AvrPort, int)?>();
@@ -508,6 +509,7 @@ namespace CoreEngine.Spike
             firmwareFile = Path.GetFileName(path);
             mcu.LoadHex(File.ReadAllText(path));
             mcu.Cpu.Diagnostic += message => Debug.LogWarning("Emulator: " + message);
+            duty = new PinDuty(mcu);
 
             // The HC-SR04 on whatever pins its TRIG and ECHO wires reach; an unpowered sensor never answers.
             bool sensorWorks = circuit.SonarPowered && !project.SonarBurnt;
@@ -581,7 +583,8 @@ namespace CoreEngine.Spike
             if (boardRunning)
             {
                 emulatorWatch.Restart();
-                mcu!.RunCycles(CyclesPerFixedStep);
+                duty!.Begin(mcu!.Cpu.Cycles);
+                mcu.RunCycles(CyclesPerFixedStep);
                 emulatorWatch.Stop();
                 emulatedSteps++;
                 double ms = emulatorWatch.Elapsed.TotalMilliseconds;
@@ -589,10 +592,13 @@ namespace CoreEngine.Spike
             }
 
             // 3. Outputs: pins -> the L298N inputs the wires reach -> motor lead voltages -> wheel torque.
-            //    The 4×AA pack feeds the bridge (docs/06 §4.1); a burnt winding is an open circuit (F18).
+            //    The 4×AA pack feeds the bridge (docs/06 §4.1); a burnt winding is an open circuit (F18). Each input
+            //    counts by the share of the step it was high, so analogWrite on ENA/ENB sets the speed.
             bridge.SupplyVolts = project.Battery.TerminalVolts(batteryAmps);
-            leftVolts = leftWheel == null || project.LeftMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, leftMotorId, pinHigh, bridge);
-            rightVolts = rightWheel == null || project.RightMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, rightMotorId, pinHigh, bridge);
+            long stepEnd = mcu?.Cpu.Cycles ?? 0;
+            System.Func<string, double> pinDuty = pin => boardRunning ? duty!.Duty(pin, stepEnd) : 0; // an unpowered board drives nothing
+            leftVolts = leftWheel == null || project.LeftMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, leftMotorId, pinDuty, bridge);
+            rightVolts = rightWheel == null || project.RightMotor.Burnt ? double.NaN : DriveMap.MotorVolts(circuit, rightMotorId, pinDuty, bridge);
             leftAmps = DriveWheel(leftWheel, leftVolts);
             rightAmps = DriveWheel(rightWheel, rightVolts);
 

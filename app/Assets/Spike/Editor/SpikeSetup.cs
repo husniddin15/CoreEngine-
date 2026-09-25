@@ -273,9 +273,10 @@ namespace CoreEngine.Spike.Editor
             string sketches = Path.Combine(Application.streamingAssetsPath, "Sketches");
             Directory.CreateDirectory(firmware);
             Directory.CreateDirectory(sketches);
-            foreach (string name in new[] { "Blink", "ObstacleAvoider" })
+            foreach (string name in new[] { "Blink", "ObstacleAvoider", "PwmMotors" })
                 File.Copy(Path.Combine(golden, "Hex", name + ".hex"), Path.Combine(firmware, name + ".hex"), true);
-            File.Copy(Path.Combine(golden, "Sketches", "ObstacleAvoider", "ObstacleAvoider.ino"), Path.Combine(sketches, "ObstacleAvoider.ino"), true);
+            foreach (string name in new[] { "ObstacleAvoider", "PwmMotors" })
+                File.Copy(Path.Combine(golden, "Sketches", name, name + ".ino"), Path.Combine(sketches, name + ".ino"), true);
             AssetDatabase.Refresh();
         }
 

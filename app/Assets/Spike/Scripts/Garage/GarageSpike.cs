@@ -1199,7 +1199,22 @@ namespace CoreEngine.Spike.Garage
             yield return Frames(4);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-return"));
             report.AppendLine("  screenshot: -garage-return");
-            SpikeReport.Finish();
+
+            // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
+            // and ENB (D10, Timer1), running its compiled sketch in the arena.
+            var pwm = new RobotProject
+            {
+                Name = "PWM robot",
+                Design = DesignPresets.PwmTwoWheeler(),
+                SketchFile = "PwmMotors.ino",
+                FirmwarePath = Path.Combine(Application.streamingAssetsPath, "Firmware", "PwmMotors.hex"),
+                ProgramBytes = 1010,
+                BodyFinish = Finishes.AsBuilt,
+            };
+            GarageState.Robots.Add(pwm);
+            GarageState.Selected = GarageState.Robots.Count - 1;
+            SpikeReport.Stage = 3;
+            StartRun();
         }
 
         public int ThumbnailAttempts { get; private set; }

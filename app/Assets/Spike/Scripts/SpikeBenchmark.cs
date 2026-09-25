@@ -16,11 +16,46 @@ namespace CoreEngine.Spike
     /// </summary>
     public sealed class SpikeBenchmark : MonoBehaviour
     {
+        /// <summary>
+        /// A robot whose sketch sets its motors' speed with analogWrite (ENA on D5, ENB on D10, both at 180 of
+        /// 255): the board runs, both motors get the averaged voltage, and it drives.
+        /// </summary>
+        IEnumerator PwmRun(StringBuilder report)
+        {
+            var spike = GetComponent<RobotSpike>();
+            yield return new WaitForSecondsRealtime(1f);
+            var start = spike.RobotPosition;
+            double left = 0, right = 0, full = 0; // full: the bridge's whole output (supply less its drop) as the battery sags
+            int samples = 0;
+            float from = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - from < 3f)
+            {
+                yield return new WaitForFixedUpdate();
+                if (!double.IsNaN(spike.LeftVolts)) left += spike.LeftVolts;
+                if (!double.IsNaN(spike.RightVolts)) right += spike.RightVolts;
+                full += spike.SupplyVolts - 1.8;
+                samples++;
+            }
+            left /= Math.Max(1, samples);
+            right /= Math.Max(1, samples);
+            full /= Math.Max(1, samples);
+            yield return SpikeReport.Capture(SpikeReport.Shot("pwm-robot"));
+            report.AppendLine($"PWM robot (the owner's first robot with its Uno on 5V; PwmMotors.ino, analogWrite 180 on ENA and ENB): board {UI.SpikeStrings.Get(spike.BoardStatusKey)}; " +
+                              $"motors at {left:F2} V and {right:F2} V on average, {Math.Abs(left) / full * 100:F0} % and {Math.Abs(right) / full * 100:F0} % of the full " +
+                              $"{full:F2} V (180/255 = 71 %); moved {Vector3.Distance(start, spike.RobotPosition):F2} m in 3 s; screenshot -pwm-robot");
+        }
+
         IEnumerator Start()
         {
             SpikeReport.Init();
             if (!SpikeReport.Active) yield break;
             var report = SpikeReport.Text;
+            if (SpikeReport.Stage == 3)
+            {
+                yield return PwmRun(report);
+                SpikeReport.Finish();
+                yield break;
+            }
             bool fromGarage = SpikeReport.Stage == 1;
             if (SpikeReport.Transition != null)
                 report.AppendLine($"arena scene loaded in {SpikeReport.Transition.Elapsed.TotalMilliseconds:F0} ms");

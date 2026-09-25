@@ -373,6 +373,7 @@ namespace CoreEngine.Spike
             GarageState.Load(SpikeReport.Active);
             var project = GarageState.Current;
             string file = project.SketchFile.Length > 0 ? project.SketchFile : sketchFile;
+            codeFile.text = file; // the robot's own sketch name, not the golden one's
             string path = Path.Combine(Application.streamingAssetsPath, "Sketches", file);
             string source = File.Exists(path) ? File.ReadAllText(path) : "// " + file + ": no sketch uploaded yet; the board runs Blink\n";
             if (!SpikeReport.Active && project.SketchText.Length > 0) source = project.SketchText;
