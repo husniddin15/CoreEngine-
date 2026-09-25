@@ -70,6 +70,19 @@ namespace CoreEngine.Sim.Design
         }
     }
 
+    /// <summary>A solid block of a part: a box in the part's frame (mm), for what wires must go round.</summary>
+    public readonly struct PartBlock
+    {
+        public PartBlock((float x, float y, float z) centre, (float x, float y, float z) size)
+        {
+            Centre = centre;
+            Size = size;
+        }
+
+        public (float x, float y, float z) Centre { get; }
+        public (float x, float y, float z) Size { get; }
+    }
+
     /// <summary>
     /// A catalogue part (docs/09): real name, size, mass and pins. Real parts cannot be resized, only placed and
     /// turned. Sizes are the part's bounding box in its own frame, centred on <see cref="BoxCentre"/>; for
@@ -77,6 +90,7 @@ namespace CoreEngine.Sim.Design
     /// </summary>
     public sealed class PartDef
     {
+        PartBlock[]? blocks;
         public PartDef(string id, string name, PartKind kind, MountKind mount, float sizeX, float sizeY, float sizeZ, float massG, int maxCount, params PinDef[] pins)
         {
             Id = id;
@@ -112,6 +126,19 @@ namespace CoreEngine.Sim.Design
             MountNormal = mountNormal;
             return this;
         }
+
+        /// <summary>For a part whose bounding box would keep wires away from its pins (catalogue set-up only).</summary>
+        internal PartDef Blocks(params PartBlock[] solids)
+        {
+            blocks = solids;
+            return this;
+        }
+
+        /// <summary>
+        /// The part's solid blocks, which jumper wires go round (<see cref="WireRouter"/>): its bounding box, or for
+        /// a part with a tall piece beside its pins (the L298N's heatsink next to its header) the pieces themselves.
+        /// </summary>
+        public IReadOnlyList<PartBlock> Solids => blocks ??= new[] { new PartBlock(BoxCentre, (SizeX, SizeY, SizeZ)) };
 
         public string Id { get; }
         public string Name { get; }
@@ -165,7 +192,16 @@ namespace CoreEngine.Sim.Design
                 new PinDef("OUT1", "OUT1 · motor A", PinKind.Motor, -21.5f, 6.5f, 14, PinStyle.Terminal, -1, 0, 0),
                 new PinDef("OUT2", "OUT2 · motor A", PinKind.Motor, -21.5f, 6.5f, 9, PinStyle.Terminal, -1, 0, 0),
                 new PinDef("OUT3", "OUT3 · motor B", PinKind.Motor, 21.5f, 6.5f, 9, PinStyle.Terminal, 1, 0, 0),
-                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 21.5f, 6.5f, 14, PinStyle.Terminal, 1, 0, 0)),
+                new PinDef("OUT4", "OUT4 · motor B", PinKind.Motor, 21.5f, 6.5f, 14, PinStyle.Terminal, 1, 0, 0))
+                .Blocks(
+                    new PartBlock((0, 2.8f, 0), (43, 2.4f, 43)),              // the board and its low parts
+                    new PartBlock((0, 14.7f, 10), (23, 23, 19)),              // the heatsink with the chip against it
+                    new PartBlock((-7, 8.2f, -17.7f), (15, 10, 7.6f)),        // the power terminal
+                    new PartBlock((-17.7f, 8.2f, 11.5f), (7.6f, 10, 10)),     // the motor terminals
+                    new PartBlock((17.7f, 8.2f, 11.5f), (7.6f, 10, 10)),
+                    new PartBlock((9.85f, 7.1f, -13.2f), (15.3f, 7.8f, 5.2f)), // the logic header with its jumpers
+                    new PartBlock((-16, 9, -3), (8, 11.5f, 8)),               // the two 220 µF capacitors
+                    new PartBlock((16, 9, -3), (8, 11.5f, 8))),
             // The sensor's frame is the middle of its board; it stands on its bracket, transducers toward +z. Seen
             // from the front the pins read VCC, TRIG, ECHO, GND from left to right, as printed on the real board.
             new PartDef(HcSr04, "HC-SR04 ultrasonic sensor", PartKind.Ultrasonic, MountKind.Front, 45, 26, 22, 8.5f, 1,
