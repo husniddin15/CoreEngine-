@@ -130,6 +130,10 @@ Progress (2026-09-25): the owner could not copy or paste code, saw wires going t
 - **Turntable** only in the showroom: in Wire and the Studio the robot stands on the bench's measuring mat.
 - **Blur** only behind the robot: the depth of field starts behind the robot's far side, so a close-up is sharp all over.
 - **Code editor**: selection by mouse and keys, Ctrl+A/C/X/V with Windows' clipboard, undo and redo, word moves, line indenting, a right-click menu.
+- **The owner's first own robot did not move** (afternoon). Two reasons:
+  - its Uno was fed from the L298N's +5V on VIN, which needs 7–12 V; the check now says exactly that (`fiveVoltOnVin`) instead of only "no power";
+  - its sketch set the speed with `analogWrite` on ENA (D5) and ENB (D10), and the emulator did not drive PWM pins at all. `AvrTimer` now models all three timers with their output-compare pins, Timer1 included, and the arena averages each pin over the 10 ms step, so a motor gets 180/255 of the voltage for `analogWrite(ENA, 180)`.
+  - The benchmark runs a robot built like the owner's, with the Uno on 5V and the owner's sketch: it drives about a metre in three seconds on the averaged PWM voltage. 164 core tests pass, among them the owner's robot and sketch.
 - **Tests.** 152 core tests pass. The benchmark clicks the view cube, pans to the limit, double-clicks a pivot, zooms in as far as it goes, looks from below in the Studio, and copies, pastes, cuts and undoes in the Code window by keys; all pass in the release player, which lays the kit's 16 wires from nothing in 20 ms and keeps 140 fps in the Garage and 141 fps in the arena.
 
 ## 5. Phase 2 — Breadth and content (months 9–18)

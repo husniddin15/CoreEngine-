@@ -149,7 +149,7 @@ Target iteration time from "edit code" to "robot moving again": **< 3 seconds** 
 - **Schematic view** (v1.x): auto-generated 2D schematic/netlist diagram from the 3D wiring; MVP ships a netlist table in the Inspector.
 
 ### 6.3 Wiring check (advisory, run manually or on Play)
-Warnings never block Play. Examples: VCC↔GND short (blocking is *off* by default — the fuse/regulator model handles it), no power to the board, output pin driven against output pin, LED without series resistor, motor connected directly to a GPIO, 9 V on the 5 V pin, floating input pins used with `digitalRead`, I2C without pull-ups, sensor powered from 3.3 V pin beyond 50 mA, L298N 5V-EN jumper present with Vs > 12 V, HC-SR04 echo to a 3.3 V board (not v1), serial monitor open while D0/D1 are used. Each warning has a "Why?" card linking to the Notebook.
+Warnings never block Play. Examples: 5 V on the Uno's VIN, which feeds the board's own regulator and needs 7–12 V (the owner's first robot, 2026-09-25: its Uno stayed off; the check names the wire and says to move it to 5V), VCC↔GND short (blocking is *off* by default — the fuse/regulator model handles it), no power to the board, output pin driven against output pin, LED without series resistor, motor connected directly to a GPIO, 9 V on the 5 V pin, floating input pins used with `digitalRead`, I2C without pull-ups, sensor powered from 3.3 V pin beyond 50 mA, L298N 5V-EN jumper present with Vs > 12 V, HC-SR04 echo to a 3.3 V board (not v1), serial monitor open while D0/D1 are used. Each warning has a "Why?" card linking to the Notebook.
 
 ### 6.4 Bench tools
 | Tool | Behaviour |
