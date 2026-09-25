@@ -193,46 +193,7 @@ namespace CoreEngine.Spike
 
         void BuildArena()
         {
-            var floorMat = new PhysicsMaterial("Laminate") { staticFriction = 0.9f, dynamicFriction = 0.8f };
-            var laminate = new Material(floorMaterial);
-            laminate.SetTexture("_BaseMap", FloorTexture());
-            laminate.SetTextureScale("_BaseMap", new Vector2(10, 10)); // 30 cm tiles on the 3 m floor
-            laminate.SetFloat("_Smoothness", 0.45f);
-            var floor = Box("Floor", new Vector3(0, -0.01f, 0), new Vector3(3f, 0.02f, 3f), laminate);
-            floor.GetComponent<Collider>().material = floorMat;
-
-            for (int side = 0; side < 4; side++)
-            {
-                bool alongX = side < 2;
-                float offset = side % 2 == 0 ? 1.5f : -1.5f;
-                var pos = alongX ? new Vector3(0, 0.05f, offset) : new Vector3(offset, 0.05f, 0);
-                var size = alongX ? new Vector3(3.04f, 0.1f, 0.02f) : new Vector3(0.02f, 0.1f, 3.04f);
-                Box("Wall", pos, size, wallMaterial);
-            }
-
-            var random = new System.Random(7);
-            int placed = 0;
-            while (placed < 9)
-            {
-                var pos = new Vector3((float)(random.NextDouble() * 2.4 - 1.2), 0, (float)(random.NextDouble() * 2.4 - 1.2));
-                if (pos.magnitude < 0.5f) continue; // keep the start area clear
-                float w = 0.1f + (float)random.NextDouble() * 0.15f;
-                float d = 0.1f + (float)random.NextDouble() * 0.15f;
-                var box = Box("Obstacle", new Vector3(pos.x, 0.075f, pos.z), new Vector3(w, 0.15f, d), obstacleMaterial);
-                box.transform.rotation = Quaternion.Euler(0, (float)random.NextDouble() * 90f, 0);
-                // Cardboard boxes: packing tape across the lid and down the two ends.
-                var tape = Box("Tape", box.transform.position + new Vector3(0, 0.0755f, 0), new Vector3(w + 0.002f, 0.001f, 0.048f), tapeMaterial ??= Tape());
-                tape.transform.rotation = box.transform.rotation;
-                Destroy(tape.GetComponent<Collider>());
-                foreach (float end in new[] { -1f, 1f })
-                {
-                    var side = Box("Tape", box.transform.position + box.transform.right * end * (w / 2 + 0.0005f) + new Vector3(0, 0.04f, 0),
-                                   new Vector3(0.001f, 0.07f, 0.048f), tapeMaterial);
-                    side.transform.rotation = box.transform.rotation;
-                    Destroy(side.GetComponent<Collider>());
-                }
-                placed++;
-            }
+            ArenaBuilder.ObstacleField(null, floorMaterial, wallMaterial, obstacleMaterial);
 
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -270,55 +231,9 @@ namespace CoreEngine.Spike
             var ground = new Material(floorMaterial) { name = "Ground" };
             ground.SetColor("_BaseColor", new Color(0.74f, 0.75f, 0.76f));
             ground.SetFloat("_Smoothness", 0.2f);
-            Box("Ground", new Vector3(0, -0.03f, 0), new Vector3(80f, 0.02f, 80f), ground);
+            ArenaBuilder.Box(null, "Ground", new Vector3(0, -0.03f, 0), new Vector3(80f, 0.02f, 80f), ground);
             var volume = FindAnyObjectByType<Volume>();
             if (volume != null && volume.profile.TryGet(out Vignette vignette)) vignette.active = false;
-        }
-
-        Material? tapeMaterial;
-
-        Material Tape()
-        {
-            var material = new Material(obstacleMaterial);
-            material.SetColor("_BaseColor", new Color(0.78f, 0.62f, 0.38f));
-            material.SetFloat("_Smoothness", 0.7f);
-            return material;
-        }
-
-        /// <summary>One 30 cm laminate tile with faint grain and a dark seam, made in code (no texture files).</summary>
-        static Texture2D FloorTexture()
-        {
-            const int size = 256;
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true)
-            {
-                name = "LaminateTile",
-                wrapMode = TextureWrapMode.Repeat,
-                filterMode = FilterMode.Trilinear,
-                anisoLevel = 8,
-            };
-            var pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-            {
-                float grain = 0.965f + 0.035f * Mathf.PerlinNoise(0.37f, y * 0.21f);
-                for (int x = 0; x < size; x++)
-                {
-                    float v = x < 2 || y < 2 ? 0.74f : grain * (0.985f + 0.015f * Mathf.PerlinNoise(x * 0.05f, y * 0.9f));
-                    pixels[y * size + x] = new Color(0.95f * v, 0.92f * v, 0.86f * v);
-                }
-            }
-            texture.SetPixels32(pixels);
-            texture.Apply(true);
-            return texture;
-        }
-
-        GameObject Box(string name, Vector3 position, Vector3 size, Material material)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = name;
-            go.transform.position = position;
-            go.transform.localScale = size;
-            go.GetComponent<Renderer>().sharedMaterial = material;
-            return go;
         }
 
         // ------------------------------------------------------------------ robot

@@ -215,6 +215,10 @@ namespace CoreEngine.Spike.Garage
             top.Add(Layout("spacer"));
             partsButton = StudioButton(Icon.Eye, "studio.parts", ToggleParts);
             top.Add(partsButton);
+            balanceButton = StudioButton(Icon.Weight, "studio.balance", ToggleBalance);
+            balanceButton.tooltip = Tr("studio.balance.tip");
+            top.Add(balanceButton);
+            top.Add(TestButton(StartRun));
             studio.Add(top);
 
             var main = Layout("studio-main");
@@ -240,6 +244,9 @@ namespace CoreEngine.Spike.Garage
             studioViewport = Layout("studio-viewport");
             main.Add(studioViewport);
             BuildHandleOverlay();
+            balanceNote = Classed(new Label { pickingMode = PickingMode.Ignore }, "balance-note");
+            balanceNote.style.display = DisplayStyle.None;
+            studioViewport.Add(balanceNote);
             studioRight = Layout("studio-right");
             main.Add(studioRight);
             studio.Add(main);
@@ -570,6 +577,7 @@ namespace CoreEngine.Spike.Garage
         {
             if (studioScene != null) Destroy(studioScene.gameObject);
             studioScene = null;
+            ForgetBalanceObjects();
             grid = null;
             ghosts.Clear();
             spots.Clear();

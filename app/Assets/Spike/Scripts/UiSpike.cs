@@ -35,7 +35,6 @@ namespace CoreEngine.Spike
         DockPanel serialPanel = null!;
         Label fpsLabel = null!, codeStatus = null!, codeFile = null!;
         readonly List<(TextElement element, string key)> localized = new List<(TextElement, string)>();
-        readonly List<Button> languageButtons = new List<Button>();
         readonly List<Button> viewButtons = new List<Button>();
         ArenaView shownView = (ArenaView)(-1);
 
@@ -82,6 +81,9 @@ namespace CoreEngine.Spike
         void OnEnable()
         {
             var document = GetComponent<UIDocument>();
+            SpikeReport.Init();
+            Preferences.Load(SpikeReport.Active);
+            Preferences.Apply(document.panelSettings); // the size the player chose in the Garage's settings
             root = new VisualElement();
             root.AddToClassList("spike-root");
             if (styleSheet != null) root.styleSheets.Add(styleSheet);
@@ -116,6 +118,11 @@ namespace CoreEngine.Spike
             garage.AddToClassList("garage-button");
             localized.Add((garage, "nav.back"));
             top.Add(garage);
+            // Back to the start with the same robot and sketch: fix, test again, in seconds (research R5).
+            var restart = new Button(Restart) { focusable = false };
+            restart.AddToClassList("restart-button");
+            localized.Add((restart, "arena.restart"));
+            top.Add(restart);
             var title = new Label("CoreEngine");
             title.AddToClassList("app-title");
             top.Add(title);
@@ -130,15 +137,7 @@ namespace CoreEngine.Spike
             var hint = Localized(new Label(), "ui.hint");
             hint.AddToClassList("hint");
             top.Add(hint);
-            for (int i = 0; i < SpikeStrings.LanguageButtons.Length; i++)
-            {
-                int language = i;
-                var button = new Button(() => SpikeStrings.SetLanguage(language)) { text = SpikeStrings.LanguageButtons[i], focusable = false };
-                button.AddToClassList("lang-button");
-                languageButtons.Add(button);
-                top.Add(button);
-            }
-            fpsLabel = new Label();
+            fpsLabel = new Label(); // the language is chosen in the Garage's settings
             fpsLabel.AddToClassList("fps");
             top.Add(fpsLabel);
             root.Add(top);
@@ -364,8 +363,6 @@ namespace CoreEngine.Spike
         {
             foreach (var (element, key) in localized) element.text = SpikeStrings.Get(key);
             foreach (var button in viewButtons) button.tooltip = SpikeStrings.Format("arena.key", button.userData);
-            for (int i = 0; i < languageButtons.Count; i++)
-                languageButtons[i].EnableInClassList("lang-button--active", i == SpikeStrings.Language);
             autoscroll.text = SpikeStrings.Get("serial.autoscroll");
             leftDock.RefreshTitles();
             rightDock.RefreshTitles();
@@ -481,6 +478,7 @@ namespace CoreEngine.Spike
             if (Input.GetKeyDown(KeyCode.F1) && !CodeEditor.HasTypingFocus) Visible = !Visible;
             UpdateViewButtons();
             if (Input.GetKeyDown(KeyCode.Escape) && !CodeEditor.HasTypingFocus && !SpikeReport.Active) ReturnToGarage();
+            if (Input.GetKeyDown(KeyCode.R) && !CodeEditor.HasTypingFocus && !SpikeReport.Active) Restart();
 
             if (pendingSerial.Count > 0)
             {
@@ -582,6 +580,14 @@ namespace CoreEngine.Spike
         }
 
         /// <summary>Back to the Garage with the robot's battery and motor state (ADR-0009).</summary>
+        /// <summary>The same robot back on the start pad, its sketch from the beginning; the battery and windings keep their state.</summary>
+        public void Restart()
+        {
+            GarageState.Save();
+            SpikeReport.Transition = Stopwatch.StartNew();
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
         public void ReturnToGarage()
         {
             GarageState.Save();

@@ -22,7 +22,7 @@
     align-items: center;
     height: 56px;
     padding: 0 16px;
-    background-color: rgba(9, 12, 17, 0.82);
+    background-color: rgba(9, 12, 17, 0.95);
     border-bottom-width: 1px;
     border-bottom-color: rgba(255, 255, 255, 0.07);
 }
@@ -74,34 +74,41 @@
 .spacer {
     flex-grow: 1;
 }
-.arena-group {
+/* The arena as a picture chip joined to START (GarageChoices.cs, research R5) */
+.arena-chip {
     flex-direction: row;
     align-items: center;
-    margin-right: 12px;
-}
-.arena-label {
-    color: rgb(140, 150, 165);
-    font-size: 11px;
-    letter-spacing: 1px;
-    margin-right: 6px;
-}
-.arena-field {
-    width: 190px;
-    margin: 0;
-}
-.arena-field .unity-base-popup-field__input {
-    height: 34px;
-    padding: 0 10px;
+    height: 40px;
+    margin: 0 8px 0 0;
+    padding: 3px 12px 3px 3px;
     border-width: 1px;
-    border-color: rgba(255, 255, 255, 0.12);
-    border-radius: 6px;
-    background-color: rgba(28, 34, 45, 0.9);
+    border-color: rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    background-color: rgb(28, 34, 45);
+    transition-duration: 0.12s;
 }
-.arena-field .unity-base-popup-field__text {
-    color: rgb(232, 234, 240);
+.arena-chip:hover {
+    border-color: rgba(79, 193, 255, 0.8);
+    background-color: rgb(34, 44, 58);
 }
-.arena-field .unity-base-popup-field__arrow {
-    -unity-background-image-tint-color: rgb(160, 170, 185);
+.arena-chip-image {
+    width: 60px;
+    height: 34px;
+    margin-right: 10px;
+    border-radius: 5px;
+}
+.arena-chip-name {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(240, 243, 248);
+}
+.arena-chip-change {
+    margin: 0;
+    padding: 0;
+    font-size: 13px;
+    color: rgb(110, 200, 255);
 }
 .start-button {
     flex-direction: row;
@@ -112,15 +119,40 @@
     margin-right: 16px;
     padding: 0 18px;
     border-width: 1px;
-    border-color: rgb(92, 214, 116);
+    border-color: rgb(72, 190, 100);
     border-radius: 8px;
-    background-color: rgb(40, 158, 68);
+    background-color: rgb(24, 122, 52); /* white text on it 5.4:1 (research R5; the lighter green was 3.5:1) */
     color: rgb(255, 255, 255);
     transition-duration: 0.12s;
 }
 .start-button:hover {
-    background-color: rgb(52, 182, 82);
+    background-color: rgb(30, 140, 62);
     scale: 1.03 1.03;
+}
+/* "▶ Test" on the Studio's and the code editor's bars: the same green as START, smaller */
+.test-button {
+    flex-direction: row;
+    align-items: center;
+    height: 30px;
+    margin: 0 6px 0 8px;
+    padding: 0 14px 0 10px;
+    border-width: 1px;
+    border-color: rgb(72, 190, 100);
+    border-radius: 6px;
+    background-color: rgb(24, 122, 52);
+    color: rgb(255, 255, 255);
+}
+.test-button:hover {
+    background-color: rgb(30, 140, 62);
+}
+.test-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+}
+.test-label {
+    font-size: 14px;
+    -unity-font-style: bold;
 }
 .start-icon {
     width: 16px;
@@ -140,7 +172,7 @@
     border-radius: 12px;
     background-color: rgba(255, 255, 255, 0.06);
     color: rgb(150, 160, 175);
-    font-size: 11px;
+    font-size: 13px;
 }
 .lang-button--active {
     background-color: rgb(79, 193, 255);
@@ -177,10 +209,10 @@
     border-radius: 10px;
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
-    background-color: rgba(10, 13, 19, 0.86);
+    background-color: rgba(10, 13, 19, 0.95);
 }
 .card-eyebrow {
-    font-size: 10px;
+    font-size: 13px;
     letter-spacing: 2px;
     color: rgb(79, 193, 255);
 }
@@ -197,7 +229,7 @@
     border-radius: 10px;
     background-color: rgba(46, 160, 67, 0.22);
     color: rgb(120, 230, 140);
-    font-size: 10px;
+    font-size: 13px;
     -unity-font-style: bold;
     letter-spacing: 1px;
 }
@@ -275,9 +307,29 @@
 }
 .warn-line {
     flex-shrink: 1;
+    flex-grow: 1;
     margin: 1px 0;
     color: rgb(255, 205, 110);
     white-space: normal;
+}
+/* A warning's Fix: opens the screen where it is fixed */
+.fix-button {
+    flex-shrink: 0;
+    align-self: center;
+    height: 24px;
+    margin: 0 0 0 8px;
+    padding: 0 10px;
+    border-width: 1px;
+    border-color: rgba(255, 196, 80, 0.55);
+    border-radius: 5px;
+    background-color: rgba(255, 196, 80, 0.14);
+    color: rgb(255, 214, 130);
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+.fix-button:hover {
+    background-color: rgba(255, 196, 80, 0.3);
+    color: rgb(255, 240, 210);
 }
 .try-line {
     flex-shrink: 1;
@@ -314,7 +366,7 @@
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
     border-radius: 10px;
-    background-color: rgba(10, 13, 19, 0.9);
+    background-color: rgba(10, 13, 19, 0.96);
     color: rgb(170, 200, 225);
     transition-duration: 0.12s;
 }
@@ -330,7 +382,7 @@
     height: 72px;
     justify-content: center;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: rgb(24, 29, 38); /* solid: the lab must not show through a picture */
     border-bottom-width: 1px;
     border-bottom-color: rgba(255, 255, 255, 0.06);
 }
@@ -373,7 +425,7 @@
 .tile-sub {
     margin: 3px 0 0 0;
     padding: 0;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(188, 197, 210);
     -unity-text-align: upper-left;
     white-space: normal;
@@ -384,7 +436,7 @@
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
     border-radius: 10px;
-    background-color: rgba(10, 13, 19, 0.86);
+    background-color: rgba(10, 13, 19, 0.95);
 }
 .side-header {
     flex-direction: row;
@@ -407,7 +459,7 @@
 }
 .section-title {
     margin: 8px 0 6px 0;
-    font-size: 12px;
+    font-size: 13px;
     -unity-font-style: bold;
     color: rgb(150, 160, 175);
 }
@@ -452,17 +504,17 @@
     border-radius: 3px;
     background-color: rgba(0, 0, 0, 0.6);
     color: rgb(255, 255, 255);
-    font-size: 11px;
+    font-size: 13px;
 }
 .swatch-name {
     margin-top: 3px;
-    font-size: 10px;
+    font-size: 13px;
     color: rgb(220, 224, 230);
     -unity-text-align: upper-center;
     white-space: normal;
 }
 .swatch-pack {
-    font-size: 9px;
+    font-size: 13px;
     color: rgb(150, 160, 175);
     -unity-text-align: upper-center;
     white-space: normal;
@@ -521,9 +573,9 @@
     max-width: 78%;
     padding: 4px 14px;
     border-radius: 12px;
-    background-color: rgba(8, 10, 14, 0.6);
+    background-color: rgba(8, 10, 14, 0.85);
     color: rgba(225, 230, 238, 0.85);
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 0.5px;
     white-space: normal;
     -unity-text-align: middle-center;
@@ -534,7 +586,7 @@
     padding: 10px 16px;
     border-top-width: 1px;
     border-top-color: rgba(255, 255, 255, 0.07);
-    background-color: rgba(9, 12, 17, 0.82);
+    background-color: rgba(9, 12, 17, 0.95);
 }
 .bar-scroll {
     flex-grow: 1;
@@ -598,7 +650,7 @@
     background-color: rgb(120, 128, 140);
 }
 .bar-sub {
-    font-size: 10px;
+    font-size: 13px;
     color: rgb(150, 160, 175);
 }
 .bar-new {
@@ -668,13 +720,129 @@
     -unity-font-style: bold;
     color: rgb(255, 255, 255);
 }
+/* The arena picker: a card per arena, picture first (GarageChoices.cs) */
+.arena-cards {
+    flex-direction: row;
+    justify-content: space-between;
+}
+.arena-card {
+    width: 262px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background-color: rgb(16, 20, 27);
+}
+.arena-card:hover {
+    border-color: rgba(79, 193, 255, 0.8);
+}
+.arena-card--chosen {
+    border-color: rgb(79, 193, 255);
+}
+.arena-card--later {
+    border-style: dashed;
+    opacity: 0.8;
+}
+.arena-card--later:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.arena-card-image {
+    height: 148px;
+    background-color: rgb(24, 29, 38);
+}
+.arena-card-soon {
+    height: 148px;
+    align-items: center;
+    justify-content: center;
+    background-color: rgb(24, 29, 38);
+}
+.arena-soon-icon {
+    width: 56px;
+    height: 56px;
+    color: rgb(120, 132, 150);
+}
+.arena-card-text {
+    padding: 10px 12px 12px 12px;
+}
+.arena-card-text > Label {
+    -unity-text-align: upper-left;
+}
+.arena-card-title {
+    margin: 0 0 4px 0;
+    padding: 0;
+    font-size: 17px;
+    -unity-font-style: bold;
+    color: rgb(244, 246, 250);
+    white-space: normal;
+}
+.arena-card-goal, .arena-card-fact, .arena-card-level {
+    margin: 0 0 3px 0;
+    padding: 0;
+    font-size: 13px;
+    color: rgb(196, 204, 216);
+    white-space: normal;
+}
+.arena-card-ok, .arena-card-missing {
+    margin: 2px 0 3px 0;
+    padding: 0;
+    font-size: 13px;
+    -unity-font-style: bold;
+    white-space: normal;
+}
+.arena-card-ok {
+    color: rgb(120, 220, 140);
+}
+.arena-card-missing {
+    color: rgb(255, 196, 80);
+}
+/* Settings: the language and the interface size */
+.settings-heading {
+    margin: 10px 0 6px 0;
+    font-size: 14px;
+    -unity-font-style: bold;
+    color: rgb(230, 234, 240);
+}
+.settings-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+.settings-choice {
+    min-width: 64px;
+    height: 36px;
+    margin: 0 6px 6px 0;
+    padding: 0 12px;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.06);
+    color: rgb(230, 234, 240);
+    font-size: 14px;
+}
+.settings-choice:hover {
+    border-color: rgba(79, 193, 255, 0.7);
+}
+.settings-choice--language {
+    min-width: 150px;
+    font-size: 16px;
+}
+.settings-choice--active {
+    border-color: rgb(79, 193, 255);
+    background-color: rgba(79, 193, 255, 0.22);
+    color: rgb(255, 255, 255);
+    -unity-font-style: bold;
+}
 .upload-button {
     height: 28px;
     min-width: 96px;
     margin-right: 6px;
     border-width: 0;
     border-radius: 4px;
-    background-color: rgb(46, 160, 67);
+    background-color: rgb(24, 122, 52);
     color: rgb(255, 255, 255);
     -unity-font-style: bold;
 }
@@ -692,7 +860,7 @@
 }
 .diag-line {
     padding-left: 4px;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(244, 135, 113);
     -unity-text-align: middle-left;
 }
@@ -707,7 +875,7 @@
     border-left-color: rgb(79, 193, 255);
     background-color: rgba(14, 17, 23, 0.95);
     color: rgb(240, 242, 246);
-    font-size: 12px;
+    font-size: 13px;
     white-space: normal;
 }
 .info-line {
@@ -732,7 +900,7 @@
     white-space: normal;
 }
 .bin-sub {
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(150, 160, 175);
     white-space: normal;
 }
@@ -756,7 +924,7 @@
     border-radius: 10px;
     background-color: rgb(45, 52, 68);
     color: rgb(255, 255, 255);
-    font-size: 10px;
+    font-size: 13px;
     -unity-font-style: bold;
 }
 .palette-chip--active {
@@ -784,7 +952,7 @@
 .wire-text {
     flex-grow: 1;
     flex-shrink: 1;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(220, 224, 230);
     white-space: normal;
 }
@@ -797,7 +965,7 @@
     border-radius: 3px;
     background-color: rgba(0, 0, 0, 0);
     color: rgb(170, 175, 185);
-    font-size: 11px;
+    font-size: 13px;
 }
 .wire-remove:hover {
     background-color: rgba(255, 110, 90, 0.3);
@@ -817,7 +985,7 @@
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.05);
     color: rgb(210, 215, 225);
-    font-size: 12px;
+    font-size: 13px;
 }
 .seg-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
@@ -835,7 +1003,7 @@
     min-width: 0;
     margin: 0 0 1px 0;
     padding: 0;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(150, 160, 175);
 }
 .body-slider .unity-base-slider__tracker {
@@ -879,7 +1047,7 @@
     border-radius: 2px;
     background-color: rgba(14, 17, 23, 0.8);
     color: rgb(240, 242, 246);
-    font-size: 10px;
+    font-size: 13px;
     white-space: nowrap;
     transform-origin: left center;
     translate: 0 -50%;
@@ -899,7 +1067,7 @@
 }
 .pin-field .unity-base-popup-field__text {
     color: rgb(232, 234, 240);
-    font-size: 12px;
+    font-size: 13px;
 }
 .pin-field .unity-base-popup-field__arrow {
     -unity-background-image-tint-color: rgb(160, 170, 185);
@@ -907,14 +1075,14 @@
 
 /* ---- scroll bars: a thin rounded thumb, no arrow buttons ---- */
 .garage-root .unity-scroller--vertical {
-    width: 10px;
-    min-width: 10px;
+    width: 12px;
+    min-width: 12px;
     border-width: 0;
     background-color: rgba(0, 0, 0, 0);
 }
 .garage-root .unity-scroller--horizontal {
-    height: 10px;
-    min-height: 10px;
+    height: 12px;
+    min-height: 12px;
     border-width: 0;
     background-color: rgba(0, 0, 0, 0);
 }
@@ -943,12 +1111,12 @@
 .garage-root .unity-scroller--vertical > .unity-scroller__slider .unity-base-slider__tracker,
 .garage-root .unity-scroller--vertical > .unity-scroller__slider .unity-base-slider__dragger {
     left: 2px;
-    width: 6px;
+    width: 8px;
 }
 .garage-root .unity-scroller--horizontal > .unity-scroller__slider .unity-base-slider__tracker,
 .garage-root .unity-scroller--horizontal > .unity-scroller__slider .unity-base-slider__dragger {
     top: 2px;
-    height: 6px;
+    height: 8px;
 }
 
 /* ---- Body Studio (docs/08): toolbar, shape palette, 3D view, inspector, status bar ---- */
@@ -987,7 +1155,7 @@
 }
 .studio-caption {
     margin: 0 4px;
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(140, 150, 165);
 }
 .tool-button {
@@ -1027,7 +1195,7 @@
 }
 .tool-label {
     margin-left: 6px;
-    font-size: 12px;
+    font-size: 13px;
 }
 .studio-back {
     background-color: rgba(255, 255, 255, 0.08);
@@ -1042,7 +1210,7 @@
     border-radius: 4px;
     background-color: rgba(255, 255, 255, 0.04);
     color: rgb(200, 206, 216);
-    font-size: 12px;
+    font-size: 13px;
 }
 .snap-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
@@ -1061,7 +1229,7 @@
     overflow: hidden;
 }
 .studio-palette {
-    width: 214px;
+    width: 232px; /* two 13 px material names or shape tiles side by side (research R5 font floor) */
     padding: 12px 12px 4px 12px;
     background-color: rgba(10, 13, 19, 0.88);
     border-right-width: 1px;
@@ -1069,14 +1237,14 @@
 }
 .palette-title {
     margin: 2px 0 6px 0;
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 1px;
     -unity-font-style: bold;
     color: rgb(150, 160, 175);
 }
 .palette-note {
     margin-bottom: 4px;
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(140, 150, 165);
     white-space: normal;
 }
@@ -1098,7 +1266,7 @@
     border-radius: 6px;
     background-color: rgba(255, 255, 255, 0.04);
     color: rgb(190, 198, 210);
-    font-size: 12px;
+    font-size: 13px;
 }
 .switch-button:hover {
     background-color: rgba(255, 255, 255, 0.1);
@@ -1120,7 +1288,7 @@
     margin-bottom: 6px;
 }
 .shape-button {
-    width: 84px;
+    width: 48.5%;
     min-height: 74px;
     margin: 0 0 8px 0;
     padding: 6px 4px;
@@ -1149,10 +1317,31 @@
     margin-bottom: 5px;
 }
 .shape-label {
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(220, 224, 230);
     -unity-text-align: middle-center;
     white-space: normal;
+}
+/* The Balance view's line over the Studio's 3D view (GarageBalance.cs) */
+.balance-note {
+    position: absolute;
+    top: 10px;
+    left: 128px; /* clear of the view cube in the top left corner */
+    right: 12px;
+    align-self: center;
+    padding: 6px 12px;
+    border-width: 1px;
+    border-color: rgba(110, 220, 130, 0.5);
+    border-radius: 8px;
+    background-color: rgba(10, 13, 19, 0.92);
+    color: rgb(140, 230, 160);
+    font-size: 13px;
+    -unity-text-align: middle-center;
+    white-space: normal;
+}
+.balance-note--bad {
+    border-color: rgba(255, 110, 90, 0.6);
+    color: rgb(255, 190, 150);
 }
 .studio-viewport {
     flex-grow: 1;
@@ -1212,7 +1401,7 @@
 }
 .studio-status-text {
     flex-shrink: 1;
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(185, 192, 204);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1220,7 +1409,7 @@
 }
 .studio-stats {
     margin-left: 12px;
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(120, 200, 150);
     white-space: nowrap;
 }
@@ -1229,7 +1418,7 @@
     padding-top: 8px;
     border-top-width: 1px;
     border-top-color: rgba(255, 255, 255, 0.08);
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 1px;
     -unity-font-style: bold;
     color: rgb(79, 193, 255);
@@ -1253,7 +1442,7 @@
 }
 .shape-row-name {
     flex-grow: 1;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(225, 229, 236);
 }
 .shape-row-tag {
@@ -1262,7 +1451,7 @@
     border-radius: 8px;
     background-color: rgba(200, 206, 218, 0.16);
     color: rgb(200, 206, 218);
-    font-size: 10px;
+    font-size: 13px;
 }
 .feature-title {
     flex-direction: row;
@@ -1291,7 +1480,7 @@
     width: 12px;
     margin: 0 3px 0 0;
     padding: 0;
-    font-size: 11px;
+    font-size: 13px;
     -unity-font-style: bold;
 }
 .vec-x > .unity-label {
@@ -1319,7 +1508,7 @@
 .detail-field > .unity-label {
     min-width: 0;
     margin-right: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: rgb(150, 160, 175);
 }
 .icon-small-button {
@@ -1361,7 +1550,7 @@
     border-radius: 0;
     background-color: rgba(255, 255, 255, 0.03);
     color: rgb(160, 170, 185);
-    font-size: 12px;
+    font-size: 13px;
     -unity-font-style: bold;
 }
 .library-tab:hover {
@@ -1386,10 +1575,10 @@
     justify-content: space-between;
 }
 .material-button {
-    width: 84px;
+    width: 48.5%;
     min-height: 28px;
     margin: 0 0 4px 0;
-    padding: 3px 5px;
+    padding: 3px 4px;
     flex-direction: row;
     align-items: center;
     border-width: 1px;
@@ -1405,8 +1594,8 @@
     background-color: rgba(79, 193, 255, 0.18);
 }
 .material-chip {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     margin-right: 5px;
     flex-shrink: 0;
     border-width: 1px;
@@ -1421,7 +1610,7 @@
     flex-shrink: 1;
     margin: 0;
     padding: 0;
-    font-size: 11px;
+    font-size: 13px;
     color: rgb(220, 224, 230);
     -unity-text-align: middle-left;
     white-space: normal;
@@ -1432,19 +1621,19 @@
     margin: 2px 0 2px 0;
 }
 .colour-swatch {
-    width: 18px;
-    height: 18px;
+    width: 24px; /* a mouse target of at least 24 px (research R5; it was 18) */
+    height: 24px;
     margin: 0 4px 4px 0;
     padding: 0;
     border-width: 2px;
     border-color: rgba(255, 255, 255, 0.15);
-    border-radius: 9px;
+    border-radius: 12px;
 }
 .colour-swatch--active {
     border-color: rgb(79, 193, 255);
 }
 .colour-clear {
-    height: 18px;
+    height: 24px;
     margin: 0 4px 4px 0;
     padding: 0 6px;
     border-width: 2px;
@@ -1452,15 +1641,15 @@
     border-radius: 9px;
     background-color: rgba(255, 255, 255, 0.06);
     color: rgb(220, 224, 230);
-    font-size: 10px;
+    font-size: 13px;
 }
 .material-note {
-    font-size: 10px;
+    font-size: 13px;
     color: rgb(130, 140, 155);
 }
 .part-count {
     margin-top: 1px;
-    font-size: 10px;
+    font-size: 13px;
     color: rgb(130, 140, 155);
     -unity-text-align: middle-center;
 }
@@ -1498,7 +1687,7 @@
     translate: -50% -50%;
     margin: 0;
     padding: 0;
-    font-size: 10px;
+    font-size: 13px;
     -unity-font-style: bold;
     -unity-text-align: middle-center;
     letter-spacing: 0.5px;

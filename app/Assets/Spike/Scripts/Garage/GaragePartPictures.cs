@@ -93,6 +93,7 @@ namespace CoreEngine.Spike.Garage
                 });
             }
             yield return RenderCardPictures();
+            yield return RenderArenaPicture();
             PicturesMs = watch.Elapsed.TotalMilliseconds;
             if (studio != null) RenderLibrary();
             renderSide?.Invoke();
@@ -152,6 +153,76 @@ namespace CoreEngine.Spike.Garage
             if (meter != null) yield return DrawInPlace(meter, home, 1.4f, 1.1f, picture => cardPictures["act.repair"] = picture);
             foreach (var card in cardPictures) Keep("card-" + card.Key.Substring("act.".Length), card.Value);
             ShowCardPictures();
+        }
+
+        static Texture2D? arenaPicture;
+        const int ArenaWidth = 480, ArenaHeight = 270;
+
+        /// <summary>
+        /// The obstacle field seen from above one corner with the chosen robot on its start pad: the arena card's
+        /// picture (research R5: a picture of what the player will see, CS2-style map cards). Built from the arena's
+        /// own code on a stage far from the lab, under a sky-blue background, once a session.
+        /// </summary>
+        IEnumerator RenderArenaPicture()
+        {
+            if (arenaPicture != null) yield break;
+            var stage = new GameObject("ArenaStage");
+            stage.transform.position = new Vector3(0, 0, -300f);
+            Material Coloured(Color colour, float smoothness)
+            {
+                var material = new Material(litMaterial);
+                material.SetColor("_BaseColor", colour);
+                material.SetFloat("_Smoothness", smoothness);
+                roomMaterials.Add(material);
+                return material;
+            }
+            ArenaBuilder.ObstacleField(stage.transform, Coloured(new Color(0.92f, 0.92f, 0.88f), 0.4f),
+                Coloured(new Color(0.55f, 0.6f, 0.68f), 0.2f), Coloured(new Color(0.85f, 0.55f, 0.25f), 0.2f));
+            var pad = new GameObject("StartPad").transform;
+            pad.SetParent(stage.transform, false);
+            pad.localRotation = Quaternion.Euler(0, 20f, 0);
+            var visual = RobotVisuals.Build(pad, null, Robot, litMaterial);
+            var rest = Settle(Robot.Design, visual.Body);
+            if (rest != null) visual.Root.transform.SetLocalPositionAndRotation(rest[rest.Count - 1].Position, rest[rest.Count - 1].Rotation);
+
+            var target = RenderTexture.GetTemporary(ArenaWidth * 2, ArenaHeight * 2, 24, RenderTextureFormat.ARGB32);
+            var camera = PictureCamera(target, 34f, postProcessing: true);
+            camera.backgroundColor = new Color(0.62f, 0.76f, 0.92f);
+            // Close enough to see the robot on its pad, with the boxes round it and the far wall behind.
+            var look = stage.transform.position + new Vector3(0.05f, 0.03f, 0.35f);
+            camera.transform.position = look + Quaternion.Euler(27f, 205f, 0) * new Vector3(0, 0, -1.55f);
+            camera.transform.LookAt(look);
+            camera.nearClipPlane = 0.05f;
+            camera.farClipPlane = 12f;
+            var request = new RenderPipeline.StandardRequest { destination = target };
+            if (RenderPipeline.SupportsRenderRequest(camera, request))
+            {
+                for (int attempt = 0; attempt < 60; attempt++)
+                {
+                    var previous = RenderTexture.active;
+                    RenderTexture.active = target;
+                    GL.Clear(true, true, Color.clear);
+                    RenderTexture.active = previous;
+                    RenderPipeline.SubmitRenderRequest(camera, request);
+                    var drawn = Read(target);
+                    var corner = drawn.GetPixel(2, drawn.height - 3); // the sky in the top corner: drawn, not the clear colour
+                    if (corner.r + corner.g + corner.b > 0.6f)
+                    {
+                        arenaPicture = Shrink(drawn, ArenaWidth, ArenaHeight);
+                        Keep("arena-obstacles", arenaPicture);
+                        Destroy(drawn);
+                        break;
+                    }
+                    Destroy(drawn);
+                    yield return null;
+                }
+            }
+            camera.targetTexture = null;
+            RenderTexture.ReleaseTemporary(target);
+            Destroy(camera.gameObject);
+            visual.Destroy();
+            Destroy(stage);
+            ShowArenaChip();
         }
 
         /// <summary>Where the showroom's camera stands at Home (world), so the lab's objects are seen as a visitor sees them.</summary>

@@ -302,10 +302,23 @@ namespace CoreEngine.Spike.Editor
                 AssetDatabase.CreateAsset(settings, settingsPath);
             }
             settings.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(themePath);
-            settings.scaleMode = PanelScaleMode.ConstantPixelSize;
-            settings.scale = 1f;
+            // The UI grows with the screen from the 1280 × 720 it is laid out at: × 1.5 at 1080p, × 2 at 1440p
+            // (2026-09-25, research R5: text must reach 18 px at 1080p; at a constant pixel size it stayed 12 px).
+            // Expand keeps the logical canvas at least 1280 × 720, so 16:10 and ultrawide screens get room, not less.
+            settings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            settings.referenceResolution = new Vector2Int(1280, 720);
+            settings.screenMatchMode = PanelScreenMatchMode.Expand;
+            settings.scale = 1f; // the player's UI scale, later
             EditorUtility.SetDirty(settings);
             return settings;
+        }
+
+        /// <summary>Applies the panel settings alone (batch: -executeMethod CoreEngine.Spike.Editor.SpikeSetup.ConfigurePanel).</summary>
+        public static void ConfigurePanel()
+        {
+            CreatePanelSettings();
+            AssetDatabase.SaveAssets();
+            Debug.Log("SpikeSetup: panel settings saved");
         }
 
         static void CreateScene()

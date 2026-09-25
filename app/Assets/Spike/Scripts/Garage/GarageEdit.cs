@@ -237,6 +237,7 @@ namespace CoreEngine.Spike.Garage
             }
             if (bodyDirty && Time.unscaledTime >= bodyRebuildAt) FlushBody();
             UpdateStudioScene();
+            UpdateBalance();
             UpdatePinTags();
             UpdateWireHandles();
             if (saveAt > 0 && Time.unscaledTime >= saveAt)

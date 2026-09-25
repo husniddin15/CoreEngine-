@@ -56,9 +56,7 @@ namespace CoreEngine.Spike.Garage
         ProgressBar cardBattery = null!;
         VisualElement cardWarnings = null!, cardBatteryRow = null!;
         Button startButton = null!;
-        DropdownField arenaField = null!;
         readonly List<(TextElement element, string key)> localized = new List<(TextElement, string)>();
-        readonly List<Button> languageButtons = new List<Button>();
         string sideTitleKey = "";
         Action? renderSide;
         Action? renderOverlay;
@@ -86,6 +84,8 @@ namespace CoreEngine.Spike.Garage
         {
             SpikeReport.Init();
             GarageState.Load(SpikeReport.Active);
+            Preferences.Load(SpikeReport.Active);
+            Preferences.Apply(GetComponent<UIDocument>().panelSettings);
             BodyLook.Init(litMaterial, acrylicMaterial);
             CoreEngine.Spike.Parts.PartLooks.Init(litMaterial, partMaterial);
             BuildRoom();
@@ -94,6 +94,7 @@ namespace CoreEngine.Spike.Garage
             BuildUi();
             SpikeStrings.LanguageChanged += ApplyLanguage;
             ApplyLanguage();
+            if (!Preferences.LanguageChosen) AskLanguage();
             StartCoroutine(RenderAllThumbnails());
             if (SpikeReport.PartShotsFolder != null) StartCoroutine(PartShots(SpikeReport.PartShotsFolder));
             else if (SpikeReport.Active && SpikeReport.TurnOnly && SpikeReport.Stage == 0) SpikeBenchmark.StartSpin(0, arenaScene);
@@ -337,6 +338,12 @@ namespace CoreEngine.Spike.Garage
                 UpdateEditing();
             }
             UpdateCamera();
+            if (Input.GetKeyDown(KeyCode.F5) && !SpikeReport.Active) // Test, from any screen, as Run in a code editor
+            {
+                if (editor != null) CloseOverlay();
+                StartRun();
+                return;
+            }
             if (toast.style.display == DisplayStyle.Flex && Time.unscaledTime > toastUntil) toast.style.display = DisplayStyle.None;
             if (Input.GetKeyDown(KeyCode.Escape) && overlay.style.display == DisplayStyle.Flex) CloseOverlay();
             PollCompile();
@@ -377,27 +384,14 @@ namespace CoreEngine.Spike.Garage
             AddNav(top, "nav.shop", Icon.Shop, false, ShowShop);
             AddNav(top, "nav.workshop", Icon.Workshop, false, () => ShowPage("nav.workshop", "page.workshopInfo"));
             top.Add(Layout("spacer"));
-            var arena = Layout("arena-group");
-            arena.Add(Classed(Localized(new Label(), "arena"), "arena-label"));
-            arenaField = new DropdownField(new List<string>(), 0) { focusable = false };
-            arenaField.AddToClassList("arena-field");
-            arenaField.RegisterValueChangedCallback(_ => OnArenaChosen());
-            arena.Add(arenaField);
-            top.Add(arena);
+            // The arena as a picture joined to START, which it names: where START goes (research R5).
+            top.Add(BuildArenaChip());
             startButton = new Button(StartRun) { focusable = false };
             startButton.AddToClassList("start-button");
             startButton.Add(Classed(new IconView(Icon.Play), "start-icon"));
             startButton.Add(Classed(Localized(new Label(), "start"), "start-label"));
             top.Add(startButton);
-            for (int i = 0; i < SpikeStrings.LanguageButtons.Length; i++)
-            {
-                int language = i;
-                var button = new Button(() => SpikeStrings.SetLanguage(language)) { text = SpikeStrings.LanguageButtons[i], focusable = false };
-                button.AddToClassList("lang-button");
-                languageButtons.Add(button);
-                top.Add(button);
-            }
-            var settings = new Button(() => ShowToast(Tr("settings.info"))) { focusable = false };
+            var settings = new Button(OpenSettings) { focusable = false, tooltip = Tr("settings.title") };
             settings.AddToClassList("icon-button");
             settings.Add(new IconView(Icon.Gear));
             top.Add(settings);
@@ -542,37 +536,46 @@ namespace CoreEngine.Spike.Garage
             cardBattery.value = (float)charge;
             cardBatteryText.text = $"{charge:F1} %";
 
+            // Each problem in words with a Fix that opens the screen where it is fixed (research R5: name the problem
+            // and the fix, next to it; never block START).
             cardWarnings.Clear();
-            var warnings = new List<string>();
+            var warnings = new List<(string text, string? fix)>();
             var design = robot.Design;
-            if (!robot.Electronics) warnings.Add(Tr("warn.noBoard"));
+            if (!robot.Electronics) warnings.Add((Tr("warn.noBoard"), "act.build"));
             if (hasBattery)
             {
-                if (robot.Battery.IsEmpty) warnings.Add(Tr("warn.batteryEmpty"));
-                else if (charge < 20) warnings.Add(SpikeStrings.Format("warn.batteryLow", charge));
+                if (robot.Battery.IsEmpty) warnings.Add((Tr("warn.batteryEmpty"), "act.repair"));
+                else if (charge < 20) warnings.Add((SpikeStrings.Format("warn.batteryLow", charge), "act.repair"));
             }
-            if (design.HasSlot(PartCatalog.TtMotor, "left") && robot.LeftMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.left")));
-            if (design.HasSlot(PartCatalog.TtMotor, "right") && robot.RightMotor.Burnt) warnings.Add(SpikeStrings.Format("warn.motorBurnt", Tr("side.right")));
-            if (robot.Electronics && robot.BoardBurnt) warnings.Add(Tr("warn.boardBurnt"));
-            if (design.Count(PartCatalog.HcSr04) > 0 && robot.SonarBurnt) warnings.Add(Tr("warn.sonarBurnt"));
+            if (design.HasSlot(PartCatalog.TtMotor, "left") && robot.LeftMotor.Burnt) warnings.Add((SpikeStrings.Format("warn.motorBurnt", Tr("side.left")), "act.repair"));
+            if (design.HasSlot(PartCatalog.TtMotor, "right") && robot.RightMotor.Burnt) warnings.Add((SpikeStrings.Format("warn.motorBurnt", Tr("side.right")), "act.repair"));
+            if (robot.Electronics && robot.BoardBurnt) warnings.Add((Tr("warn.boardBurnt"), "act.repair"));
+            if (design.Count(PartCatalog.HcSr04) > 0 && robot.SonarBurnt) warnings.Add((Tr("warn.sonarBurnt"), "act.repair"));
             if (design.Parts.Count > 0)
             {
                 int problems = CircuitAnalysis.Analyse(design).Warnings.FindAll(w => !w.Info).Count;
-                if (problems > 0 && robot.Electronics) warnings.Add(SpikeStrings.Format("warn.wiring", problems));
+                if (problems > 0 && robot.Electronics) warnings.Add((SpikeStrings.Format("warn.wiring", problems), "act.wire"));
                 var stance = RobotStance.Of(design);
-                if (!stance.Rolls) warnings.Add(StanceWarning(stance, design));
+                if (!stance.Rolls) warnings.Add((StanceWarning(stance, design), "act.build"));
             }
-            if (robot.Electronics && robot.CodeNotUploaded) warnings.Add(Tr("warn.notUploaded"));
-            if (robot.IsTrying) warnings.Add(Tr("warn.trying"));
+            if (robot.Electronics && robot.CodeNotUploaded) warnings.Add((Tr("warn.notUploaded"), "act.code"));
+            if (robot.IsTrying) warnings.Add((Tr("warn.trying"), null));
             int toCheck = warnings.Count - (robot.IsTrying ? 1 : 0);
             cardStatus.text = toCheck == 0 ? Tr("card.statusReady") : SpikeStrings.Format("card.statusCheck", toCheck);
             cardStatus.EnableInClassList("status-chip--warn", toCheck > 0);
-            foreach (string warning in warnings)
+            foreach (var (warning, fix) in warnings)
             {
                 bool trying = warning.StartsWith("★");
                 var row = Layout(trying ? "try-row" : "warn-row");
                 if (!trying) row.Add(Classed(new IconView(Icon.Warning), "warn-icon"));
                 row.Add(Classed(new Label(warning.TrimStart('⚠', '★', ' ')), trying ? "try-line" : "warn-line"));
+                if (fix != null)
+                {
+                    string action = fix;
+                    var button = new Button(() => OnAction(action)) { text = Tr("card.fix"), focusable = false, tooltip = Tr(action) };
+                    button.AddToClassList("fix-button");
+                    row.Add(button);
+                }
                 cardWarnings.Add(row);
             }
 
@@ -633,15 +636,6 @@ namespace CoreEngine.Spike.Garage
             RefreshCard();
             renderSide?.Invoke();
             StartCoroutine(RenderThumbnail(GarageState.Selected));
-        }
-
-        void OnArenaChosen()
-        {
-            if (arenaField.index > 0)
-            {
-                ShowToast(Tr("arena.later"));
-                arenaField.index = 0;
-            }
         }
 
         void StartRun()
@@ -920,6 +914,19 @@ namespace CoreEngine.Spike.Garage
             RefreshCard();
         }
 
+        /// <summary>
+        /// "▶ Test": straight into the arena from building, wiring or code, without going back to the Garage first
+        /// (research R5: a build-test-fix loop of seconds; the same button in the same place on every screen).
+        /// </summary>
+        Button TestButton(Action run)
+        {
+            var button = new Button(run) { focusable = false, tooltip = Tr("act.test.tip") };
+            button.AddToClassList("test-button");
+            button.Add(Classed(new IconView(Icon.Play), "test-icon"));
+            button.Add(Classed(Localized(new Label(), "act.test"), "test-label"));
+            return button;
+        }
+
         VisualElement OverlayHeader(string title)
         {
             var header = Layout("overlay-header");
@@ -962,6 +969,11 @@ namespace CoreEngine.Spike.Garage
                 var upload = new Button(Upload) { text = Tr("code.upload"), focusable = false };
                 upload.AddToClassList("upload-button");
                 header.Add(upload);
+                header.Add(TestButton(() =>
+                {
+                    CloseOverlay();
+                    StartRun();
+                }));
                 header.Add(SmallButton("code.close", CloseOverlay));
                 overlayPanel.Add(header);
                 editor = new CodeEditor();
@@ -1083,12 +1095,7 @@ namespace CoreEngine.Spike.Garage
         void ApplyLanguage()
         {
             foreach (var (element, key) in localized) element.text = Tr(key);
-            for (int i = 0; i < languageButtons.Count; i++)
-                languageButtons[i].EnableInClassList("lang-button--active", i == SpikeStrings.Language);
-            var choices = new List<string>();
-            foreach (string key in ArenaKeys) choices.Add(Tr(key));
-            arenaField.choices = choices;
-            arenaField.SetValueWithoutNotify(choices[0]);
+            ShowArenaChip();
             if (sideTitleKey.Length > 0) sideTitle.text = Tr(sideTitleKey);
             UpdateHint();
             renderSide?.Invoke();
@@ -1223,6 +1230,21 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine($"  a still showroom stays still: {flickering:F0} pixels a frame changed brightness by more than 24 of 255: {Yes(flickering >= 0 && flickering < 20)}");
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-en"));
 
+            // The arena chip beside START opens the picker of arena cards; the gear opens Settings (research R5).
+            yield return ClickElement(arenaChip);
+            yield return Frames(4);
+            bool picker = overlay.style.display == DisplayStyle.Flex && overlayPanel.Q(className: "arena-card") != null;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-arenas"));
+            CloseOverlay();
+            OpenSettings();
+            yield return Frames(4);
+            bool settingsShown = overlayPanel.Query<Button>(className: "settings-choice").ToList().Count == Preferences.Scales.Length + 3;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-settings"));
+            CloseOverlay();
+            report.AppendLine($"  the arena chip beside START names {arenaChipName.text} with its picture: {Yes(arenaChipImage.image != null)}; " +
+                              $"it opens the arena picker: {Yes(picker)}; Settings offers the three languages and {Preferences.Scales.Length} sizes: {Yes(settingsShown)}; " +
+                              "screenshots -garage-arenas, -garage-settings");
+
             // Customize: trying pack finishes changes the look but not the saved finishes.
             OnAction("act.customize");
             Choose(Finishes.Get("carbon-fibre", FinishTarget.Body));
@@ -1322,6 +1344,18 @@ namespace CoreEngine.Spike.Garage
                               $"the kit says it stands on its wheels and caster: {Yes(RobotStance.Of(DesignPresets.ObstacleAvoiderKit()).Rolls)}; " +
                               $"on the turntable it came to rest in {settleSeconds:F1} s leaning {lean:F1}° as the check's {stance.TiltDegrees:F1}°: {Yes(Math.Abs(lean - stance.TiltDegrees) < 2.5f)} " +
                               $"(the kit before it {kitLean:F1}°: {Yes(kitLean >= 0 && kitLean < 1.5f)}; showing it and working out its settling took {settleMs:F0} ms); screenshot -garage-no-caster");
+
+            // Its Fix opens Build, where the Balance view is already on: the yellow centre of mass over a red strip.
+            var fix = cardWarnings.Query<Button>(className: "fix-button").ToList().Find(b => b.tooltip == Tr("act.build"));
+            if (fix != null) yield return ClickElement(fix);
+            yield return Frames(20);
+            bool inBuild = mode == EditMode.Body && libraryTab == LibraryTab.Parts;
+            bool balanceShown = balanceRoot != null && balanceRoot.gameObject.activeSelf && balanceNote != null && balanceNote.resolvedStyle.display == DisplayStyle.Flex;
+            bool noteSays = balanceNote != null && balanceNote.text == StanceWarning(stance, Robot.Design);
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-balance"));
+            report.AppendLine($"  its Fix opens Build: {Yes(fix != null && inBuild)}; the Balance view shows by itself: {Yes(balanceShown)}, saying why: {Yes(noteSays)}; screenshot -garage-balance");
+            LeaveMode();
+            yield return Frames(4);
 
             // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
             // and ENB (D10, Timer1), running its compiled sketch in the arena.
