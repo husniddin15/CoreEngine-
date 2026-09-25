@@ -163,6 +163,13 @@ namespace CoreEngine.Sim.Design
         public float Rotation;     // degrees about y (the name older saves use); with RotX and RotZ as Unity's Quaternion.Euler
         public float RotX, RotZ;
 
+        /// <summary>
+        /// A TT motor's wheel is on the other end of its double shaft: +x of the motor's frame instead of −x. A
+        /// real TT motor's white shaft comes out on both sides, so a builder puts the wheel on whichever side faces
+        /// out; the right motor is then the mirror of the left without being turned round (the owner, 2026-09-25).
+        /// </summary>
+        public bool WheelOtherEnd;
+
         public Rot3 Turn => Rot3.Euler(RotX, Rotation, RotZ);
 
         public PartInstance Clone() => (PartInstance)MemberwiseClone();
@@ -363,6 +370,10 @@ namespace CoreEngine.Sim.Design
         /// <summary>The wheel's centre in a TT motor's frame: on the shaft, 8.5 mm above the gearbox middle, on the −x side.</summary>
         public static readonly (float x, float y, float z) WheelInMotor = (-27.5f, 8.5f, 0);
 
+        /// <summary>Where a motor's wheel is in its frame: on the −x end of the shaft, or the +x end (<see cref="PartInstance.WheelOtherEnd"/>).</summary>
+        public static (float x, float y, float z) WheelOffset(PartInstance motor) =>
+            motor.WheelOtherEnd ? (-WheelInMotor.x, WheelInMotor.y, WheelInMotor.z) : WheelInMotor;
+
         /// <summary>The middle of the HC-SR04's transducer faces in its frame; it looks along +z.</summary>
         public static readonly (float x, float y, float z) SonarFaceInPart = (0, 0, 13);
 
@@ -402,9 +413,12 @@ namespace CoreEngine.Sim.Design
 
         // ------------------------------------------------------------------ what the parts do where they are
 
-        public static (float x, float y, float z) WheelCentre(PartInstance motor) => ToChassis(motor, WheelInMotor);
+        public static (float x, float y, float z) WheelCentre(PartInstance motor) => ToChassis(motor, WheelOffset(motor));
 
-        /// <summary>The motor shaft's direction (unit length): a positive voltage on M+ turns the wheel about it by the right-hand rule.</summary>
+        /// <summary>
+        /// The motor shaft's direction (unit length): a positive voltage on M+ turns the wheel about it by the
+        /// right-hand rule, whichever end of the shaft the wheel is on.
+        /// </summary>
         public static (float x, float y, float z) WheelAxis(PartInstance motor) => Direction(motor, (1, 0, 0));
 
         /// <summary>"left" or "right": the side the motor's wheel is on.</summary>
@@ -459,7 +473,7 @@ namespace CoreEngine.Sim.Design
             }
             foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), def.BoxCentre, (def.SizeX, def.SizeY, def.SizeZ))) Take(corner);
             if (def.Kind == PartKind.Motor) // the wheel: 26 mm wide along the shaft, 65 mm across
-                foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), WheelInMotor, (WheelWidth, 2 * WheelRadius, 2 * WheelRadius))) Take(corner);
+                foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), WheelOffset(part), (WheelWidth, 2 * WheelRadius, 2 * WheelRadius))) Take(corner);
             return (min, max);
         }
 

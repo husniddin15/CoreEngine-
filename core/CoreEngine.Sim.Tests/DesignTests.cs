@@ -200,6 +200,45 @@ public class DesignTests
     }
 
     [Fact]
+    public void AMotorsWheelGoesOnEitherEndOfItsShaft()
+    {
+        // The owner (2026-09-25): the second motor on the other side should make a symmetric robot. A TT motor's
+        // white shaft comes out on both sides: with its wheel on the other end, an unturned motor is the mirror of
+        // the left one, and + on M+ still turns its shaft, so its wheel, the same way.
+        var d = DesignPresets.Empty();
+        var left = d.AddPart(PartCatalog.TtMotor)!;
+        (left.X, left.Y, left.Z) = (-50, 24, -30);
+        var right = d.AddPart(PartCatalog.TtMotor)!;
+        (right.X, right.Y, right.Z) = (50, 24, -30);
+        right.WheelOtherEnd = true;
+        var l = DesignGeometry.WheelCentre(left);
+        var r = DesignGeometry.WheelCentre(right);
+        Assert.Equal(-77.5f, l.x, 3);
+        Assert.Equal(77.5f, r.x, 3);
+        Assert.Equal(l.y, r.y, 3);
+        Assert.Equal(l.z, r.z, 3);
+        Assert.Equal("left", DesignGeometry.SideOf(left));
+        Assert.Equal("right", DesignGeometry.SideOf(right));
+        Assert.Equal(1, DesignGeometry.ForwardSign(right)); // not turned round: forward like the left one
+        var (lmin, lmax) = DesignGeometry.PartBounds(left);
+        var (rmin, rmax) = DesignGeometry.PartBounds(right);
+        Assert.Equal(-lmax.x, rmin.x, 3); // motor and wheel, each the mirror of the other
+        Assert.Equal(-lmin.x, rmax.x, 3);
+        Assert.Equal(lmin.z, rmin.z, 3);
+        Assert.Equal(lmax.z, rmax.z, 3);
+        Assert.True(d.Clone().Find(right.Id)!.WheelOtherEnd);
+
+        // The wire router sees the wheel where it now is, and lays wires again when it moves.
+        var router = new WireRouter(d);
+        var hit = router.Pick((300, 32.5f, -30), (-1, 0, 0), 1000)!.Value;
+        Assert.True(hit.Wheel);
+        Assert.Equal(right.Id, hit.Owner);
+        Assert.Equal(90.5f, hit.Point.x, 1);
+        right.WheelOtherEnd = false;
+        Assert.NotEqual(router.Key, new WireRouter(d).Key);
+    }
+
+    [Fact]
     public void OldSavesKeepTheirRobot()
     {
         // The version-2 kit: plates 120 × 160 mm, motors on fixed mounts at the axle, 50 mm in front of the back.

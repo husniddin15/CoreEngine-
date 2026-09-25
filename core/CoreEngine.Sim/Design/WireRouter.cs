@@ -186,7 +186,7 @@ namespace CoreEngine.Sim.Design
             {
                 var def = PartCatalog.Get(part.Part);
                 if (def == null) continue;
-                hash.Add(part.Part).Add(part.X).Add(part.Y).Add(part.Z).Add(part.Rotation).Add(part.RotX).Add(part.RotZ);
+                hash.Add(part.Part).Add(part.X).Add(part.Y).Add(part.Z).Add(part.Rotation).Add(part.RotX).Add(part.RotZ).Add(part.WheelOtherEnd ? 1 : 0);
                 var turn = part.Turn;
                 foreach (var block in def.Solids) top.Add(Node.Leaf(Shape.Block(turn, part, block)));
                 if (def.Kind == PartKind.Motor) top.Add(Node.Leaf(Shape.Wheel(turn, part)));
