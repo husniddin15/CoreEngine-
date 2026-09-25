@@ -44,12 +44,13 @@ namespace CoreEngine.Spike.Garage
             public float Scroll;
             public KeyCode Key;
             public bool Ctrl, Shift, Alt, Scripted;
+            public bool Double; // a scripted press that is the second of a double-click
         }
 
         readonly Queue<PointerFrame> scriptedInput = new Queue<PointerFrame>();
         PointerFrame input;
         Vector2 pressPosition;
-        bool leftDown, rightDown, panning;
+        bool leftDown;
         bool wireGesture, wireStartedByPress; // a press on a pin: a drag to another pin makes a wire, a click starts one
 
         // "Look at" a part in Wire: the camera comes close and the pins show their names
@@ -89,17 +90,16 @@ namespace CoreEngine.Spike.Garage
         {
             if (mode != next) LeaveMode(show: false);
             mode = next;
-            // The turntable stops facing the camera's side so that the deck frame and the view agree.
+            // The turntable is put away: the robot stands on the mat, facing the way the deck frame does.
             turntable.localRotation = Quaternion.identity;
-            orbitTarget = DefaultTarget;
+            ShowTurntable(false);
             // Wire comes closer to the small pins; the Body Studio keeps some room around the robot for new shapes.
-            distance = next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.52f : 0.50f;
-            pitch = 42f;
-            yaw = 200f;
+            SetView(200f, 42f, next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.52f : 0.50f, DefaultTarget);
             selectedWire = -1;
             wireStart = null;
             focusedPart = null;
             if (next == EditMode.Body) OpenStudio(tab);
+            PlaceViewTools();
             ShowRobot();
             OpenSide(titleKey, render);
             UpdateHint();
@@ -119,9 +119,9 @@ namespace CoreEngine.Spike.Garage
             hoveredPin = null;
             tooltip.style.display = DisplayStyle.None;
             if (wirePreview != null) wirePreview.enabled = false;
-            orbitTarget = DefaultTarget;
-            distance = 0.62f;
-            pitch = 14f;
+            ShowTurntable(true);
+            PlaceViewTools();
+            SetView(yaw, 14f, 0.62f, DefaultTarget);
             idleSeconds = 0;
             saveAt = -1;
             GarageState.Save();
@@ -284,7 +284,7 @@ namespace CoreEngine.Spike.Garage
             if (leftDown && input.LeftHeld)
             {
                 if (drag.grip != Grip.None) UpdateStudioDrag(mouse);
-                else if (!wireGesture && (mouse - pressPosition).magnitude > 4) Orbit(mouse);
+                else if (!wireGesture && (mouse - pressPosition).magnitude > 4) DragView(mouse);
             }
             if (leftDown && !input.LeftHeld)
             {
@@ -292,42 +292,13 @@ namespace CoreEngine.Spike.Garage
                 bool click = (mouse - pressPosition).magnitude <= 4;
                 if (drag.grip != Grip.None) EndStudioDrag();
                 else if (wireGesture) EndWireGesture(mouse, click);
+                else if (click && (input.Scripted ? input.Double : DoubleClick(mouse))) PivotAt(mouse); // the first click picked already
                 else if (click) SceneClick(mouse);
             }
 
-            // Right button turns the view, the middle button pans it.
-            if (input.RightPressed && !overUi)
-            {
-                rightDown = true;
-                lastMouse = mouse;
-            }
-            if (rightDown && input.RightHeld) Orbit(mouse);
-            else rightDown = false;
-            if (input.MiddlePressed && !overUi)
-            {
-                panning = true;
-                lastMouse = mouse;
-            }
-            if (panning && input.MiddleHeld)
-            {
-                var delta = mouse - (Vector2)lastMouse;
-                lastMouse = mouse;
-                float k = distance * 0.0012f;
-                MoveTarget(orbitTarget - view.transform.right * delta.x * k - view.transform.up * delta.y * k);
-            }
-            else
-            {
-                panning = false;
-            }
-
-            // The wheel zooms toward the point under the mouse, so small pins can be reached.
-            if (Mathf.Abs(input.Scroll) > 0.01f && !overUi)
-            {
-                float old = distance;
-                distance = Mathf.Clamp(distance * (1f - input.Scroll * 0.12f), 0.12f, 1.3f);
-                if (distance < old && WorkplanePoint(mouse, out var mm)) MoveTarget(orbitTarget + (WorldOf(mm) - orbitTarget) * (1 - distance / old));
-                else if (distance > old) MoveTarget(orbitTarget + (DefaultTarget - orbitTarget) * (1 - old / distance));
-            }
+            // The right button turns the view (with Shift moves it), the middle button moves it, and the wheel
+            // zooms toward the spot under the mouse, so small pins can be reached.
+            CameraControls(overUi, leftTurns: false);
 
             UpdateHover(mouse, overUi);
             if (!IsTyping()) UpdateKeys();
@@ -358,20 +329,6 @@ namespace CoreEngine.Spike.Garage
         }
 
         bool KeyPressed(KeyCode key) => input.Scripted ? input.Key == key : Input.GetKeyDown(key);
-
-        void Orbit(Vector2 mouse)
-        {
-            var delta = mouse - (Vector2)lastMouse;
-            lastMouse = mouse;
-            yaw += delta.x * 0.3f;
-            pitch = Mathf.Clamp(pitch - delta.y * 0.2f, 3f, 85f);
-        }
-
-        void MoveTarget(Vector3 target)
-        {
-            var offset = Vector3.ClampMagnitude(target - DefaultTarget, 0.25f);
-            orbitTarget = DefaultTarget + offset;
-        }
 
         bool IsTyping() => root.panel?.focusController?.focusedElement != null;
 
@@ -453,7 +410,7 @@ namespace CoreEngine.Spike.Garage
             }
             string text = "";
             hoveredPin = null;
-            if (!overUi && (!leftDown || wireGesture) && !rightDown && !panning)
+            if (!overUi && (!leftDown || wireGesture) && viewDrag == ViewDrag.None)
             {
                 if (mode == EditMode.Wire)
                 {
@@ -630,7 +587,6 @@ namespace CoreEngine.Spike.Garage
         {
             if (shown == null) return;
             focusedPart = partId;
-            MoveTarget(shown.FocusPoint(partId));
             var facing = Vector3.zero;
             foreach (var entry in shown.PinMarkers)
             {
@@ -639,23 +595,21 @@ namespace CoreEngine.Spike.Garage
                 var exit = DesignGeometry.PinExit(Design, part, pin);
                 if (exit != null) facing += robotAnchor.TransformDirection(new Vector3(exit.Value.x, exit.Value.y, exit.Value.z));
             }
+            float toYaw = yaw, toPitch = pitch;
             if (facing.sqrMagnitude > 1e-6f)
             {
                 facing.Normalize();
-                if (new Vector2(facing.x, facing.z).magnitude > 0.2f) yaw = Mathf.Atan2(-facing.x, -facing.z) * Mathf.Rad2Deg;
-                pitch = Mathf.Clamp(Mathf.Asin(facing.y) * Mathf.Rad2Deg, 30f, 75f);
+                if (new Vector2(facing.x, facing.z).magnitude > 0.2f) toYaw = Mathf.Atan2(-facing.x, -facing.z) * Mathf.Rad2Deg;
+                toPitch = Mathf.Clamp(Mathf.Asin(facing.y) * Mathf.Rad2Deg, 30f, 75f);
             }
-            distance = 0.2f;
+            GlideTo(toYaw, toPitch, 0.2f, shown.FocusPoint(partId));
             renderSide?.Invoke();
         }
 
         void ViewWholeRobot()
         {
             focusedPart = null;
-            orbitTarget = DefaultTarget;
-            distance = mode == EditMode.Wire ? 0.40f : 0.50f;
-            pitch = 42f;
-            yaw = 200f;
+            GlideTo(200f, 42f, mode == EditMode.Wire ? 0.40f : 0.50f, DefaultTarget);
             renderSide?.Invoke();
         }
 
@@ -1095,6 +1049,7 @@ namespace CoreEngine.Spike.Garage
             yield return Frames(4);
             double buildSeconds = watch.Elapsed.TotalSeconds;
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-body"));
+            yield return StudioViewCheck();
             var meshes = shown?.Body;
             var shapes = new System.Text.StringBuilder();
             foreach (var f in Design.Body.Features)
@@ -1129,6 +1084,7 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine($"  wire: {Design.Wires.Count} wires; check: {(circuit.HasProblems ? "problems: " + string.Join(", ", circuit.Warnings) : "no problems")}; " +
                               $"left motor on channel {circuit.Motor("left")?.Channel} polarity {circuit.Motor("left")?.Polarity}, " +
                               $"right on channel {circuit.Motor("right")?.Channel} polarity {circuit.Motor("right")?.Polarity}");
+            WireRoutingReport();
 
             // Two classic mistakes: the sensor's ground wire missing, then the Uno's 5V jumper moved from the
             // L298N's +5V to its +12V terminal, which carries the battery's full voltage.

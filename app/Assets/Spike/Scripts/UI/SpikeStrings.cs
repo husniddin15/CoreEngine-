@@ -81,7 +81,12 @@ namespace CoreEngine.Spike.UI
             ["arena.maze"] = new[] { "Maze (Phase 2)", "Labirint (2-bosqich)", "Лабиринт (фаза 2)" },
             ["arena.sumo"] = new[] { "Sumo ring (Phase 2)", "Sumo ringi (2-bosqich)", "Ринг для сумо (фаза 2)" },
             ["arena.later"] = new[] { "This arena comes in Phase 2. The obstacle field is ready.", "Bu arena 2-bosqichda qoʻshiladi. Toʻsiqlar maydoni tayyor.", "Эта арена появится в фазе 2. Поле препятствий уже готово." },
-            ["garage.hint"] = new[] { "Drag to rotate · mouse wheel to zoom", "Aylantirish uchun torting · yaqinlashtirish uchun sichqoncha gʻildiragi", "Тяните, чтобы вращать · колесо мыши — масштаб" },
+            ["garage.hint"] = new[]
+            {
+                "Drag to turn · Shift+drag or the middle button moves the view · wheel zooms · double-click a spot to turn round it",
+                "Aylantirish uchun torting · Shift+tortish yoki oʻrta tugma koʻrinishni suradi · gʻildirak yaqinlashtiradi · nuqta atrofida aylantirish uchun uni ikki marta bosing",
+                "Тяните, чтобы вращать · Shift+перетаскивание или средняя кнопка сдвигают вид · колесо — масштаб · двойной щелчок по точке — вращать вокруг неё",
+            },
             ["act.build"] = new[] { "Build", "Yigʻish", "Сборка" },
             ["act.build.sub"] = new[] { "Real parts placed on the body", "Haqiqiy qismlar korpusga", "Настоящие детали на корпус" },
             ["act.wire.sub"] = new[] { "Connect pins with jumpers", "Pinlarni simlar bilan ulang", "Соединить выводы" },
@@ -360,6 +365,26 @@ namespace CoreEngine.Spike.UI
             ["studio.hint.shape"] = new[] { "Drag to move · white squares size it (Shift keeps proportions, Alt from the middle) · the cone lifts it · the curved arrows turn it · Ctrl: fine steps", "Siljitish uchun torting · oq kvadratlar oʻlchamini oʻzgartiradi (Shift nisbatni saqlaydi, Alt oʻrtadan) · konus koʻtaradi · egri strelkalar buradi · Ctrl: mayda qadam", "Тяните, чтобы сдвинуть · белые квадраты меняют размер (Shift сохраняет пропорции, Alt — от центра) · конус поднимает · изогнутые стрелки поворачивают · Ctrl: мелкий шаг" },
             ["studio.hint.oneGroup"] = new[] { "Drag to move · the cone lifts it · the curved arrows turn it · Ctrl+Shift+G ungroups it", "Siljitish uchun torting · konus koʻtaradi · egri strelkalar buradi · Ctrl+Shift+G guruhni ajratadi", "Тяните, чтобы сдвинуть · конус поднимает · изогнутые стрелки поворачивают · Ctrl+Shift+G разгруппирует" },
             ["edit.nothingToRedo"] = new[] { "Nothing to redo.", "Qaytariladigan narsa yoʻq.", "Повторять нечего." },
+            ["view.top"] = new[] { "TOP", "USTI", "ВЕРХ" },
+            ["view.bottom"] = new[] { "BOTTOM", "OSTI", "НИЗ" },
+            ["view.front"] = new[] { "FRONT", "OLDI", "ПЕРЕД" },
+            ["view.back"] = new[] { "BACK", "ORQA", "ЗАД" },
+            ["view.left"] = new[] { "LEFT", "CHAP", "ЛЕВО" },
+            ["view.right"] = new[] { "RIGHT", "OʻNG", "ПРАВО" },
+            ["view.home"] = new[] { "Home view", "Boshlangʻich koʻrinish", "Исходный вид" },
+            ["view.fit"] = new[] { "Fit the robot in view", "Robotni toʻliq koʻrsatish", "Показать робота целиком" },
+            ["view.hint"] = new[]
+            {
+                "Click a face, edge or corner to look from there · drag the cube to turn",
+                "Oʻsha tomondan qarash uchun yuz, qirra yoki burchakni bosing · aylantirish uchun kubni torting",
+                "Щёлкните грань, ребро или угол, чтобы смотреть оттуда · тяните куб, чтобы вращать",
+            },
+            ["editor.cut"] = new[] { "Cut", "Kesib olish", "Вырезать" },
+            ["editor.copy"] = new[] { "Copy", "Nusxalash", "Копировать" },
+            ["editor.paste"] = new[] { "Paste", "Qoʻyish", "Вставить" },
+            ["editor.selectAll"] = new[] { "Select all", "Hammasini belgilash", "Выделить всё" },
+            ["editor.undo"] = new[] { "Undo", "Bekor qilish", "Отменить" },
+            ["editor.redo"] = new[] { "Redo", "Qaytarish", "Повторить" },
         };
 
         public static int Language { get; private set; }

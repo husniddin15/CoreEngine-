@@ -139,7 +139,7 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < design.Wires.Count; i++)
             {
                 var w = design.Wires[i];
-                if (w.FromPart == partId || w.ToPart == partId) BuildWire(design, i);
+                if (w.FromPart == partId || w.ToPart == partId) BuildWire(design, i, quick: true);
             }
         }
 
@@ -510,12 +510,46 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < design.Wires.Count; i++) BuildWire(design, i);
         }
 
+        // Routes by the design's shapes and the wire's pins (WireRouter.Key and the pin names), kept between builds:
+        // adding a wire, switching modes or drawing a thumbnail lays out only what changed.
+        static readonly Dictionary<string, Vector3[]> routes = new Dictionary<string, Vector3[]>();
+        WireRouter? router;
+
+        /// <summary>Wires laid round the parts and the body in this build, and those left as plain arches.</summary>
+        public int RoutedWires { get; private set; }
+        public int PlainWires { get; private set; }
+
+        /// <summary>Milliseconds spent finding new routes in this build (routes kept from earlier builds cost nothing).</summary>
+        public double RouteMs { get; private set; }
+
+        /// <summary>Forgets every kept route (for measuring).</summary>
+        public static void ClearRoutes() => routes.Clear();
+
+        /// <summary>The wire's way round the parts and the body (robot frame, metres), or null when there is none.</summary>
+        Vector3[]? Route(RobotDesign design, WireInstance wire)
+        {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            router ??= new WireRouter(design);
+            string key = $"{router.Key}|{wire.FromPart}.{wire.FromPin}|{wire.ToPart}.{wire.ToPin}";
+            if (routes.TryGetValue(key, out var cached)) return cached;
+            var points = router.Route(design, wire);
+            RouteMs += watch.Elapsed.TotalMilliseconds;
+            if (points == null) return null;
+            var route = new Vector3[points.Count];
+            for (int i = 0; i < points.Count; i++) route[i] = new Vector3(points[i].x, points[i].y, points[i].z) * Mm;
+            if (routes.Count > 512) routes.Clear();
+            routes[key] = route;
+            return route;
+        }
+
         /// <summary>
         /// One jumper: a Dupont housing on header pins (on top of a female header, over a male pin), a tinned end in
-        /// a screw terminal, nothing extra on a part's own lead; between the ends a smooth tube that leaves each pin
-        /// along its exit direction and arches over the parts.
+        /// a screw terminal, nothing extra on a part's own lead; between the ends a smooth tube laid by
+        /// <see cref="WireRouter"/>: out of the pin along its exit, then over the parts, round the plates' edges or
+        /// through a hole, never through anything. While a part is being dragged (<paramref name="quick"/>) its
+        /// wires are plain arches, laid properly once it is let go.
         /// </summary>
-        void BuildWire(RobotDesign design, int index)
+        void BuildWire(RobotDesign design, int index, bool quick = false)
         {
             while (wireGroups.Count <= index) wireGroups.Add(null);
             while (wireRenderers.Count <= index) wireRenderers.Add(null);
@@ -536,17 +570,28 @@ namespace CoreEngine.Spike.Garage
             Vector3 startA = WireEnd(group, a.Value.position, a.Value.exit, a.Value.style);
             Vector3 startB = WireEnd(group, b.Value.position, b.Value.exit, b.Value.style);
 
-            // A 10 cm jumper rises about 4 cm over the parts, as a real one does when it is not pressed flat.
-            float distance = Vector3.Distance(startA, startB);
-            float reach = Mathf.Clamp(distance * 0.3f, 0.008f, 0.04f);
-            var lift = Vector3.up * (0.004f + 0.08f * distance);
-            Vector3 p1 = startA + a.Value.exit * reach + lift, p2 = startB + b.Value.exit * reach + lift;
-            const int samples = 28;
-            var curve = new List<Vector3>(samples + 1);
-            for (int i = 0; i <= samples; i++)
+            var route = quick ? null : Route(design, wire);
+            List<Vector3> curve;
+            if (route != null)
             {
-                float s = i / (float)samples, u = 1 - s;
-                curve.Add(u * u * u * startA + 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s * startB);
+                curve = new List<Vector3>(route);
+                RoutedWires++;
+            }
+            else
+            {
+                PlainWires++;
+                // A plain arch: a 10 cm jumper rises about 4 cm, as a real one does when it is not pressed flat.
+                float distance = Vector3.Distance(startA, startB);
+                float reach = Mathf.Clamp(distance * 0.3f, 0.008f, 0.04f);
+                var lift = Vector3.up * (0.004f + 0.08f * distance);
+                Vector3 p1 = startA + a.Value.exit * reach + lift, p2 = startB + b.Value.exit * reach + lift;
+                const int samples = 28;
+                curve = new List<Vector3>(samples + 1);
+                for (int i = 0; i <= samples; i++)
+                {
+                    float s = i / (float)samples, u = 1 - s;
+                    curve.Add(u * u * u * startA + 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s * startB);
+                }
             }
             var mesh = ProceduralMeshes.Tube(curve, WireRadius, 8);
             var tube = MeshObject("Jumper", group, mesh, Vector3.zero, index == highlightedWire ? selectedWire : WireMaterial(wire.Color));
@@ -581,19 +626,19 @@ namespace CoreEngine.Spike.Garage
                 {
                     var housing = Box(group, pin + exit * 0.007f, new Vector3(0.0025f, 0.0025f, 0.014f), black, "Dupont");
                     housing.transform.localRotation = orientation;
-                    return pin + exit * 0.014f;
+                    return pin + exit * WireRouter.StartOffset(style) * Mm;
                 }
                 case PinStyle.Pin: // female jumper end over a male pin: the housing covers the pin
                 {
                     var housing = Box(group, pin + exit * 0.001f, new Vector3(0.0025f, 0.0025f, 0.014f), black, "Dupont");
                     housing.transform.localRotation = orientation;
-                    return pin + exit * 0.008f;
+                    return pin + exit * WireRouter.StartOffset(style) * Mm;
                 }
                 case PinStyle.Terminal: // a tinned end clamped in the terminal
                 {
                     var end = Box(group, pin + exit * 0.0005f, new Vector3(0.001f, 0.001f, 0.004f), tin, "TinnedEnd");
                     end.transform.localRotation = orientation;
-                    return pin + exit * 0.0025f;
+                    return pin + exit * WireRouter.StartOffset(style) * Mm;
                 }
                 default: // the part's own lead
                     return pin;

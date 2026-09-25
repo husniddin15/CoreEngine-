@@ -315,3 +315,43 @@
     white-space: normal;
     color: rgb(200, 205, 212);
 }
+
+/* ---- the code editor's selection and right-click menu (UI/CodeEditor.cs) ---- */
+.code-selection {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+.code-menu {
+    position: absolute;
+    width: 184px;
+    padding: 4px 0;
+    border-width: 1px;
+    border-color: rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    background-color: rgb(37, 40, 47);
+}
+.code-menu-item {
+    flex-direction: row;
+    justify-content: space-between;
+    height: 26px;
+    margin: 0;
+    padding: 0 12px;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgb(222, 226, 232);
+    font-size: 12px;
+    -unity-text-align: middle-left;
+}
+.code-menu-item:hover {
+    background-color: rgb(38, 79, 120);
+}
+.code-menu-item:disabled {
+    color: rgb(110, 116, 126);
+}
+.code-menu-keys {
+    color: rgb(140, 148, 160);
+}

@@ -44,7 +44,7 @@ namespace CoreEngine.Spike.Garage
         RobotVisuals? shown;
         float yaw = 215f, pitch = 14f, distance = 0.62f;
         float idleSeconds = 10f;
-        bool orbiting;
+        bool holdTurntable; // the benchmark's camera check keeps it still
         Vector3 lastMouse;
         readonly List<Material> roomMaterials = new List<Material>();
 
@@ -159,6 +159,7 @@ namespace CoreEngine.Spike.Garage
             if (labMode)
             {
                 BuildLabTurntable();
+                LayerTheLab();
                 return;
             }
 
@@ -258,16 +259,18 @@ namespace CoreEngine.Spike.Garage
         }
 
         /// <summary>
-        /// Builds the robot's model on the turntable: with part colliders in the Body Studio, with pin markers in Wire.
-        /// Outside the Studio the robot stands on its lowest point (a wheel, the caster, a part hanging lower), as it
-        /// would on a real turntable; in the Studio the workplane stays put at the turntable's top.
+        /// Builds the robot's model: on the turntable in the showroom, on the bench's mat in Wire and the Studio;
+        /// with part colliders in the Body Studio, with pin markers in Wire. Outside the Studio the robot stands on
+        /// its lowest point (a wheel, the caster, a part hanging lower), as it would on a real bench; in the Studio
+        /// the workplane stays put on the mat.
         /// </summary>
         void ShowRobot(BodyMeshes? body = null)
         {
             shown?.Destroy();
             float lift = mode == EditMode.Body ? 0 : Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f;
-            robotAnchor.localPosition = new Vector3(0, turntableTop + lift, 0);
+            robotAnchor.localPosition = new Vector3(0, (mode == EditMode.None ? turntableTop : 0) + lift, 0);
             shown = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
+            MeasureRobot();
             if (mode == EditMode.Wire)
             {
                 shown.HighlightWire(selectedWire);
@@ -280,9 +283,11 @@ namespace CoreEngine.Spike.Garage
         {
             if (mode == EditMode.None)
             {
-                UpdateOrbit();
-                if (!orbiting) idleSeconds += Time.deltaTime;
-                if (idleSeconds > 4f) turntable.Rotate(0, 10f * Time.deltaTime, 0);
+                input = ReadInput();
+                bool overUi = overlay.style.display == DisplayStyle.Flex || IsPointerOverUi(input.Position);
+                CameraControls(overUi, leftTurns: true);
+                if (viewDrag == ViewDrag.None && viewGoal == null) idleSeconds += Time.deltaTime;
+                if (idleSeconds > 4f && !holdTurntable) turntable.Rotate(0, 10f * Time.deltaTime, 0);
             }
             else
             {
@@ -293,48 +298,6 @@ namespace CoreEngine.Spike.Garage
             if (Input.GetKeyDown(KeyCode.Escape) && overlay.style.display == DisplayStyle.Flex) CloseOverlay();
             PollCompile();
             UpdateEditFrame();
-        }
-
-        void UpdateOrbit()
-        {
-            bool overUi = IsPointerOverUi();
-            if ((Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)) && !overUi)
-            {
-                orbiting = true;
-                lastMouse = Input.mousePosition;
-            }
-            if (orbiting && (Input.GetMouseButton(0) || Input.GetMouseButton(1)))
-            {
-                var delta = Input.mousePosition - lastMouse;
-                lastMouse = Input.mousePosition;
-                yaw += delta.x * 0.3f;
-                pitch = Mathf.Clamp(pitch - delta.y * 0.2f, 3f, 60f);
-                idleSeconds = 0;
-            }
-            else
-            {
-                orbiting = false;
-            }
-            float scroll = Input.mouseScrollDelta.y;
-            if (Mathf.Abs(scroll) > 0.01f && !overUi)
-            {
-                distance = Mathf.Clamp(distance * (1f - scroll * 0.1f), 0.35f, 1.3f);
-                idleSeconds = 0;
-            }
-        }
-
-        void UpdateCamera()
-        {
-            view.transform.position = orbitTarget + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, 0, -distance);
-            view.transform.LookAt(orbitTarget);
-            // Depth of field keeps the robot sharp and softens the room behind it, like a photo; the editing
-            // modes need everything sharp.
-            if (depthOfField != null)
-            {
-                depthOfField.active = mode == EditMode.None && !photographingParts;
-                depthOfField.focusDistance.value = distance;
-            }
-            ApplyStudioProjection();
         }
 
         bool IsPointerOverUi() => IsPointerOverUi(Input.mousePosition);
@@ -462,6 +425,7 @@ namespace CoreEngine.Spike.Garage
             overlay.style.display = DisplayStyle.None;
             root.Add(overlay);
             BuildEditUi();
+            BuildViewTools();
         }
 
         VisualElement BuildCard()
@@ -1096,8 +1060,6 @@ namespace CoreEngine.Spike.Garage
             // and try again on the next frame. The image is copied out at once: a render texture can lose
             // its content, a Texture2D keeps it.
             var request = new RenderPipeline.StandardRequest { destination = target };
-            float? focus = depthOfField?.focusDistance.value;
-            if (depthOfField != null) depthOfField.focusDistance.value = 0.5f; // the thumbnail camera's distance
             if (!RenderPipeline.SupportsRenderRequest(camera, request))
             {
                 Debug.LogWarning("GarageSpike: the render pipeline cannot render thumbnails on request");
@@ -1106,6 +1068,7 @@ namespace CoreEngine.Spike.Garage
             {
                 for (int attempt = 1; attempt <= 120; attempt++)
                 {
+                    if (depthOfField != null) depthOfField.active = false; // a thumbnail is sharp all over; the next frame turns it back
                     RenderPipeline.SubmitRenderRequest(camera, request);
                     if (HasPixels(target))
                     {
@@ -1122,7 +1085,6 @@ namespace CoreEngine.Spike.Garage
                     yield return null;
                 }
             }
-            if (depthOfField != null && focus != null) depthOfField.focusDistance.value = focus.Value;
             camera.targetTexture = null;
             RenderTexture.ReleaseTemporary(target);
             Destroy(camera.gameObject);
@@ -1191,6 +1153,7 @@ namespace CoreEngine.Spike.Garage
             OpenCode();
             yield return Frames(4);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-code"));
+            yield return CodeEditingCheck();
             Upload();
             float waitStart = Time.realtimeSinceStartup;
             while (compileTask != null && Time.realtimeSinceStartup - waitStart < 180f) yield return null;
@@ -1205,6 +1168,9 @@ namespace CoreEngine.Spike.Garage
                 yield return SpikeReport.Capture(SpikeReport.Shot("garage-" + SpikeStrings.LanguageCodes[language]));
             }
             SpikeStrings.SetLanguage(0);
+
+            // The camera: the view cube, a pan and its limit, a double-click pivot, the closest zoom.
+            yield return CameraCheck();
 
             Select(1);
             yield return Frames(5);

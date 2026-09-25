@@ -30,7 +30,8 @@ namespace CoreEngine.Spike.Garage
                 var project = new RobotProject { Name = def.Name, Design = DesignPresets.Empty() };
                 var part = project.Design.AddPart(def.Id);
                 if (part == null) continue;
-                (part.X, part.Y, part.Z) = (0, part.Y, 0);
+                part.X = 0;
+                part.Z = 0;
                 var visual = RobotVisuals.Build(stage, null, project, litMaterial);
                 // Stand it on its lowest point, whatever hangs below its frame.
                 visual.Root.transform.localPosition = new Vector3(0, -DesignGeometry.LowestPoint(project.Design) * 0.001f, 0);

@@ -1196,7 +1196,7 @@ namespace CoreEngine.Spike.Garage
                 hovered = null;
                 text = dragReadout;
             }
-            else if (!overUi && !leftDown && !rightDown && !panning && carrying == null)
+            else if (!overUi && !leftDown && viewDrag == ViewDrag.None && carrying == null)
             {
                 hot = PickHandle(mouse);
                 hovered = hot.grip == Grip.None && !drawing ? ItemUnder(mouse, out _) : null;
@@ -1260,7 +1260,7 @@ namespace CoreEngine.Spike.Garage
             if (!input.Ctrl && KeyPressed(KeyCode.M)) MirrorSelected();
             if (KeyPressed(KeyCode.H) && SelectedFeature != null) EditFeature(x => x.Hole = !x.Hole, rerender: true);
             if (KeyPressed(KeyCode.D) && !input.Ctrl) DropSelected();
-            if (KeyPressed(KeyCode.F) && Primary != null) MoveTarget(WorldOf(PivotOf(Primary.Value)));
+            if (KeyPressed(KeyCode.F) && Primary != null) GlideTo(yaw, pitch, distance, WorldOf(PivotOf(Primary.Value)));
             float step = input.Shift ? 0.1f : studioSnap;
             if (KeyPressed(KeyCode.LeftArrow)) Nudge(new Vector3(-step, 0, 0));
             if (KeyPressed(KeyCode.RightArrow)) Nudge(new Vector3(step, 0, 0));
