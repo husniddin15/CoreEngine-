@@ -52,15 +52,16 @@ namespace CoreEngine.Sim.Design
         public static RobotDesign PwmTwoWheeler()
         {
             var d = new RobotDesign { Body = new BodyDesign { Decks = 0 } };
-            d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, X = -15, Y = 37.5f, Z = 42.5f, SizeX = 85, SizeY = 5, SizeZ = 185, Colour = "#2F6FD8" });
+            // As the owner built it, raised 8.5 mm since the TT motor's shaft is halfway up its gearbox (version 4).
+            d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, X = -15, Y = 46, Z = 42.5f, SizeX = 85, SizeY = 5, SizeZ = 185, Colour = "#2F6FD8" });
             void Part(string id, string part, float x, float y, float z, float turn) =>
                 d.Parts.Add(new PartInstance { Id = id, Part = part, X = x, Y = y, Z = z, Rotation = turn });
             Part("caster1", PartCatalog.Caster, -15, 11, 115, 0);
-            Part("uno1", PartCatalog.Uno, -15, 40.1f, -20, 0);
-            Part("driver1", PartCatalog.L298N, 5, 40.1f, 95, 90);
-            Part("battery1", PartCatalog.Battery4AA, -15, 47.6f, 40, -90);
-            Part("motor1", PartCatalog.TtMotor, -55, 24, -20, 0);
-            Part("motor2", PartCatalog.TtMotor, 20, 24, -20, 180);
+            Part("uno1", PartCatalog.Uno, -15, 48.6f, -20, 0);
+            Part("driver1", PartCatalog.L298N, 5, 48.6f, 95, 90);
+            Part("battery1", PartCatalog.Battery4AA, -15, 56.1f, 40, -90);
+            Part("motor1", PartCatalog.TtMotor, -55, 32.5f, -20, 0);
+            Part("motor2", PartCatalog.TtMotor, 20, 32.5f, -20, 180);
             d.AddWire("battery1", "+", "driver1", "+12V", "red");
             d.AddWire("battery1", "-", "driver1", "GND", "black");
             d.AddWire("driver1", "OUT3", "motor2", "M+", "red");

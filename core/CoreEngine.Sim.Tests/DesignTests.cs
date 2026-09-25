@@ -247,7 +247,8 @@ public class DesignTests
         DesignMigration.Upgrade(d);
         var plates = d.Body.Features.FindAll(f => f.Kind == FeatureKind.Plate);
         Assert.Equal(2, plates.Count);
-        Assert.Equal((36.5f, 63.5f), (plates[0].Y, plates[1].Y)); // 3 mm acrylic at 35 and 62 mm above the floor
+        // 3 mm acrylic at 43.5 and 70.5 mm above the floor: the real TT motor's shaft is 11 mm under its plate.
+        Assert.Equal((45f, 72f), (plates[0].Y, plates[1].Y));
         Assert.Equal(4, d.Body.Features.FindAll(f => f.Kind == FeatureKind.Cylinder).Count); // the brass standoffs
         var left = DesignGeometry.WheelCentre(d.Find("motor1")!);
         var right = DesignGeometry.WheelCentre(d.Find("motor2")!);
@@ -257,7 +258,41 @@ public class DesignTests
         Assert.Equal(0, DesignGeometry.LowestPoint(d), 3); // wheels and caster on the floor
         Assert.Equal((0f, 10f, 65f), Round(DesignGeometry.CasterBall(d.Find("caster1")!)));
         var uno = d.Find("uno1")!;
-        Assert.Equal((-28f, 65f, -35f, 270f), (uno.X, uno.Y, uno.Z, uno.Rotation)); // on the top deck, as dragged there
+        Assert.Equal((-28f, 73.5f, -35f, 270f), (uno.X, uno.Y, uno.Z, uno.Rotation)); // on the top deck, as dragged there
+    }
+
+    [Fact]
+    public void AVersion3RobotStandsLevelOnTheRealMotor()
+    {
+        // Saved before 2026-09-25: the TT motor's shaft was 8.5 mm too high, near its gearbox's top edge, and the
+        // caster 8.5 mm too short. Motors under a plate from 35 to 38 mm, their wheels and the caster on the floor.
+        var d = DesignPresets.Empty();
+        var plate = d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, SizeX = 120, SizeY = 3, SizeZ = 160, Y = 36.5f });
+        d.Parts.Add(new PartInstance { Id = "motor1", Part = PartCatalog.TtMotor, X = -50, Y = 24, Z = -30 });
+        d.Parts.Add(new PartInstance { Id = "motor2", Part = PartCatalog.TtMotor, X = 50, Y = 24, Z = -30, Rotation = 180 });
+        d.Parts.Add(new PartInstance { Id = "caster1", Part = PartCatalog.Caster, X = 0, Y = 10, Z = 65 });
+        var wire = new WireInstance { FromPart = "motor1", FromPin = "M+", ToPart = "motor2", ToPin = "M+" };
+        wire.Points.Add(new WirePoint { X = 0, Y = 100, Z = 0 });
+        wire.Points.Add(DesignGeometry.GluePoint(d, plate.Id, (0, 38, 0), (0, 1, 0))!);
+        d.Wires.Add(wire);
+
+        DesignMigration.Upgrade(d, 3);
+        Assert.Equal(0, DesignGeometry.LowestPoint(d), 3);
+        Assert.Equal(45f, plate.Y, 3); // the robot rose 8.5 mm: the wheels are 8.5 mm lower on their motors
+        foreach (var id in new[] { "motor1", "motor2" })
+        {
+            var motor = d.Find(id)!;
+            Assert.Equal(32.5f, DesignGeometry.WheelCentre(motor).y, 3);  // on the floor
+            Assert.Equal(43.5f, motor.Y + 11, 3);                           // the gearbox's top under the plate
+        }
+        var caster = d.Find("caster1")!;
+        Assert.Equal(10f, DesignGeometry.CasterBall(caster).y, 3);           // its ball on the floor
+        Assert.Equal(43.5f, caster.Y + PartCatalog.Get(PartCatalog.Caster)!.MountPoint.y, 3); // its flange under the plate
+        Assert.Equal(108.5f, wire.Points[0].Y, 3);                           // the free point rose with the robot
+        Assert.Equal(46.5f, DesignGeometry.PointPlace(d, wire.Points[1])!.Value.at.y, 3); // the glue stays on the plate
+
+        DesignMigration.Upgrade(d, 4); // already there: nothing moves
+        Assert.Equal(45f, plate.Y, 3);
     }
 
     [Fact]
@@ -268,7 +303,7 @@ public class DesignTests
         body.Features.Add(new BodyFeature { Id = "f1", Kind = FeatureKind.Cylinder, Hole = true, SizeX = 20, SizeY = 30, SizeZ = 20, Y = 12 });
         var holed = DesignPresets.ObstacleAvoiderKit(body);
         var hole = holed.Body.Feature("f1")!;
-        Assert.Equal(62, hole.Y);                            // the frame moved from 50 mm up to the floor
+        Assert.Equal(70.5f, hole.Y);                         // the frame moved from 58.5 mm up to the floor
         var group = holed.Body.Parent(hole)!;
         Assert.Equal(3, holed.Body.Shapes(group).Count);      // the hole and both plates; the standoffs stay out
         Assert.True(holed.MassKg() < old.MassKg());

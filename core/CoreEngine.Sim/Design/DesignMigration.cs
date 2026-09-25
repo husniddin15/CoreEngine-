@@ -12,13 +12,56 @@ namespace CoreEngine.Sim.Design
     public static class DesignMigration
     {
         /// <summary>The design version this code writes; the Garage's save file carries it.</summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
-        /// <summary>How high the version-2 frame's origin was above the floor.</summary>
-        public const float OldOriginHeight = 50;
+        /// <summary>
+        /// How high the version-2 frame's origin was above the floor, with the real TT motor (its shaft halfway up
+        /// the gearbox, 11 mm below the plate it hangs from) under the bottom plate.
+        /// </summary>
+        public const float OldOriginHeight = 58.5f;
+
+        /// <summary>How much lower a TT motor's shaft is since version 4, and how much taller the ball caster.</summary>
+        public const float ShaftDrop = 8.5f;
 
         // The version-2 layout, in its own frame.
         const float BottomPlateTop = -12, TopDeckBottom = 12, WallThickness = 3;
+
+        /// <summary>
+        /// Brings a design saved at <paramref name="fromVersion"/> up to <see cref="Version"/>: a version-2 one is
+        /// converted whole (<see cref="Upgrade(RobotDesign)"/>), a version-3 one gets the real TT motor and the
+        /// taller caster (<see cref="CentreTheShafts"/>).
+        /// </summary>
+        public static void Upgrade(RobotDesign design, int fromVersion)
+        {
+            if (design.Body.Decks > 0) Upgrade(design);
+            else if (fromVersion < 4) CentreTheShafts(design);
+        }
+
+        /// <summary>
+        /// Version 3 to 4 (2026-09-25): a TT motor's shaft, and so its wheel, is now 8.5 mm lower on the motor, and
+        /// the ball caster 8.5 mm taller. Each caster moves down by that much, so its flange stays under its plate;
+        /// then the whole robot rises so that it stands on the floor (y = 0) again, the free points of its wires
+        /// with it. A robot with motors and a caster under the same plate stands as level as it did.
+        /// </summary>
+        public static void CentreTheShafts(RobotDesign design)
+        {
+            foreach (var part in design.Parts)
+            {
+                if (PartCatalog.Get(part.Part)?.Kind != PartKind.Caster) continue;
+                var down = part.Turn.Apply(0, -ShaftDrop, 0);
+                part.X += down.x;
+                part.Y += down.y;
+                part.Z += down.z;
+            }
+            float lift = -DesignGeometry.LowestPoint(design);
+            if (lift <= 0) return;
+            foreach (var part in design.Parts) part.Y += lift;
+            foreach (var feature in design.Body.Features) feature.Y += lift;
+            foreach (var wire in design.Wires)
+                if (wire.Points != null)
+                    foreach (var point in wire.Points)
+                        if (!point.Glued) point.Y += lift;
+        }
 
         /// <summary>Converts a version-2 design in place. A body already converted (no decks left) is left alone.</summary>
         public static void Upgrade(RobotDesign design)
@@ -161,7 +204,7 @@ namespace CoreEngine.Sim.Design
                     at = (0, deckTop + 15, b.EffectiveLength / 2 + 5);
                     break;
                 case MountKind.Caster:
-                    at = (0, -40, b.EffectiveLength / 2 - 15);
+                    at = (0, -48.5f, b.EffectiveLength / 2 - 15); // its flange under the bottom plate, on its spacers
                     break;
                 case MountKind.Lower:
                     at = b.Decks >= 2 ? (0, BottomPlateTop + 7.5f, -5) : (0, BottomPlateTop + 7.5f, -b.EffectiveLength / 2 + 40);

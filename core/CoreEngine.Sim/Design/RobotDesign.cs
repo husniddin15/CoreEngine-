@@ -367,8 +367,12 @@ namespace CoreEngine.Sim.Design
         public const float CellsMassG = 4 * 23;     // four alkaline AA cells in the holder
         public const float CasterBallRadius = 10;
 
-        /// <summary>The wheel's centre in a TT motor's frame: on the shaft, 8.5 mm above the gearbox middle, on the −x side.</summary>
-        public static readonly (float x, float y, float z) WheelInMotor = (-27.5f, 8.5f, 0);
+        /// <summary>
+        /// The wheel's centre in a TT motor's frame, on the −x side: on the shaft, which comes out of the middle of
+        /// the gearbox's side, halfway up it, as on a real TT motor (until 2026-09-25 it was 8.5 mm higher, near the
+        /// gearbox's top edge; the owner showed a photo of the real one).
+        /// </summary>
+        public static readonly (float x, float y, float z) WheelInMotor = (-27.5f, 0, 0);
 
         /// <summary>Where a motor's wheel is in its frame: on the −x end of the shaft, or the +x end (<see cref="PartInstance.WheelOtherEnd"/>).</summary>
         public static (float x, float y, float z) WheelOffset(PartInstance motor) =>

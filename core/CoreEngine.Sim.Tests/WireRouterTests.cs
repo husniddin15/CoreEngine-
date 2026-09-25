@@ -127,7 +127,7 @@ public class WireRouterTests
     static RobotDesign OwnersRobot()
     {
         var design = DesignPresets.PwmTwoWheeler();
-        design.Parts.Add(new PartInstance { Id = "sonar1", Part = PartCatalog.HcSr04, X = -15, Y = 56, Z = 135 });
+        design.Parts.Add(new PartInstance { Id = "sonar1", Part = PartCatalog.HcSr04, X = -15, Y = 64.5f, Z = 135 });
         design.Wires.RemoveAll(w => w.FromPart == "driver1" && w.FromPin == "+5V");
         design.AddWire("driver1", "+12V", "uno1", "VIN", "red");
         design.AddWire("sonar1", "VCC", "driver1", "+5V", "red");
@@ -234,6 +234,12 @@ public class WireRouterTests
 
     static BodyFeature TopDeck(RobotDesign design) => design.Body.Features.Find(f => f.Kind == FeatureKind.Plate && f.Y > 60)!;
 
+    /// <summary>The top of the kit's top deck (73.5 mm since the TT motor's shaft is halfway up its gearbox).</summary>
+    static float DeckTop(RobotDesign design) => TopDeck(design).Y + TopDeck(design).SizeY / 2;
+
+    /// <summary>The top of the kit's battery holder (15 mm tall about its middle).</summary>
+    static float HolderTop(RobotDesign design) => design.Find("battery1")!.Y + 7.5f;
+
     [Fact]
     public void AWireGoesThroughItsBendPointSmoothly()
     {
@@ -258,12 +264,13 @@ public class WireRouterTests
         var design = DesignPresets.ObstacleAvoiderKit();
         var wire = KitWire(design, "battery1", "-");
         var top = TopDeck(design); // 63.5 mm up, 3 mm thick
-        var glue = DesignGeometry.GluePoint(design, top.Id, (-40, 65, 30), (0, 1, 0))!; // an open spot on the deck, beside the Uno
+        float deck = DeckTop(design);
+        var glue = DesignGeometry.GluePoint(design, top.Id, (-40, deck, 30), (0, 1, 0))!; // an open spot on the deck, beside the Uno
         wire.Points.Add(glue);
         var path = new WireRouter(design).Path(design, wire)!;
         var anchor = Assert.Single(path.Anchors);
         Assert.True(anchor.Glued);
-        Assert.Equal(65.85f, anchor.At.y, 2);
+        Assert.Equal(deck + 0.85f, anchor.At.y, 2);
         Assert.True(Math.Abs(anchor.Along.y) < 1e-4, "the glued stretch runs along the deck");
         // Flat on the deck for the glue's length, then up off it; never into anything.
         int flat = 0;
@@ -272,7 +279,7 @@ public class WireRouterTests
             double along = (q.x - anchor.At.x) * anchor.Along.x + (q.z - anchor.At.z) * anchor.Along.z;
             double across = Math.Abs((q.x - anchor.At.x) * anchor.Along.z - (q.z - anchor.At.z) * anchor.Along.x);
             if (Math.Abs(along) > WireRouter.GlueLength / 2 + 0.01 || across > 0.01) continue;
-            Assert.Equal(65.85f, q.y, 2);
+            Assert.Equal(deck + 0.85f, q.y, 2);
             flat++;
         }
         output.WriteLine($"glued: {flat} points flat on the deck; along ({anchor.Along.x:F2}, {anchor.Along.y:F2}, {anchor.Along.z:F2})");
@@ -286,18 +293,19 @@ public class WireRouterTests
     public void GlueMovesWithItsPartAndStaysOnItsFace()
     {
         var design = DesignPresets.ObstacleAvoiderKit();
-        var battery = design.Find("battery1")!; // 58 × 15 × 62 mm about its middle, at (0, 45.5, -5): its top at 53 mm
-        var onHolder = DesignGeometry.GluePoint(design, "battery1", (10, 53, -5), (0, 1, 0))!;
+        var battery = design.Find("battery1")!; // 58 × 15 × 62 mm about its middle, at (0, 54, -5)
+        float holder = HolderTop(design);
+        var onHolder = DesignGeometry.GluePoint(design, "battery1", (10, holder, -5), (0, 1, 0))!;
         battery.X += 10;
         battery.Rotation = 90;
         var moved = DesignGeometry.PointPlace(design, onHolder)!.Value;
         Assert.Equal(10f, moved.at.x, 3);   // turned a quarter about its middle: its +x went to -z
-        Assert.Equal(53f, moved.at.y, 3);
+        Assert.Equal(holder, moved.at.y, 3);
         Assert.Equal(-15f, moved.at.z, 3);
         Assert.Equal(1f, moved.normal.y, 4);
 
         var top = TopDeck(design);
-        var onDeck = DesignGeometry.GluePoint(design, top.Id, (40, 65, 50), (0, 1, 0))!;
+        var onDeck = DesignGeometry.GluePoint(design, top.Id, (40, DeckTop(design), 50), (0, 1, 0))!;
         top.SizeY = 5; // a thicker deck: the glue stays on its top face
         top.X += 5;
         var place = DesignGeometry.PointPlace(design, onDeck)!.Value;
@@ -310,12 +318,12 @@ public class WireRouterTests
     {
         var design = DesignPresets.ObstacleAvoiderKit();
         var wire = KitWire(design, "uno1", "D5");
-        wire.Points.Add(DesignGeometry.GluePoint(design, "battery1", (0, 53, -5), (0, 1, 0))!);
-        wire.Points.Add(new WirePoint { X = 0, Y = 110, Z = 0 });
+        wire.Points.Add(DesignGeometry.GluePoint(design, "battery1", (0, HolderTop(design), -5), (0, 1, 0))!);
+        wire.Points.Add(new WirePoint { X = 0, Y = 118.5f, Z = 0 });
         design.RemovePart("battery1");
         Assert.Single(wire.Points);
         var top = TopDeck(design);
-        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (40, 65, 50), (0, 1, 0))!);
+        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (40, DeckTop(design), 50), (0, 1, 0))!);
         design.Body.Remove(top.Id);
         design.DropLooseGlue();
         Assert.Single(wire.Points);
@@ -327,7 +335,7 @@ public class WireRouterTests
     {
         var design = DesignPresets.ObstacleAvoiderKit();
         var wire = KitWire(design, "uno1", "D5");
-        wire.Points.Add(new WirePoint { X = 0, Y = 45, Z = -5 }); // in the middle of the battery holder
+        wire.Points.Add(new WirePoint { X = 0, Y = design.Find("battery1")!.Y, Z = -5 }); // in the middle of the battery holder
         var router = new WireRouter(design);
         var path = router.Path(design, wire)!;
         var at = Assert.Single(path.Anchors).At;
@@ -344,7 +352,7 @@ public class WireRouterTests
         var top = TopDeck(design);
         var deck = router.Pick((40, 300, -60), (0, -1, 0), 1000)!.Value;
         Assert.Equal(top.Id, deck.Owner);
-        Assert.Equal(65f, deck.Point.y, 1);
+        Assert.Equal(DeckTop(design), deck.Point.y, 1);
         Assert.Equal(1f, deck.Normal.y, 2);
         Assert.False(deck.Wheel);
         // The left wheel: 65 mm across, 26 mm wide, its middle at x = -77.5.
@@ -377,9 +385,10 @@ public class WireRouterTests
         var design = DesignPresets.ObstacleAvoiderKit();
         var wire = KitWire(design, "motor1", "M+");
         var top = TopDeck(design);
-        wire.Points.Add(new WirePoint { X = -70, Y = 50, Z = 10 });                              // out beside the decks
-        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (-45, 65, 30), (0, 1, 0))!);   // glued on the deck
-        wire.Points.Add(new WirePoint { X = 10, Y = 95, Z = 40 });                               // up over the L298N
+        float deck = DeckTop(design);
+        wire.Points.Add(new WirePoint { X = -70, Y = deck - 15, Z = 10 });                        // out beside the decks
+        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (-45, deck, 30), (0, 1, 0))!);  // glued on the deck
+        wire.Points.Add(new WirePoint { X = 10, Y = deck + 30, Z = 40 });                         // up over the L298N
         var path = new WireRouter(design).Path(design, wire)!;
         Assert.Equal(3, path.Anchors.Count);
         for (int i = 1; i < 3; i++) Assert.True(path.Anchors[i].Index > path.Anchors[i - 1].Index, "in order along the wire");

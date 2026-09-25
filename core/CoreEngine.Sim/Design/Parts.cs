@@ -220,9 +220,11 @@ namespace CoreEngine.Sim.Design
                 new PinDef("+", "+ · red lead (≈ 6 V)", PinKind.Power, 12, 5, -31.5f, PinStyle.Lead, 0, 0, -1),
                 new PinDef("-", "− · black lead", PinKind.Ground, -12, 5, -31.5f, PinStyle.Lead, 0, 0, -1))
                 .Frame((0, 0, 0), (0, -7.5f, 0), (0, -1, 0)),
-            // The caster's frame is the middle of its 20 mm ball; the holder's flange screws under a plate.
-            new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 22, 35, 22, 15, 1)
-                .Frame((0, 7.5f, 0), (0, 25, 0), (0, 1, 0)),
+            // The caster's frame is the middle of its 20 mm ball; the holder's flange screws under a plate on brass
+            // spacers, 43.5 mm from the plate to the floor: the height of a 65 mm wheel on a TT motor under the same
+            // plate (its shaft 11 mm below it), so the robot stands level.
+            new PartDef(Caster, "Ball caster 20 mm", PartKind.Caster, MountKind.Caster, 22, 43.5f, 22, 15, 1)
+                .Frame((0, 11.75f, 0), (0, 33.5f, 0), (0, 1, 0)),
             // The SG90 stands on its base, its output shaft toward +x with the horn on top; its lead leaves the -x
             // end and doubles back along its side to the 3-way socket, whose mouth faces +x: brown GND, red V+,
             // orange signal, as on the real lead.
