@@ -544,7 +544,7 @@ namespace CoreEngine.Spike.Garage
 
         void BuildCaster(Transform t)
         {
-            Cylinder(t, new Vector3(0, 0.014f, 0), 0.022f, 0.022f, Axis.Y, darkMetal, "CasterHolder");
+            Cylinder(t, new Vector3(0, 0.0183f, 0), 0.022f, 0.0304f, Axis.Y, darkMetal, "CasterHolder");
             Sphere(t, Vector3.zero, 0.02f, metal, "CasterBall");
         }
 

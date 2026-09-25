@@ -1484,3 +1484,63 @@
     background-color: rgb(79, 193, 255);
     color: rgb(12, 16, 22);
 }
+
+/* ---- part pictures and icons in the panels (GaragePartPictures.cs; the owner, 2026-09-25) ---- */
+.part-picture {
+    color: rgb(110, 200, 255);
+}
+.shape-button .shape-icon.part-picture {
+    width: 58px;
+    height: 50px;
+    margin-bottom: 2px;
+}
+.shape-row-icon.part-picture {
+    width: 30px;
+    height: 24px;
+    margin: -3px 6px -3px -3px;
+}
+.feature-title-icon.part-picture {
+    width: 52px;
+    height: 44px;
+}
+.section-row {
+    flex-direction: row;
+    align-items: center;
+    margin: 10px 0 6px 0;
+}
+.section-row > .section-title {
+    margin: 0;
+}
+.section-icon {
+    width: 15px;
+    height: 15px;
+    margin-right: 6px;
+    color: rgb(79, 193, 255);
+}
+.look-button {
+    flex-direction: row;
+    align-items: center;
+    height: 30px;
+    padding: 0 8px 0 4px;
+}
+.look-picture {
+    width: 26px;
+    height: 24px;
+    margin-right: 4px;
+    color: rgb(110, 200, 255);
+}
+.seg-icon {
+    width: 14px;
+    height: 14px;
+    margin: 0 5px 0 4px;
+}
+.part-row-picture {
+    width: 34px;
+    height: 28px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    color: rgb(110, 200, 255);
+}
+.part-row > .part-name {
+    flex-grow: 1;
+}

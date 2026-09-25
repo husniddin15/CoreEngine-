@@ -76,7 +76,8 @@ namespace CoreEngine.Spike.Parts
 
     /// <summary>
     /// A 20 mm ball caster (docs/09 §9): the chrome ball held by a black housing below its equator, the housing
-    /// rising to a square flange with two screw holes that fixes it under a plate. Frame: the ball's middle.
+    /// rising to a square flange with two screw holes, and brass spacers up to the plate it hangs from, 43.5 mm
+    /// above the floor, as high as a TT motor's plate. Frame: the ball's middle.
     /// </summary>
     static class CasterModel
     {
@@ -97,7 +98,7 @@ namespace CoreEngine.Spike.Parts
             {
                 // A brass hex spacer from each ear up to the plate, the screw's head under the ear.
                 var at = new Vector3(side * 8f, 11.8f, 0);
-                k.Cylinder(b[PartLooks.Brass], at, at + Vector3.up * 13.2f, 2.3f, 6, 0.15f);
+                k.Cylinder(b[PartLooks.Brass], at, at + Vector3.up * 21.7f, 2.3f, 6, 0.15f);
                 k.Cylinder(b[PartLooks.Nickel], at - Vector3.up * 2.6f, at - Vector3.up * 3.8f, 2.6f, 20, 0.4f);
             }
             return b.Finish("Ball caster");

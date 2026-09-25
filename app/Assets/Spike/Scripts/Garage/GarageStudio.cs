@@ -273,7 +273,7 @@ namespace CoreEngine.Spike.Garage
                 foreach (var def in PartCatalog.All)
                 {
                     string id = def.Id;
-                    var button = ShapeButton(PartIcon(def.Kind), def.Name, () => AddPartFromLibrary(id), literal: true);
+                    var button = ShapeButton(PartIcon(def.Kind), def.Name, () => AddPartFromLibrary(id), literal: true, partId: id);
                     button.AddToClassList("part-button");
                     button.Add(Classed(new Label(), "part-count"));
                     partButtons[id] = button;
@@ -386,11 +386,12 @@ namespace CoreEngine.Spike.Garage
             return button;
         }
 
-        Button ShapeButton(Icon icon, string key, Action onClick, bool literal = false)
+        /// <summary>A library tile: a shape's line icon, or a part's picture (<paramref name="partId"/>).</summary>
+        Button ShapeButton(Icon icon, string key, Action onClick, bool literal = false, string? partId = null)
         {
             var button = new Button(onClick) { focusable = false };
             button.AddToClassList("shape-button");
-            button.Add(Classed(new IconView(icon), "shape-icon"));
+            button.Add(partId == null ? Classed(new IconView(icon), "shape-icon") : PartImage(partId, icon, "shape-icon"));
             button.Add(Classed(new Label(literal ? key : Tr(key)), "shape-label"));
             return button;
         }
@@ -1571,7 +1572,7 @@ namespace CoreEngine.Spike.Garage
             foreach (var part in Design.Parts)
             {
                 var def = PartCatalog.Get(part.Part);
-                sideContent.Add(ItemRow(new Pick(true, part.Id), def == null ? Icon.Chip : PartIcon(def.Kind), PartName(part), ""));
+                sideContent.Add(ItemRow(new Pick(true, part.Id), def == null ? Icon.Chip : PartIcon(def.Kind), PartName(part), "", def?.Id));
             }
             float lowest = DesignGeometry.LowestPoint(Design);
             if (Mathf.Abs(lowest) >= 0.5f && (top.Count > 0 || Design.Parts.Count > 0))
@@ -1589,7 +1590,8 @@ namespace CoreEngine.Spike.Garage
             Info("body.stlNote");
         }
 
-        VisualElement ItemRow(Pick p, Icon icon, string name, string tag)
+        /// <summary>A line of the list of what is on the body: a shape's icon or a part's picture, its name, ✕.</summary>
+        VisualElement ItemRow(Pick p, Icon icon, string name, string tag, string? partId = null)
         {
             var row = new VisualElement();
             row.AddToClassList("shape-row");
@@ -1597,7 +1599,7 @@ namespace CoreEngine.Spike.Garage
             {
                 if (e.target is not Button) Select(p);
             });
-            row.Add(Classed(new IconView(icon), "shape-row-icon"));
+            row.Add(partId == null ? Classed(new IconView(icon), "shape-row-icon") : PartImage(partId, icon, "shape-row-icon"));
             row.Add(Classed(new Label(name), "shape-row-name"));
             if (tag.Length > 0) row.Add(Classed(new Label(tag), "shape-row-tag"));
             var remove = new Button(() => DeleteItem(p)) { text = "✕", focusable = false };
@@ -1622,7 +1624,7 @@ namespace CoreEngine.Spike.Garage
         {
             var def = PartCatalog.Get(part.Part);
             var title = Layout("feature-title");
-            title.Add(Classed(new IconView(def == null ? Icon.Chip : PartIcon(def.Kind)), "feature-title-icon"));
+            title.Add(def == null ? Classed(new IconView(Icon.Chip), "feature-title-icon") : PartImage(def.Id, PartIcon(def.Kind), "feature-title-icon"));
             title.Add(Classed(new Label(PartName(part)), "part-title"));
             sideContent.Add(title);
             if (def != null)

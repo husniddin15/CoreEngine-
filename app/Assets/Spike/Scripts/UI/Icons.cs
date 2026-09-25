@@ -10,6 +10,7 @@ namespace CoreEngine.Spike.UI
         ShapeBox, ShapeRounded, ShapeCylinder, ShapeCone, ShapeSphere, ShapeWedge, ShapeTube, Draw, Import, Export,
         Move, Rotate, Size, Undo, Redo, Duplicate, Mirror, Trash, Eye, Drop, Solid, Hole, Frame,
         Plate, Driver, Sonar, Motor, Caster, Servo, Led,
+        Glue, Bend, Route, Question,
     }
 
     /// <summary>
@@ -419,6 +420,47 @@ namespace CoreEngine.Spike.UI
                     Poly(false, false, 20, 15, 20, 20, 15, 20);
                     Poly(false, false, 9, 20, 4, 20, 4, 15);
                     Circle(12, 12, 2, true);
+                    break;
+                case Icon.Glue: // a glue bottle with its nozzle, and a drop
+                    Poly(true, false, 5, 21, 5, 12, 7, 9.5f, 11, 9.5f, 13, 12, 13, 21);
+                    Poly(false, false, 7.5f, 9.5f, 8.5f, 5.5f, 9.5f, 5.5f, 10.5f, 9.5f);
+                    Line(9, 5.5f, 9, 3);
+                    Line(5, 15, 13, 15);
+                    p.BeginPath();
+                    p.MoveTo(P(18, 9));
+                    p.BezierCurveTo(P(16.2f, 12), P(15.5f, 13.3f), P(15.5f, 14.5f));
+                    p.BezierCurveTo(P(15.5f, 16), P(16.6f, 17), P(18, 17));
+                    p.BezierCurveTo(P(19.4f, 17), P(20.5f, 16), P(20.5f, 14.5f));
+                    p.BezierCurveTo(P(20.5f, 13.3f), P(19.8f, 12), P(18, 9));
+                    p.ClosePath();
+                    p.Fill();
+                    break;
+                case Icon.Bend: // a wire bending smoothly through a point
+                    p.BeginPath();
+                    p.MoveTo(P(3, 19));
+                    p.BezierCurveTo(P(9, 19), P(8, 12), P(12, 12));
+                    p.BezierCurveTo(P(16, 12), P(15, 5), P(21, 5));
+                    p.Stroke();
+                    Circle(12, 12, 2.6f);
+                    break;
+                case Icon.Route: // a way found between two ends, with a spark: done by itself
+                    Circle(5, 19, 1.8f, true);
+                    Circle(15, 5, 1.8f, true);
+                    p.BeginPath();
+                    p.MoveTo(P(5, 19));
+                    p.BezierCurveTo(P(5, 11), P(15, 13), P(15, 5));
+                    p.Stroke();
+                    Line(19.5f, 12.5f, 19.5f, 19.5f);
+                    Line(16, 16, 23, 16);
+                    break;
+                case Icon.Question:
+                    Circle(12, 12, 9.5f);
+                    p.BeginPath();
+                    p.MoveTo(P(9, 9.5f));
+                    p.BezierCurveTo(P(9, 6.3f), P(15, 6.3f), P(15, 9.5f));
+                    p.BezierCurveTo(P(15, 12), P(12, 11.6f), P(12, 14.3f));
+                    p.Stroke();
+                    Circle(12, 17.6f, 1.1f, true);
                     break;
             }
         }

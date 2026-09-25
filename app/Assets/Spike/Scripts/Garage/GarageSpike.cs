@@ -651,11 +651,22 @@ namespace CoreEngine.Spike.Garage
 
         void Section(string key) => sideContent.Add(Classed(new Label(Tr(key)), "section-title"));
 
+        /// <summary>A section title with its icon in front, so a panel reads at a glance.</summary>
+        void Section(string key, Icon icon) => sideContent.Add(IconTitle(icon, Tr(key)));
+
+        static VisualElement IconTitle(Icon icon, string text)
+        {
+            var row = Layout("section-row");
+            row.Add(Classed(new IconView(icon), "section-icon"));
+            row.Add(Classed(new Label(text), "section-title"));
+            return row;
+        }
+
         void RenderCustomize()
         {
-            Section("cust.body");
+            Section("cust.body", Icon.Body);
             Swatches(FinishTarget.Body);
-            Section("cust.wheels");
+            Section("cust.wheels", Icon.Motor);
             Swatches(FinishTarget.Wheels);
             var robot = Robot;
             if (robot.IsTrying)
@@ -720,7 +731,7 @@ namespace CoreEngine.Spike.Garage
         {
             var robot = Robot;
             var design = robot.Design;
-            Section("rep.readiness");
+            Section("rep.readiness", Icon.Repair);
             if (design.Parts.Count == 0)
             {
                 Info("warn.noBoard");
@@ -745,7 +756,7 @@ namespace CoreEngine.Spike.Garage
                 ? Classed(new Label("✓ " + Tr("rep.wiringOk")), "ok-line")
                 : Classed(new Label("⚠ " + SpikeStrings.Format("rep.wiringBad", problems)), "warn-line"));
 
-            Section("rep.parts");
+            Section("rep.parts", Icon.Parts);
             foreach (var part in design.Parts)
             {
                 var def = PartCatalog.Get(part.Part);
@@ -756,52 +767,55 @@ namespace CoreEngine.Spike.Garage
                     {
                         // The side its wheel is on, as the arena gives each side its winding model.
                         bool right = DesignGeometry.SideOf(part) == "right";
-                        MotorRow(right ? robot.RightMotor : robot.LeftMotor, right ? "side.right" : "side.left");
+                        MotorRow(right ? robot.RightMotor : robot.LeftMotor, right ? "side.right" : "side.left", part.Part);
                         break;
                     }
                     case PartKind.Battery:
-                        PartRow(SpikeStrings.Format("rep.battery", robot.Battery.StateOfCharge * 100), robot.Battery.IsEmpty ? Tr("rep.burnt") : Tr("rep.ok"), !robot.Battery.IsEmpty);
+                        PartRow(SpikeStrings.Format("rep.battery", robot.Battery.StateOfCharge * 100), robot.Battery.IsEmpty ? Tr("rep.burnt") : Tr("rep.ok"), !robot.Battery.IsEmpty, part.Part);
                         if (robot.Battery.StateOfCharge < 0.999)
-                            sideContent.Add(SmallButton("rep.replaceBatteries", () => { robot.Battery.Replace(); AfterRobotChanged(false); }));
+                            sideContent.Add(IconSmallButton(Icon.Battery, "rep.replaceBatteries", () => { robot.Battery.Replace(); AfterRobotChanged(false); }));
                         break;
                     case PartKind.Board:
-                        BurnablePartRow(def.Name, robot.BoardBurnt, () => robot.BoardBurnt = false, "rep.whyF7");
+                        BurnablePartRow(def.Name, robot.BoardBurnt, () => robot.BoardBurnt = false, "rep.whyF7", part.Part);
                         break;
                     case PartKind.Ultrasonic:
-                        BurnablePartRow(def.Name, robot.SonarBurnt, () => robot.SonarBurnt = false, "rep.whyF26");
+                        BurnablePartRow(def.Name, robot.SonarBurnt, () => robot.SonarBurnt = false, "rep.whyF26", part.Part);
                         break;
                     default:
-                        PartRow(def.Name, Tr("rep.ok"), true);
+                        PartRow(def.Name, Tr("rep.ok"), true, part.Part);
                         break;
                 }
             }
         }
 
         /// <summary>A part that a wiring fault can destroy (F7, F26): its state, and Replace with Why when it burnt out.</summary>
-        void BurnablePartRow(string name, bool burnt, Action replace, string whyKey)
+        void BurnablePartRow(string name, bool burnt, Action replace, string whyKey, string partId)
         {
-            PartRow(name, burnt ? Tr("rep.burnt") : Tr("rep.ok"), !burnt);
+            PartRow(name, burnt ? Tr("rep.burnt") : Tr("rep.ok"), !burnt, partId);
             if (!burnt) return;
             var buttons = Layout("repair-buttons");
-            buttons.Add(SmallButton("rep.replace", () => { replace(); AfterRobotChanged(false); }));
-            buttons.Add(SmallButton("rep.why", () => ShowPage("rep.why", whyKey)));
+            buttons.Add(IconSmallButton(Icon.Build, "rep.replace", () => { replace(); AfterRobotChanged(false); }));
+            buttons.Add(IconSmallButton(Icon.Question, "rep.why", () => ShowPage("rep.why", whyKey)));
             sideContent.Add(buttons);
         }
 
-        void MotorRow(MotorWinding motor, string sideKey)
+        void MotorRow(MotorWinding motor, string sideKey, string partId)
         {
             string text = SpikeStrings.Format("rep.motor", Tr(sideKey), motor.TemperatureC, motor.PeakC);
-            PartRow(text, motor.Burnt ? Tr("rep.burnt") : Tr("rep.ok"), !motor.Burnt);
+            PartRow(text, motor.Burnt ? Tr("rep.burnt") : Tr("rep.ok"), !motor.Burnt, partId);
             if (!motor.Burnt) return;
             var buttons = Layout("repair-buttons");
-            buttons.Add(SmallButton("rep.replace", () => { motor.Replace(); AfterRobotChanged(false); }));
-            buttons.Add(SmallButton("rep.why", () => ShowPage("rep.why", "rep.whyF18")));
+            buttons.Add(IconSmallButton(Icon.Build, "rep.replace", () => { motor.Replace(); AfterRobotChanged(false); }));
+            buttons.Add(IconSmallButton(Icon.Question, "rep.why", () => ShowPage("rep.why", "rep.whyF18")));
             sideContent.Add(buttons);
         }
 
-        Label PartRow(string name, string status, bool ok)
+        /// <summary>One part's line in Check &amp; repair: its picture, its name and state.</summary>
+        Label PartRow(string name, string status, bool ok, string? partId = null)
         {
             var row = Layout("part-row");
+            var def = partId == null ? null : PartCatalog.Get(partId);
+            if (def != null) row.Add(PartImage(def.Id, PartIcon(def.Kind), "part-row-picture"));
             row.Add(Classed(new Label(name), "part-name"));
             var label = Classed(new Label(status), ok ? "status-ok" : "status-bad");
             row.Add(label);
@@ -1034,6 +1048,7 @@ namespace CoreEngine.Spike.Garage
         IEnumerator RenderAllThumbnails()
         {
             for (int i = 0; i < GarageState.Robots.Count; i++) yield return RenderThumbnail(i);
+            yield return RenderPartPictures();
         }
 
         /// <summary>Renders one robot off-screen and copies the image into its card's thumbnail.</summary>

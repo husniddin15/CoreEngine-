@@ -244,24 +244,30 @@ namespace CoreEngine.Spike.Garage
         {
             var wire = ChosenWire;
             if (wire == null) return;
-            Section("wire.shape");
+            Section("wire.shape", Icon.Bend);
             int glued = wire.Points.FindAll(p => p.Glued).Count;
             sideContent.Add(Classed(new Label(Tr(gluing ? "wire.gluingHint" : "wire.shapeHint")), gluing ? "try-line" : "info-text"));
             var row = Layout("seg-row");
-            var glue = new Button(ToggleGluing) { text = Tr("wire.glue"), focusable = false };
+            var glue = new Button(ToggleGluing) { focusable = false };
+            glue.Add(Classed(new IconView(Icon.Glue), "seg-icon"));
+            glue.Add(new Label(Tr("wire.glue")));
             glue.AddToClassList("seg-button");
+            glue.AddToClassList("look-button");
             glue.EnableInClassList("seg-button--active", gluing);
             row.Add(glue);
-            var straighten = new Button(StraightenChosenWire) { text = Tr("wire.straighten"), focusable = false };
+            var straighten = new Button(StraightenChosenWire) { focusable = false };
+            straighten.Add(Classed(new IconView(Icon.Route), "seg-icon"));
+            straighten.Add(new Label(Tr("wire.straighten")));
             straighten.AddToClassList("seg-button");
+            straighten.AddToClassList("look-button");
             straighten.SetEnabled(wire.Points.Count > 0);
             row.Add(straighten);
             sideContent.Add(row);
             if (wire.Points.Count > 0) sideContent.Add(Classed(new Label(SpikeStrings.Format("wire.points", wire.Points.Count, glued)), "bin-sub"));
             if (selectedPoint < 0 || selectedPoint >= wire.Points.Count) return;
             var buttons = Layout("repair-buttons");
-            buttons.Add(SmallButton(wire.Points[selectedPoint].Glued ? "wire.unglue" : "wire.gluePoint", GlueOrFreeChosenPoint));
-            buttons.Add(SmallButton("wire.removePoint", RemoveChosenPoint));
+            buttons.Add(IconSmallButton(Icon.Glue, wire.Points[selectedPoint].Glued ? "wire.unglue" : "wire.gluePoint", GlueOrFreeChosenPoint));
+            buttons.Add(IconSmallButton(Icon.Trash, "wire.removePoint", RemoveChosenPoint));
             sideContent.Add(buttons);
         }
 
@@ -365,7 +371,8 @@ namespace CoreEngine.Spike.Garage
             // Glue, then a click on an open spot of the top deck that the camera sees.
             var deck = Design.Body.Features.Find(f => f.Kind == FeatureKind.Plate && f.Y > 60);
             Vector2? spot = null;
-            foreach (var mm in new[] { new Vector3(-40, 65, 40), new Vector3(-45, 65, 20), new Vector3(-20, 65, 60), new Vector3(40, 65, 60), new Vector3(45, 65, -60) })
+            float deckTop = deck == null ? 0 : deck.Y + deck.SizeY / 2;
+            foreach (var mm in new[] { new Vector3(-40, deckTop, 40), new Vector3(-45, deckTop, 20), new Vector3(-20, deckTop, 60), new Vector3(40, deckTop, 60), new Vector3(45, deckTop, -60) })
             {
                 var screen = Screen2(WorldOf(mm));
                 if (deck != null && RobotSurfaceUnder(view.ScreenPointToRay(screen))?.Owner == deck.Id)
@@ -375,7 +382,7 @@ namespace CoreEngine.Spike.Garage
                 }
             }
             Button? glueButton = null;
-            sideContent.Query<Button>().ForEach(b => { if (b.text == Tr("wire.glue")) glueButton = b; });
+            sideContent.Query<Button>().ForEach(b => { if (b.Q<Label>()?.text == Tr("wire.glue")) glueButton = b; });
             if (glueButton != null) yield return ClickElement(glueButton);
             bool gluingOn = gluing;
             if (spot != null) yield return MouseClick(spot.Value);

@@ -858,25 +858,31 @@ namespace CoreEngine.Spike.Garage
             }
             RenderWireShape(); // first, when a wire is chosen: what can be done with it
 
-            Section("wire.lookAt");
+            Section("wire.lookAt", Icon.Eye);
             var look = Layout("seg-row");
             foreach (var part in design.Parts)
             {
                 var def = PartCatalog.Get(part.Part);
                 if (def == null || def.Pins.Count == 0) continue;
                 string id = part.Id;
-                var button = new Button(() => FocusPart(id)) { text = PartLabel(id), focusable = false };
+                var button = new Button(() => FocusPart(id)) { focusable = false };
                 button.AddToClassList("seg-button");
+                button.AddToClassList("look-button");
                 button.EnableInClassList("seg-button--active", id == focusedPart);
+                button.Add(PartImage(def.Id, PartIcon(def.Kind), "look-picture"));
+                button.Add(new Label(PartLabel(id)));
                 look.Add(button);
             }
-            var whole = new Button(ViewWholeRobot) { text = Tr("wire.whole"), focusable = false };
+            var whole = new Button(ViewWholeRobot) { focusable = false };
+            whole.Add(Classed(new IconView(Icon.Frame), "look-picture"));
+            whole.Add(new Label(Tr("wire.whole")));
             whole.AddToClassList("seg-button");
+            whole.AddToClassList("look-button");
             whole.EnableInClassList("seg-button--active", focusedPart == null);
             look.Add(whole);
             sideContent.Add(look);
 
-            Section("wire.byList");
+            Section("wire.byList", Icon.Wire);
             var (labels, keys) = PinChoices(design);
             if (!keys.Contains(listFrom)) listFrom = keys.Count > 0 ? keys[0] : "";
             if (!keys.Contains(listTo)) listTo = keys.Count > 1 ? keys[1] : listFrom;
@@ -889,9 +895,9 @@ namespace CoreEngine.Spike.Garage
             sideContent.Add(fromField);
             sideContent.Add(Classed(new Label("↓"), "bin-sub"));
             sideContent.Add(toField);
-            sideContent.Add(SmallButton("wire.addFromList", () => ConnectPins(listFrom, listTo)));
+            sideContent.Add(IconSmallButton(Icon.Plus, "wire.addFromList", () => ConnectPins(listFrom, listTo)));
 
-            Section("wire.colour");
+            Section("wire.colour", Icon.Customize);
             var palette = Layout("palette");
             foreach (string colour in Palette)
             {
@@ -909,13 +915,13 @@ namespace CoreEngine.Spike.Garage
             sideContent.Add(palette);
             if (wireColour == "auto") sideContent.Add(Classed(new Label(Tr("wire.auto")), "bin-sub"));
 
-            Section("wire.check");
+            Section("wire.check", Icon.Check);
             var circuit = CircuitAnalysis.Analyse(design);
             if (!circuit.HasProblems) sideContent.Add(Classed(new Label(Tr("wire.ok")), "ok-line"));
             foreach (var warning in circuit.Warnings)
                 sideContent.Add(Classed(new Label((warning.Info ? "" : "⚠ ") + WarningText(warning)), warning.Info ? "info-line" : "warn-line"));
 
-            sideContent.Add(Classed(new Label(SpikeStrings.Format("wire.list", design.Wires.Count)), "section-title"));
+            sideContent.Add(IconTitle(Icon.Wire, SpikeStrings.Format("wire.list", design.Wires.Count)));
             if (design.Wires.Count == 0) Info("wire.none");
             for (int i = 0; i < design.Wires.Count; i++)
             {
@@ -937,7 +943,7 @@ namespace CoreEngine.Spike.Garage
                 row.Add(remove);
                 sideContent.Add(row);
             }
-            sideContent.Add(SmallButton("edit.undo", Undo));
+            sideContent.Add(IconSmallButton(Icon.Undo, "edit.undo", Undo));
         }
 
         // ------------------------------------------------------------------ STL export
@@ -1007,7 +1013,7 @@ namespace CoreEngine.Spike.Garage
             yield return CarryTo(new Vector3(0, 0, 0));
             var bottom = SelectedFeature!;
             bool onWorkplane = bottom.Kind == FeatureKind.Plate && Mathf.Abs(bottom.Y - bottom.SizeY / 2) < 0.01f && bottom.Material == BodyMaterial.Acrylic;
-            yield return Type(1, 36.5f);
+            yield return Type(1, 45f);
             yield return WaitForBody();
             yield return Frames(2);
 
@@ -1015,16 +1021,16 @@ namespace CoreEngine.Spike.Garage
             // on it, the battery holder. Each rides the mouse from its tile and lands where the mouse points.
             yield return ClickElement(tabButtons[LibraryTab.Parts]);
             yield return ClickElement(partButtons[PartCatalog.TtMotor]);
-            yield return CarryTo(new Vector3(-50, 38, -30));
+            yield return CarryTo(new Vector3(-50, 46.5f, -30));
             var left = SelectedPart!;
             yield return ClickElement(partButtons[PartCatalog.TtMotor]);
-            yield return CarryTo(new Vector3(50, 38, -30));
+            yield return CarryTo(new Vector3(50, 46.5f, -30));
             var right = SelectedPart!;
             yield return Type(4, 180);
             yield return ClickElement(partButtons[PartCatalog.Caster]);
-            yield return CarryTo(new Vector3(0, 38, 65));
+            yield return CarryTo(new Vector3(0, 46.5f, 65));
             yield return ClickElement(partButtons[PartCatalog.Battery4AA]);
-            yield return CarryTo(new Vector3(0, 38, -5));
+            yield return CarryTo(new Vector3(0, 46.5f, -5));
             var battery = SelectedPart!;
             yield return Frames(2);
             bool partHandles = SizeHandleCount() == 0 && HandleScreen(Grip.Lift, 1, 1) != null && HandleScreen(Grip.Turn, 1, 1) != null;
@@ -1032,7 +1038,7 @@ namespace CoreEngine.Spike.Garage
             var rightWheel = DesignGeometry.WheelCentre(right);
             bool hung = Mathf.Abs(leftWheel.x + 77.5f) < 0.1f && Mathf.Abs(leftWheel.y - 32.5f) < 0.2f && Mathf.Abs(rightWheel.x - 77.5f) < 0.1f
                         && DesignGeometry.SideOf(right) == "right" && Mathf.Abs(DesignGeometry.LowestPoint(Design)) < 0.2f;
-            bool onPlate = Mathf.Abs(battery.Y - 45.5f) < 0.2f;
+            bool onPlate = Mathf.Abs(battery.Y - 54f) < 0.2f;
 
             // The right motor's button puts its wheel on the other end of the shaft: under the robot, since this
             // motor is turned round; an undo puts it back outside.
@@ -1060,7 +1066,7 @@ namespace CoreEngine.Spike.Garage
                 yield return Type(7, 24);
                 yield return Type(8, 5);
                 yield return Type(0, x); // the mouse lands it on the plate in front; typing puts it exactly
-                yield return Type(1, 50);
+                yield return Type(1, 58.5f);
                 yield return Type(2, z);
             }
             yield return ClickElement(MaterialButton(BodyMaterial.Acrylic));
@@ -1068,7 +1074,7 @@ namespace CoreEngine.Spike.Garage
             yield return ClickElement(paletteButtons[0]);
             yield return CarryTo(new Vector3(0, 0, 0));
             yield return Type(0, 0);
-            yield return Type(1, 63.5f);
+            yield return Type(1, 72f);
             yield return Type(2, 0);
             yield return WaitForBody();
             yield return Frames(2);
@@ -1076,16 +1082,16 @@ namespace CoreEngine.Spike.Garage
             // On the top deck: the Uno (turned a quarter), the L298N, and the sensor on its bracket at the front.
             yield return ClickElement(tabButtons[LibraryTab.Parts]);
             yield return ClickElement(partButtons[PartCatalog.Uno]);
-            yield return CarryTo(new Vector3(-28, 65, -35));
+            yield return CarryTo(new Vector3(-28, 73.5f, -35));
             yield return Type(4, 270);
             yield return ClickElement(partButtons[PartCatalog.L298N]);
-            yield return CarryTo(new Vector3(30, 65, 22));
+            yield return CarryTo(new Vector3(30, 73.5f, 22));
             yield return ClickElement(partButtons[PartCatalog.HcSr04]);
-            yield return CarryTo(new Vector3(0, 65, 75));
+            yield return CarryTo(new Vector3(0, 73.5f, 75));
             var uno = Design.Parts.Find(p => p.Part == PartCatalog.Uno);
-            bool onDeck = uno != null && Mathf.Abs(uno.Y - 65.05f) < 0.2f && Mathf.Abs(Mathf.DeltaAngle(uno.Rotation, 270)) < 0.01f;
+            bool onDeck = uno != null && Mathf.Abs(uno.Y - 73.55f) < 0.2f && Mathf.Abs(Mathf.DeltaAngle(uno.Rotation, 270)) < 0.01f;
             var sensor = Design.Parts.Find(p => p.Part == PartCatalog.HcSr04);
-            bool facing = sensor != null && DesignGeometry.SonarAim(sensor).z > 0.99f && Mathf.Abs(sensor.Y - 81.05f) < 0.2f;
+            bool facing = sensor != null && DesignGeometry.SonarAim(sensor).z > 0.99f && Mathf.Abs(sensor.Y - 89.55f) < 0.2f;
             bool refused = Design.AddPart(PartCatalog.TtMotor) == null; // an L298N drives two motors
             selection.Clear();
             SelectionChanged();

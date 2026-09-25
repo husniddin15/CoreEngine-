@@ -7,11 +7,12 @@ namespace CoreEngine.Spike.Parts
     /// The yellow TT gear motor, 1:48 (docs/09 §6): the moulded gearbox with its shaft bosses and mounting holes,
     /// the white double-sided output shaft (the wheel on the -x side), the silver FA-130 can in the gearbox's
     /// cradle, and the black end cap with its brass tabs and the red dot by M+. Frame: the gearbox's middle; the
-    /// shaft runs along x at y = 8.5 (docs: DesignGeometry.WheelInMotor). The wheel is its own mesh, as it turns.
+    /// shaft runs along x halfway up the gearbox, as on the real motor (DesignGeometry.WheelInMotor; until
+    /// 2026-09-25 it sat near the top edge). The wheel is its own mesh, as it turns.
     /// </summary>
     static class MotorModel
     {
-        const float ShaftY = 8.5f;
+        const float ShaftY = 0f;
         static readonly Color Yellow = new Color(0.97f, 0.74f, 0.10f);
 
         public static PartModel Make()

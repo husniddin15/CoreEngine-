@@ -165,7 +165,7 @@ namespace CoreEngine.Spike.Garage
                     Arena = file?.Arena ?? 0;
                     if ((file?.Version ?? 0) < 2) RestoreHoledChassis();
                     if ((file?.Version ?? 0) < DesignMigration.Version)
-                        foreach (var robot in Robots) if (robot.Design != null) DesignMigration.Upgrade(robot.Design);
+                        foreach (var robot in Robots) if (robot.Design != null) DesignMigration.Upgrade(robot.Design, file?.Version ?? 0);
                 }
                 catch (Exception e)
                 {
