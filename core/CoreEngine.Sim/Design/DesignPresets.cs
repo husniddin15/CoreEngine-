@@ -119,6 +119,20 @@ namespace CoreEngine.Sim.Design
             return d;
         }
 
+        /// <summary>
+        /// The owner's third robot as it was at 21:30 on 2026-09-25: its plate dragged 17.5 cm to the left and 8 cm
+        /// forward in the Studio, so nothing holds the parts together (<see cref="RobotPieces"/>). For tests and the
+        /// benchmark.
+        /// </summary>
+        public static RobotDesign DraggedPlate()
+        {
+            var d = NoCasterTwoWheeler();
+            var plate = d.Body.Features.Find(f => f.Kind == FeatureKind.Box)!;
+            plate.X = -190;
+            plate.Z = 125;
+            return d;
+        }
+
         /// <summary>A new robot: nothing yet. The player builds the body from shapes and places every part (docs/03 §3.1).</summary>
         public static RobotDesign Empty() => new RobotDesign { Body = new BodyDesign { Decks = 0 } };
     }

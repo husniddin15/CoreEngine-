@@ -45,6 +45,9 @@ namespace CoreEngine.Sim.Design
         /// </summary>
         public static RobotStance Of(RobotDesign design)
         {
+            // Only what holds together with the wheels stands on them; loose pieces fall away (RobotPieces).
+            var pieces = RobotPieces.Of(design);
+            if (!pieces.AllAttached) design = pieces.Keep(design, pieces.Main);
             var wheels = new List<PartInstance>();
             foreach (var part in design.Parts)
                 if (PartCatalog.Get(part.Part)?.Kind == PartKind.Motor && Math.Abs(DesignGeometry.WheelAxis(part).y) < 0.5f) wheels.Add(part);

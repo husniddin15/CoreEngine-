@@ -58,7 +58,9 @@ public class ProcessRunnerTests
             File.Copy(Path.Combine(golden, "Sketches", "Blink", "Blink.ino"), Path.Combine(sketch, "Blink.ino"));
             var result = compiler.Compile(sketch, "arduino:avr:uno", Path.Combine(root, "build dir"), Path.Combine(root, "out dir"), TimeSpan.FromMinutes(3));
             Assert.True(result.Success, result.Output);
-            Assert.Equal(File.ReadAllText(Path.Combine(golden, "Hex", "Blink.hex")), File.ReadAllText(result.HexPath!));
+            // The same records, whichever line ends the checkout gave the golden file (.gitattributes: eol=lf).
+            static string Records(string path) => File.ReadAllText(path).Replace("\r\n", "\n");
+            Assert.Equal(Records(Path.Combine(golden, "Hex", "Blink.hex")), Records(result.HexPath!));
         }
         finally
         {

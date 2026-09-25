@@ -459,8 +459,8 @@ namespace CoreEngine.Sim.Design
                     }
         }
 
-        /// <summary>A part's box in the chassis frame (min and max corners), with its wheel for a motor.</summary>
-        public static ((float x, float y, float z) min, (float x, float y, float z) max) PartBounds(PartInstance part)
+        /// <summary>A part's box in the chassis frame (min and max corners), with its wheel for a motor unless <paramref name="wheel"/> is false.</summary>
+        public static ((float x, float y, float z) min, (float x, float y, float z) max) PartBounds(PartInstance part, bool wheel = true)
         {
             var def = PartCatalog.Get(part.Part);
             var min = (x: float.MaxValue, y: float.MaxValue, z: float.MaxValue);
@@ -476,7 +476,7 @@ namespace CoreEngine.Sim.Design
                 return (min, max);
             }
             foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), def.BoxCentre, (def.SizeX, def.SizeY, def.SizeZ))) Take(corner);
-            if (def.Kind == PartKind.Motor) // the wheel: 26 mm wide along the shaft, 65 mm across
+            if (def.Kind == PartKind.Motor && wheel) // the wheel: 26 mm wide along the shaft, 65 mm across
                 foreach (var corner in Corners(part.Turn, (part.X, part.Y, part.Z), WheelOffset(part), (WheelWidth, 2 * WheelRadius, 2 * WheelRadius))) Take(corner);
             return (min, max);
         }
