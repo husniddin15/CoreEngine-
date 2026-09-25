@@ -593,7 +593,7 @@ namespace CoreEngine.Spike.Garage
                     curve.Add(u * u * u * startA + 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s * startB);
                 }
             }
-            var mesh = ProceduralMeshes.Tube(curve, WireRadius, 8);
+            var mesh = ProceduralMeshes.Tube(curve, WireRadius, 12); // 12 sides: still round in a close-up
             var tube = MeshObject("Jumper", group, mesh, Vector3.zero, index == highlightedWire ? selectedWire : WireMaterial(wire.Color));
 
             var path = new List<Vector3> { a.Value.position };
