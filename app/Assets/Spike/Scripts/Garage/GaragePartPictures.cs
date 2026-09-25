@@ -75,7 +75,7 @@ namespace CoreEngine.Spike.Garage
                 yield return DrawDesign(design, Quaternion.Euler(flat ? 38f : 26f, 215f, 0), PicturePx, PicturePx, picture =>
                 {
                     partPictures[def.Id] = picture;
-                    if (SpikeReport.Active) System.IO.File.WriteAllBytes(SpikeReport.Shot("part-" + def.Id), picture.EncodeToPNG());
+                    Keep("part-" + def.Id, picture);
                 });
             }
             foreach (var kind in PaletteKinds)
@@ -86,7 +86,11 @@ namespace CoreEngine.Spike.Garage
                 shape.Colour = "#DCE3EC"; // light grey PLA: the shape reads by its shading on a dark tile
                 design.Body.AddFeature(shape);
                 float above = kind == FeatureKind.Plate ? 55f : 30f; // a thin plate shows its holes only from high up
-                yield return DrawDesign(design, Quaternion.Euler(above, 215f, 0), PicturePx, PicturePx, picture => shapePictures[kind] = picture);
+                yield return DrawDesign(design, Quaternion.Euler(above, 215f, 0), PicturePx, PicturePx, picture =>
+                {
+                    shapePictures[kind] = picture;
+                    Keep("shape-" + kind.ToString().ToLowerInvariant(), picture);
+                });
             }
             yield return RenderCardPictures();
             PicturesMs = watch.Elapsed.TotalMilliseconds;
@@ -95,6 +99,12 @@ namespace CoreEngine.Spike.Garage
         }
 
         static RobotDesign Stage() => new RobotDesign { Body = new BodyDesign { Decks = 0 } };
+
+        /// <summary>Saves a picture beside the benchmark's report (-part-…, -shape-…, -card-…), to look at.</summary>
+        static void Keep(string name, Texture2D picture)
+        {
+            if (SpikeReport.Active) System.IO.File.WriteAllBytes(SpikeReport.Shot(name), picture.EncodeToPNG());
+        }
 
         /// <summary>The action cards' pictures; Customize shows the robot's own thumbnail (<see cref="ShowCardPictures"/>).</summary>
         IEnumerator RenderCardPictures()
@@ -140,6 +150,7 @@ namespace CoreEngine.Spike.Garage
             if (monitor != null) yield return DrawInPlace(monitor, home, 0.15f, 1.02f, picture => cardPictures["act.code"] = picture);
             var meter = lab == null ? null : lab.transform.Find("Multimeter");
             if (meter != null) yield return DrawInPlace(meter, home, 1.4f, 1.1f, picture => cardPictures["act.repair"] = picture);
+            foreach (var card in cardPictures) Keep("card-" + card.Key.Substring("act.".Length), card.Value);
             ShowCardPictures();
         }
 

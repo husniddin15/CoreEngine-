@@ -1121,7 +1121,7 @@
 }
 .shape-button {
     width: 84px;
-    height: 74px;
+    min-height: 74px;
     margin: 0 0 8px 0;
     padding: 6px 4px;
     flex-direction: column;
@@ -1528,10 +1528,12 @@
 .part-picture {
     color: rgb(110, 200, 255);
 }
+/* A picture keeps its size; a tile with a two-line name ("Plate with holes") grows instead */
 .shape-button .shape-icon.part-picture {
     width: 58px;
     height: 50px;
     margin-bottom: 2px;
+    flex-shrink: 0;
 }
 .shape-row-icon.part-picture {
     width: 30px;
