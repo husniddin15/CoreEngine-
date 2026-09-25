@@ -303,42 +303,78 @@
 }
 .action-tile {
     width: 146px;
-    min-height: 104px;
+    min-height: 136px;
     flex-shrink: 0;
     margin: 0 0 8px 0;
-    padding: 12px;
+    padding: 0;
+    overflow: hidden;
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
     border-width: 1px;
     border-color: rgba(255, 255, 255, 0.07);
     border-radius: 10px;
-    background-color: rgba(10, 13, 19, 0.78);
+    background-color: rgba(10, 13, 19, 0.9);
     color: rgb(170, 200, 225);
     transition-duration: 0.12s;
 }
 .action-tile:hover {
     border-color: rgba(79, 193, 255, 0.7);
-    background-color: rgba(18, 28, 40, 0.9);
+    background-color: rgba(18, 28, 40, 0.96);
     color: rgb(79, 193, 255);
     translate: 0 -2px;
 }
+/* The card's picture, its icon as a badge on it until and after the picture comes (GaragePartPictures.cs) */
+.tile-image {
+    width: 100%;
+    height: 72px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+.tile-picture {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
 .tile-icon {
-    width: 24px;
-    height: 24px;
-    margin-bottom: 8px;
+    width: 28px;
+    height: 28px;
+}
+.tile-image--pictured > .tile-icon {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    width: 22px;
+    height: 22px;
+    padding: 3px;
+    border-radius: 6px;
+    background-color: rgba(8, 11, 16, 0.78);
+    color: rgb(79, 193, 255);
+}
+/* The words under the picture, without a label's own margins, so three rows of cards fit at 720 lines even in
+   Uzbek and Russian, whose names and lines wrap more */
+.tile-text {
+    padding: 8px 10px 10px 10px;
 }
 .tile-title {
-    font-size: 14px;
+    margin: 0;
+    padding: 0;
+    font-size: 15px;
     -unity-font-style: bold;
     color: rgb(244, 246, 250);
     -unity-text-align: upper-left;
     white-space: normal;
 }
 .tile-sub {
-    margin-top: 2px;
-    font-size: 11px;
-    color: rgb(140, 150, 165);
+    margin: 3px 0 0 0;
+    padding: 0;
+    font-size: 12px;
+    color: rgb(188, 197, 210);
     -unity-text-align: upper-left;
     white-space: normal;
 }
@@ -494,6 +530,7 @@
 }
 .robot-bar {
     height: 132px;
+    flex-shrink: 0;
     padding: 10px 16px;
     border-top-width: 1px;
     border-top-color: rgba(255, 255, 255, 0.07);
@@ -1350,9 +1387,9 @@
 }
 .material-button {
     width: 84px;
-    height: 28px;
+    min-height: 28px;
     margin: 0 0 4px 0;
-    padding: 0 5px;
+    padding: 3px 5px;
     flex-direction: row;
     align-items: center;
     border-width: 1px;
@@ -1379,13 +1416,15 @@
 .material-chip--clear {
     opacity: 0.6;
 }
+/* The whole name, on two lines when it is long ("PVC foam board"), never cut short */
 .material-name {
     flex-shrink: 1;
-    font-size: 10px;
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
     color: rgb(220, 224, 230);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -unity-text-align: middle-left;
+    white-space: normal;
 }
 .colour-row {
     flex-direction: row;

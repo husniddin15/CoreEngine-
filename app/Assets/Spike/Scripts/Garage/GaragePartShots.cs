@@ -8,7 +8,7 @@ namespace CoreEngine.Spike.Garage
 {
     public sealed partial class GarageSpike
     {
-        bool photographingParts; // no depth of field: a close-up of a small part is sharp all over
+        bool photographingParts; // the camera may come as close, and go as far, as each part needs
 
         /// <summary>
         /// <c>-partShots &lt;folder&gt;</c>: photographs every catalogue part alone on the turntable, close up from

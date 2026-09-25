@@ -156,6 +156,10 @@ namespace CoreEngine.Spike.Garage
             labMode = GameObject.Find("LabSet") != null;
             var volume = FindAnyObjectByType<Volume>();
             if (volume != null && volume.profile.TryGet(out DepthOfField dof)) depthOfField = dof;
+            // A clear picture, sharp all over like a game's (the owner, 2026-09-25: the lab looked "dizzy like fog"):
+            // no depth of field (GarageCamera keeps it off), film grain or darkened corners.
+            if (volume != null && volume.profile.TryGet(out FilmGrain grain)) grain.active = false;
+            if (volume != null && volume.profile.TryGet(out Vignette vignette)) vignette.active = false;
             if (labMode)
             {
                 BuildLabTurntable();
@@ -371,11 +375,18 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < ActionKeys.Length; i++)
             {
                 string action = ActionKeys[i];
+                // A card: a real picture on top (GaragePartPictures), its icon as a badge on it, the name and a
+                // short line under it (the owner, 2026-09-25: "like cs2 design ... we need real images").
                 var tile = new Button(() => OnAction(action)) { focusable = false };
                 tile.AddToClassList("action-tile");
-                tile.Add(Classed(new IconView(ActionIcons[i]), "tile-icon"));
-                tile.Add(Classed(Localized(new Label(), action), "tile-title"));
-                tile.Add(Classed(Localized(new Label(), action + ".sub"), "tile-sub"));
+                var picture = Layout("tile-image");
+                picture.Add(Classed(new IconView(ActionIcons[i]), "tile-icon"));
+                cardImages[action] = picture;
+                tile.Add(picture);
+                var words = Layout("tile-text");
+                words.Add(Classed(Localized(new Label(), action), "tile-title"));
+                words.Add(Classed(Localized(new Label(), action + ".sub"), "tile-sub"));
+                tile.Add(words);
                 actions.Add(tile);
             }
             right.Add(actions);
@@ -1048,7 +1059,7 @@ namespace CoreEngine.Spike.Garage
         IEnumerator RenderAllThumbnails()
         {
             for (int i = 0; i < GarageState.Robots.Count; i++) yield return RenderThumbnail(i);
-            yield return RenderPartPictures();
+            yield return RenderPictures();
         }
 
         /// <summary>Renders one robot off-screen and copies the image into its card's thumbnail.</summary>
@@ -1087,7 +1098,6 @@ namespace CoreEngine.Spike.Garage
             {
                 for (int attempt = 1; attempt <= 120; attempt++)
                 {
-                    if (depthOfField != null) depthOfField.active = false; // a thumbnail is sharp all over; the next frame turns it back
                     RenderPipeline.SubmitRenderRequest(camera, request);
                     if (HasPixels(target))
                     {
@@ -1110,6 +1120,7 @@ namespace CoreEngine.Spike.Garage
             visual.Destroy();
             Destroy(stage);
             RefreshBar();
+            ShowCardPictures(); // Customize shows the robot
         }
 
         // ------------------------------------------------------------------ benchmark (-spikeBench)
@@ -1121,6 +1132,13 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine($"  fonts from Windows (Segoe UI and Consolas with a Segoe UI Symbol fallback) created with their glyphs in {SpikeFonts.PreloadMs:F1} ms, " +
                               $"of which the symbol font {SpikeFonts.SymbolFontMs:F1} ms");
             for (int i = 0; i < 30; i++) yield return null;
+            // The pictures are drawn once, when the Garage first opens; the frame times below are the Garage's own.
+            float asked = Time.realtimeSinceStartup;
+            while (PicturesMs < 0 && Time.realtimeSinceStartup - asked < 20f) yield return null;
+            bool photographed = cardPictures.ContainsKey("act.code") && cardPictures.ContainsKey("act.repair");
+            report.AppendLine($"  pictures of {partPictures.Count} parts, {shapePictures.Count} shapes and {cardPictures.Count} action cards rendered in {PicturesMs:F0} ms " +
+                              $"(the lab's monitor and multimeter photographed for Code and Check & repair: {Yes(photographed)}; " +
+                              $"every card with a picture: {Yes(cardPictures.Count == 5 && thumbnails.Count > 0)})");
 
             var frames = new List<double>();
             var slow = new System.Text.StringBuilder(); // when slow frames came and whether a garbage collection ran in them

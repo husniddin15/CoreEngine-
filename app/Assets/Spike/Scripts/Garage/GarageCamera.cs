@@ -17,8 +17,7 @@ namespace CoreEngine.Spike.Garage
     /// in Wire and the Studio it may look from below, and the room is then left out of the picture.</item>
     /// </list>
     /// The turntable is only for the showroom: in Wire and the Studio the robot stands on the bench's measuring
-    /// mat. In the showroom the depth of field blurs only what lies behind the robot, so every part of it stays
-    /// sharp however close the camera comes.
+    /// mat. Everything is sharp: no depth of field, film grain or darkened corners (2026-09-25).
     /// </summary>
     public sealed partial class GarageSpike
     {
@@ -325,33 +324,15 @@ namespace CoreEngine.Spike.Garage
         }
 
         /// <summary>
-        /// A photo's soft background without a soft robot: in the showroom only what lies behind the robot's far
-        /// side is blurred, more with distance; the edit modes and part photos are sharp all over.
+        /// Sharp all over, the room as well as the robot, as in a game (the owner, 2026-09-25: the lab looked "dizzy
+        /// like fog"; until then the showroom blurred what lay behind the robot): the depth of field stays off.
         /// </summary>
         void UpdateDepthOfField()
         {
-            if (depthOfField == null) return;
-            bool on = mode == EditMode.None && !photographingParts;
-            depthOfField.active = on;
-            if (!on) return;
-            var forward = view.transform.forward;
-            var eye = view.transform.position;
-            float far = distance;
-            var c = robotBounds.center;
-            var e = robotBounds.extents;
-            for (int i = 0; i < 8; i++)
-            {
-                var corner = robotAnchor.TransformPoint(c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z));
-                far = Mathf.Max(far, Vector3.Dot(corner - eye, forward));
-            }
-            depthOfField.mode.Override(DepthOfFieldMode.Gaussian);
-            depthOfField.gaussianStart.Override(far + 0.03f);
-            depthOfField.gaussianEnd.Override(far + 0.9f);
-            depthOfField.gaussianMaxRadius.Override(1.0f);
-            depthOfField.highQualitySampling.Override(true);
+            if (depthOfField != null) depthOfField.active = false;
         }
 
-        /// <summary>The robot's box in the anchor's frame, after it is rebuilt: for the pivot's limits, Fit and the blur.</summary>
+        /// <summary>The robot's box in the anchor's frame, after it is rebuilt: for the pivot's limits and Fit.</summary>
         void MeasureRobot()
         {
             if (shown == null) return;

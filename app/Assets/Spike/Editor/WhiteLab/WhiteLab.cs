@@ -320,7 +320,10 @@ namespace CoreEngine.Spike.Editor
             group.probePositions = positions.ToArray();
         }
 
-        /// <summary>The Garage's camera look in the bright lab: a filmic curve, a cool clean white, depth of field on the robot.</summary>
+        /// <summary>
+        /// The Garage's camera look in the bright lab: a filmic curve, a cool clean white, a little bloom; sharp all
+        /// over (2026-09-25: no depth of field, film grain or vignette; the Garage also turns them off at run time).
+        /// </summary>
         public static VolumeProfile PostProfile(string folder)
         {
             string path = folder + "/GaragePost.asset";
@@ -356,13 +359,16 @@ namespace CoreEngine.Spike.Editor
             dof.focalLength.Override(50f);
             dof.aperture.Override(2.8f);
             dof.bladeCount.Override(7);
+            dof.active = false;
             var vignette = Component<Vignette>();
             vignette.intensity.Override(0.14f);
             vignette.smoothness.Override(0.5f);
+            vignette.active = false;
             var grain = Component<FilmGrain>();
             grain.type.Override(FilmGrainLookup.Thin1);
             grain.intensity.Override(0.1f);
             grain.response.Override(0.8f);
+            grain.active = false;
             EditorUtility.SetDirty(profile);
             return profile;
         }

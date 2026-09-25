@@ -100,8 +100,7 @@ namespace CoreEngine.Spike.Garage
             yield return Play(zoom);
             yield return Frames(3);
             float closest = distance;
-            bool gaussian = depthOfField != null && depthOfField.active && depthOfField.mode.value == DepthOfFieldMode.Gaussian;
-            float blurFrom = depthOfField != null ? depthOfField.gaussianStart.value : 0;
+            bool sharp = depthOfField == null || !depthOfField.active;
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-close"));
             HomeView();
             yield return WaitForGlide();
@@ -111,7 +110,7 @@ namespace CoreEngine.Spike.Garage
                               $"its TOP, clicked, looked straight down: {Yes(straightDown)} (pitch {topPitch:F1}°); its front-top-right corner " +
                               $"from {cornerPitch:F1}° up (35.3° expected); a middle-button drag moved the pivot {moved * 100:F1} cm, a very long one stopped " +
                               $"{Mathf.Max(0, beyond) * 100:F1} cm beside the robot (12 cm allowed); a double-click on the Uno made it the pivot, {pivotGap:F1} mm from it; " +
-                              $"the wheel stopped at {closest * 100:F0} cm with only what lies behind the robot blurred (from {blurFrom * 100:F0} cm): {Yes(gaussian && blurFrom > closest)}; " +
+                              $"the wheel stopped at {closest * 100:F0} cm with nothing blurred: {Yes(sharp)}; " +
                               "screenshots -garage-top, -garage-close");
         }
 

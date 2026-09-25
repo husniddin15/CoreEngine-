@@ -305,7 +305,7 @@ namespace CoreEngine.Spike.Garage
             foreach (var kind in PaletteKinds)
             {
                 var chosen = kind;
-                var button = ShapeButton(IconFor(kind), KindKey(kind), () => AddShape(chosen));
+                var button = ShapeButton(IconFor(kind), KindKey(kind), () => AddShape(chosen), shapeKind: kind);
                 paletteButtons.Add(button);
                 shapes.Add(button);
             }
@@ -386,12 +386,14 @@ namespace CoreEngine.Spike.Garage
             return button;
         }
 
-        /// <summary>A library tile: a shape's line icon, or a part's picture (<paramref name="partId"/>).</summary>
-        Button ShapeButton(Icon icon, string key, Action onClick, bool literal = false, string? partId = null)
+        /// <summary>A library tile: a part's or a shape's picture, or a line icon (drawing, importing).</summary>
+        Button ShapeButton(Icon icon, string key, Action onClick, bool literal = false, string? partId = null, FeatureKind? shapeKind = null)
         {
             var button = new Button(onClick) { focusable = false };
             button.AddToClassList("shape-button");
-            button.Add(partId == null ? Classed(new IconView(icon), "shape-icon") : PartImage(partId, icon, "shape-icon"));
+            button.Add(partId != null ? PartImage(partId, icon, "shape-icon")
+                : shapeKind != null ? ShapeImage(shapeKind.Value, icon, "shape-icon")
+                : Classed(new IconView(icon), "shape-icon"));
             button.Add(Classed(new Label(literal ? key : Tr(key)), "shape-label"));
             return button;
         }

@@ -8,6 +8,7 @@ using CoreEngine.Sim.Components;
 using CoreEngine.Sim.Design;
 using CoreEngine.Spike.Garage;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using Debug = UnityEngine.Debug;
 
@@ -239,6 +240,40 @@ namespace CoreEngine.Spike
             sun.shadows = LightShadows.Soft;
             sun.intensity = 1.2f;
             sun.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            ClearAir();
+        }
+
+        /// <summary>
+        /// A clear day, sharp to the horizon (the owner, 2026-09-25: the arena looked foggy, "we need clear game like
+        /// counter strike 2"): the default sky's haze thinned to a clean blue, a wide pale floor round the arena out to
+        /// the horizon instead of the empty grey band, and no fog or darkened corners.
+        /// </summary>
+        void ClearAir()
+        {
+            RenderSettings.fog = false;
+            var skyShader = Shader.Find("Skybox/Procedural");
+            if (skyShader != null)
+            {
+                var sky = new Material(skyShader) { name = "ClearSky" };
+                sky.SetFloat("_SunSize", 0.03f);
+                sky.SetFloat("_AtmosphereThickness", 0.55f);
+                sky.SetColor("_SkyTint", new Color(0.42f, 0.6f, 0.9f));
+                sky.SetColor("_GroundColor", new Color(0.8f, 0.8f, 0.78f));
+                sky.SetFloat("_Exposure", 1.15f);
+                RenderSettings.skybox = sky;
+                DynamicGI.UpdateEnvironment();
+            }
+            // Shadows a clean neutral grey: lit by the blue sky itself they came out a deep blue.
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.68f, 0.72f, 0.8f);
+            RenderSettings.ambientEquatorColor = new Color(0.64f, 0.65f, 0.66f);
+            RenderSettings.ambientGroundColor = new Color(0.44f, 0.43f, 0.42f);
+            var ground = new Material(floorMaterial) { name = "Ground" };
+            ground.SetColor("_BaseColor", new Color(0.74f, 0.75f, 0.76f));
+            ground.SetFloat("_Smoothness", 0.2f);
+            Box("Ground", new Vector3(0, -0.03f, 0), new Vector3(80f, 0.02f, 80f), ground);
+            var volume = FindAnyObjectByType<Volume>();
+            if (volume != null && volume.profile.TryGet(out Vignette vignette)) vignette.active = false;
         }
 
         Material? tapeMaterial;
