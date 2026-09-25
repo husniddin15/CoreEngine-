@@ -40,7 +40,7 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 
 ```
 +----------------------------------------------------------------------------------------------+
-| [#] COREENGINE  (Garage) Notebook Shop Workshop   ARENA [Obstacle field v] [> START] EN OZ RU (*)|
+| [#] COREENGINE  (Garage) Notebook Shop Workshop     [picture Obstacle field  Change] [> START] (*)|
 +----------------+--------------------------------------------------------+--------------------+
 | ROBOT          |                                                        | [Build]  [Wire]    |
 | Obstacle avoider                                                        |  what     what     |
@@ -56,6 +56,11 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 
 - **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the bright lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are big cards (2026-09-25, D24; the owner: "easy to select things like cs2 design ... we need real images"): on top a picture rendered from the game's own models when the Garage opens (the parts laid out for Build, an Uno and an L298N joined by jumpers for Wire, the lab's monitor showing the sketch for Code, the bare chassis for Body, the selected robot for Customize, the multimeter for Check & repair) with the action's icon as a small badge; under it the name and one short, plain line ("Put parts on your robot", "Join the parts with wires"). Three rows of cards fit beside the view at 1280 × 720 in all three languages. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
 
+- **Choices made simple** (2026-09-25, research [R5](research/R5-game-ux-research.md); the owner asked to "learn about all popular games' design tactics and apply them"):
+  - START is the one bright green button and names where it goes: the **arena chip** joined to it shows the arena's picture, its name and "Change". A click opens the **arena picker**: a card per arena with a real render of it and the chosen robot on its start pad, a one-line goal, "✓/✗ Needs a distance sensor" checked against the robot, the size and the difficulty in a word and pips ("Easy ●○○"); the arenas still to come share one "More arenas soon" card.
+  - Each warning on the robot card names the problem and has a **Fix** button that opens the screen where it is fixed: Build for a robot that tips, Wire for wiring, Code for a sketch not uploaded, Check & repair for a burnt part or flat battery. START stays enabled.
+  - **▶ Test** (F5) on the Build/Body Studio's and the code editor's bars goes straight to the arena.
+  - **Settings** (the gear) holds the language, each written in its own language (English, Oʻzbekcha, Русский), and the interface size (80–150 %); the language buttons left the top bar. The first launch asks for the language once, in all three. Both are kept between sessions.
 - **Room**: a bright, modern engineering lab (the owner's choice, 2026-09-24, D20: "light and white rooms, but tools should be there"). It replaced the photographed lab of D19 the same day.
   - The robot turns on an aluminium turntable on a white lab bench, standing on a grey-blue measuring mat printed with a millimetre grid, rulers along two edges and a protractor.
   - On the bench:
@@ -125,7 +130,7 @@ Target iteration time from "edit code" to "robot moving again": **< 3 seconds** 
 - **Motors** snap to motor mounts (TT motor bracket, N20 bracket, servo horn/bracket). Wheels snap to shafts (D-shaft or servo horn). (Planned: in the prototype they hang where they are put.)
 - Body parts are designed in Body Studio or imported; mount points can be added to any face (see 08).
 - Overlays: centre of mass marker, total mass, wheelbase, ground clearance.
-- **Balance check** (2026-09-25; the owner's robot drove forward but would not turn: it had no ball caster and dragged the front of its plate). A robot on two wheels needs a third point that rolls, a ball caster, on the side its weight is. The check stands the robot on its wheels, lets its weight tip it round their axle and sees what touches the floor first: a caster's ball, or a corner of a part or of the body, which then drags. The robot card and Check & repair say so ("Tips onto its front: the body drags on the floor, so it turns slowly. Put a ball caster there."), and so does the arena's event log. Like every warning, it never blocks START: the robot tips and drags in the arena as it would on a desk.
+- **Balance check** (2026-09-25; the owner's robot drove forward but would not turn: it had no ball caster and dragged the front of its plate). A robot on two wheels needs a third point that rolls, a ball caster, on the side its weight is. The check stands the robot on its wheels, lets its weight tip it round their axle and sees what touches the floor first: a caster's ball, or a corner of a part or of the body, which then drags. The robot card and Check & repair say so ("Tips onto its front: the body drags on the floor, so it turns slowly. Put a ball caster there."), and so does the arena's event log. In Build the **Balance view** shows why (research R5: KSP's centre-of-mass marker, Webots' support polygon): the centre of mass as a yellow ball with a plumb line to the floor, and the patch the wheels' tyres and the casters' balls stand on, green when the robot stands on them and red when it tips; a line over the view says what it means. It comes on by itself when a change makes the robot tip, and with the **Balance** button; it is geometry only, so building stays free of physics. Like every warning, it never blocks START: the robot tips and drags in the arena as it would on a desk.
 
 ### 5.3 Interaction
 - Drag & drop from bin; **R** rotate 90°, **Shift+R** 15°; **G** grab; **Del** remove; **Ctrl+D** duplicate (with wiring cleared); **Ctrl+Z/Y** undo/redo (all modes).
@@ -184,7 +189,7 @@ Warnings never block Play. Examples: 5 V on the Uno's VIN, which feeds the board
 - **Play / Pause / Step** (step = one physics tick of 10 ms; **fine step** = 1 ms; instruction-level stepping arrives with the debugger in v1.x).
 - **Time scale**: 0.1× … 4× (fast-forward is capped by available CPU; the HUD shows the achieved real-time factor).
 - **Reset button** on the board model (clickable, like the real one). **Power switch** on battery holders. **Unplug USB** by dragging the cable.
-- **Restart simulation**: returns everything to t = 0 deterministically (same inputs → same run).
+- **Restart simulation**: returns everything to t = 0 deterministically (same inputs → same run). In the prototype (2026-09-25) **↺ Restart (R)** puts the same robot back on its start pad with its sketch from the beginning, for a build–test–fix loop of seconds (research R5).
 
 ### 8.2 Cameras
 Orbit, top-down, follow-robot, chase, free-fly, and **sensor view** (see what the ultrasonic cone or line sensor "sees").
@@ -252,7 +257,8 @@ Gamepad support is limited to remote-controlling robots (v1.x).
 
 ### 12.3 Accessibility
 - Colour-blind-safe wire palette option and always-available text labels on hover.
-- UI scaling 100–200 %; fonts with Cyrillic and Latin-with-diacritics coverage (Uzbek Latin uses Oʻ, Gʻ): Segoe UI and Consolas from Windows, checked in Phase 0.6 ([10 §5](10-content-arenas-tutorial-notebook.md)).
+- The UI grows with the screen from its 1280 × 720 layout (× 1.5 at 1080p, × 2 at 1440p) and has an interface-size setting of 80–150 % (2026-09-25); text is at least 13 px in that layout, 19.5 px at 1080p, above the 18 px that Xbox's accessibility guidelines ask of PC games; panels behind text are at least 90 % opaque; mouse targets are at least 24 px; statuses carry a symbol and a word, never colour alone (research [R5](research/R5-game-ux-research.md)).
+- Fonts with Cyrillic and Latin-with-diacritics coverage (Uzbek Latin uses Oʻ, Gʻ): Segoe UI and Consolas from Windows, checked in Phase 0.6 ([10 §5](10-content-arenas-tutorial-notebook.md)).
 - Captions for audio events ("buzzer 440 Hz", "motor stalled").
 - Full keyboard navigation of panels; no time-limited interactions.
 

@@ -23,7 +23,7 @@ Start with [01-vision-and-scope.md](01-vision-and-scope.md). Decisions the owner
 | 13 | [Open questions and risks](13-open-questions-and-risks.md) | Owner decisions with recommendations, Phase 0 questions, risk register |
 | 14 | [Glossary](14-glossary.md) | Terms |
 | ADR | [adr/](adr/) | Architecture Decision Records 0001–0008 (engine, emulation, compile pipeline, electrical solver, CSG, time model, monetization, pure sandbox) |
-| R | [research/](research/) | Sourced fact sheets behind the docs (emulation/toolchain, competitors, engine/Steam, electrical/physics) |
+| R | [research/](research/) | Sourced fact sheets behind the docs (emulation/toolchain, competitors, engine/Steam, electrical/physics, game UX) |
 | Archive | [archive/](archive/) | Superseded designs kept for reference (the mission campaign v0.1) |
 
 ## Conventions
