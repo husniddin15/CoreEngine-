@@ -9,14 +9,39 @@ namespace CoreEngine.Sim.Design
     /// round the edges of the plates or through a hole wide enough, never through a part or solid material.
     /// The robot is a distance field: how far a point is from the nearest part block (<see cref="PartDef.Solids"/>,
     /// a motor's wheel), body shape (a hole takes material only from the solids of its group, as Manifold cuts
-    /// them) or the floor. A* crosses a grid of 5 mm cells, each move checked against the field; the path is
-    /// then pulled straight where it can be, its corners are rounded, and it gets some slack upward, as a real
-    /// jumper arches. Everything is in millimetres in the chassis frame.
+    /// them) or the floor. A* crosses a grid of 5 mm cells, each move checked against the field; a step costs more
+    /// the less room it has under 4 mm, so a route keeps room for round bends where it can and still takes a
+    /// narrow way, such as a hole, rather than a long way round. The path is pulled straight where it can be
+    /// without coming closer to anything than it was, short jogs are taken out, every corner becomes an arc of up
+    /// to 16 mm radius (two bends close together share the side between them, so that neither is a kink; smaller
+    /// only where something is in the way), and the wire gets some slack upward: a real jumper cannot fold, it
+    /// bends and arches. Everything is in millimetres in the chassis frame.
     /// </summary>
     public sealed class WireRouter
     {
         /// <summary>How close a wire's centre line may come to anything: a jumper's radius and a little air.</summary>
         public const float Clearance = 1.4f;
+
+        /// <summary>
+        /// How close the finished wire's bends and slack may come: its radius and a hair. A wire may rest on a part
+        /// as a real one does, never go into it; the path it follows keeps <see cref="Clearance"/>.
+        /// </summary>
+        const float Touch = 0.9f;
+
+        /// <summary>The room a route keeps where it can, so its bends have space to be round.</summary>
+        const float Comfort = 4f;
+
+        /// <summary>How much dearer a step is with no room to spare than with <see cref="Comfort"/>.</summary>
+        const float TightCost = 3f;
+
+        /// <summary>The widest bend: a jumper's wire bends smoothly, with a radius of a centimetre or two.</summary>
+        const float MaxBendRadius = 16f;
+
+        /// <summary>Points along a finished wire, every this many millimetres, so its slack is a smooth bow.</summary>
+        const float Spacing = 2f;
+
+        /// <summary>A side of the path shorter than this between two bends is a jog, taken out where it can be.</summary>
+        const float Jog = 6f;
 
         const float Far = 24f;        // the field is only worked out this far; beyond it, "far" is enough
         const float Margin = 30f;     // room round the robot for wires going round it
@@ -195,16 +220,16 @@ namespace CoreEngine.Sim.Design
         /// distances at its ends: the field changes no faster than the point moves, so the halves are checked only
         /// where the ends are too close to be sure.
         /// </summary>
-        bool SegmentFree(Vector3 a, float da, Vector3 b, float db, float length)
+        bool SegmentFree(Vector3 a, float da, Vector3 b, float db, float length, float room = Clearance)
         {
-            if (da < Clearance || db < Clearance) return false;
-            if (Math.Min(da, db) - length / 2 >= Clearance || length < 0.5f) return true;
+            if (da < room || db < room) return false;
+            if (Math.Min(da, db) - length / 2 >= room || length < 0.5f) return true;
             var m = (a + b) * 0.5f;
             float dm = Distance(m);
-            return SegmentFree(a, da, m, dm, length / 2) && SegmentFree(m, dm, b, db, length / 2);
+            return SegmentFree(a, da, m, dm, length / 2, room) && SegmentFree(m, dm, b, db, length / 2, room);
         }
 
-        bool SegmentFree(Vector3 a, Vector3 b) => SegmentFree(a, Distance(a), b, Distance(b), Vector3.Distance(a, b));
+        bool SegmentFree(Vector3 a, Vector3 b, float room = Clearance) => SegmentFree(a, Distance(a), b, Distance(b), Vector3.Distance(a, b), room);
 
         // ------------------------------------------------------------------ routing
 
@@ -221,8 +246,11 @@ namespace CoreEngine.Sim.Design
             _ => 0f,
         };
 
-        /// <summary>How far a wire runs straight on out of its housing or terminal before it bends (mm).</summary>
-        public static float StraightOut(PinStyle style) => style == PinStyle.Header || style == PinStyle.Pin ? 8f : 4f;
+        /// <summary>
+        /// How far out along its pin's exit a route's path starts (mm), clear of the pin's own part. A jumper may
+        /// bend as soon as it is out of its housing or terminal, so the first bend may take all of it.
+        /// </summary>
+        const float Lead = 8f;
 
         /// <summary>A way for one of the design's wires, from its first pin to its second (see the other overload).</summary>
         public List<(float x, float y, float z)>? Route(RobotDesign design, WireInstance wire)
@@ -243,14 +271,14 @@ namespace CoreEngine.Sim.Design
             var e = Unit(exit.Value);
             float offset = StartOffset(pin.Style);
             var p = position.Value;
-            return ((p.x + e.X * offset, p.y + e.Y * offset, p.z + e.Z * offset), exit.Value, StraightOut(pin.Style));
+            return ((p.x + e.X * offset, p.y + e.Y * offset, p.z + e.Z * offset), exit.Value, Lead);
         }
 
         /// <summary>
-        /// A way for a wire from <paramref name="from"/>, leaving it along <paramref name="fromExit"/> for at least
-        /// <paramref name="fromLead"/> mm, to <paramref name="to"/>, arriving along the reverse of
-        /// <paramref name="toExit"/>: points from one end to the other, or null when there is no way (the caller
-        /// then draws its plain arc).
+        /// A way for a wire from <paramref name="from"/>, leaving it along <paramref name="fromExit"/> (its path
+        /// starts <paramref name="fromLead"/> mm out, or further until it is clear), to <paramref name="to"/>,
+        /// arriving along the reverse of <paramref name="toExit"/>: points about 2 mm apart from one end to the
+        /// other, or null when there is no way (the caller then draws its plain arc).
         /// </summary>
         public List<(float x, float y, float z)>? Route((float x, float y, float z) from, (float x, float y, float z) fromExit, float fromLead,
             (float x, float y, float z) to, (float x, float y, float z) toExit, float toLead)
@@ -267,12 +295,13 @@ namespace CoreEngine.Sim.Design
             var path = new List<Vector3>(cells.Count + 2) { pa };
             foreach (int c in cells) path.Add(Centre(c));
             path.Add(pb);
-            path = Pull(path);
+            path = Unjog(Pull(path));
             var curve = new List<Vector3>(path.Count + 2) { a };
             foreach (var p in path) if (Vector3.DistanceSquared(p, curve[curve.Count - 1]) > 1e-4f) curve.Add(p);
             if (Vector3.DistanceSquared(b, curve[curve.Count - 1]) > 1e-4f) curve.Add(b);
             float guardA = leadA + 2, guardB = leadB + 2;
-            curve = Round(curve, guardA, guardB);
+            curve = Fillet(curve, guardA, guardB);
+            curve = Resample(curve, Spacing);
             curve = Slacken(curve, guardA, guardB);
 
             var result = new List<(float x, float y, float z)>(curve.Count);
@@ -337,7 +366,10 @@ namespace CoreEngine.Sim.Design
             return best;
         }
 
-        /// <summary>A* over the cells, 26 neighbours, every move checked against the field.</summary>
+        /// <summary>
+        /// A* over the cells, 26 neighbours, every move checked against the field; a step with less than
+        /// <see cref="Comfort"/> of room costs up to <see cref="TightCost"/> times its length.
+        /// </summary>
         List<int>? Search(int start, int goal)
         {
             int cells = field.Length;
@@ -378,10 +410,11 @@ namespace CoreEngine.Sim.Design
                     int next = (jx * ny + jy) * nz + jz;
                     if (done[next] == search) continue;
                     float step = size * Steps[k];
-                    float reached = cost[cell] + step;
-                    if (open[next] == search && reached >= cost[next]) continue;
                     float clearNext = Field(next);
                     if (clearNext < Clearance) continue;
+                    float tight = Math.Max(0, Comfort - Math.Min(clear, clearNext)) / (Comfort - Clearance);
+                    float reached = cost[cell] + step * (1 + (TightCost - 1) * Math.Min(1, tight));
+                    if (open[next] == search && reached >= cost[next]) continue;
                     var there = Centre(next);
                     if (!SegmentFree(here, clear, there, clearNext, step)) continue;
                     open[next] = search;
@@ -401,7 +434,10 @@ namespace CoreEngine.Sim.Design
             return cells;
         }
 
-        /// <summary>Straightens the path: from each point on to the farthest one it can see.</summary>
+        /// <summary>
+        /// Straightens the path: from each point on to the farthest one it can see without coming closer to anything
+        /// than the stretch it replaces (or than <see cref="Comfort"/>), so it keeps its room for round bends.
+        /// </summary>
         List<Vector3> Pull(List<Vector3> path)
         {
             var clear = new float[path.Count];
@@ -411,9 +447,11 @@ namespace CoreEngine.Sim.Design
             while (i < path.Count - 1)
             {
                 int best = i + 1, misses = 0;
+                float room = Math.Min(Comfort, Math.Min(clear[i], clear[i + 1]));
                 for (int j = i + 2; j < path.Count && misses < 8; j++)
                 {
-                    if (SegmentFree(path[i], clear[i], path[j], clear[j], Vector3.Distance(path[i], path[j])))
+                    room = Math.Max(Clearance, Math.Min(room, clear[j]));
+                    if (SegmentFree(path[i], clear[i], path[j], clear[j], Vector3.Distance(path[i], path[j]), room))
                     {
                         best = j;
                         misses = 0;
@@ -430,26 +468,121 @@ namespace CoreEngine.Sim.Design
         }
 
         /// <summary>
-        /// Rounds the corners (Chaikin's corner cutting, up to three times), keeping both ends; a pass that would
-        /// touch something is not taken. Near the ends, where the wire leaves its own part, it is not checked.
+        /// Takes out a point that makes a jog, a side shorter than <see cref="Jog"/>, where the wire can go straight
+        /// past it: a jog leaves neither of its two bends room to be round.
         /// </summary>
-        List<Vector3> Round(List<Vector3> curve, float guardA, float guardB)
+        List<Vector3> Unjog(List<Vector3> path)
         {
-            for (int pass = 0; pass < 3 && curve.Count > 2; pass++)
+            int i = 1;
+            while (i + 1 < path.Count)
             {
-                var next = new List<Vector3>(curve.Count * 2) { curve[0] };
-                for (int i = 0; i + 1 < curve.Count; i++)
-                {
-                    var p = curve[i];
-                    var q = curve[i + 1];
-                    if (i > 0) next.Add(p * 0.75f + q * 0.25f);
-                    if (i + 2 < curve.Count) next.Add(p * 0.25f + q * 0.75f);
-                }
-                next.Add(curve[curve.Count - 1]);
-                if (!CurveFree(next, guardA, guardB)) break;
-                curve = next;
+                float shorter = Math.Min(Vector3.Distance(path[i - 1], path[i]), Vector3.Distance(path[i], path[i + 1]));
+                if (shorter < Jog && SegmentFree(path[i - 1], path[i + 1])) path.RemoveAt(i);
+                else i++;
             }
-            return curve;
+            return path;
+        }
+
+        /// <summary>
+        /// Makes every corner an arc, as a wire bends: up to <see cref="MaxBendRadius"/>, as far as its two sides
+        /// allow, and smaller only where the arc would touch something. A side between two bends is shared so that
+        /// both get the same radius, and what one of them cannot use goes to the other; a side from a pin goes
+        /// wholly to its bend, so a wire may start to bend as soon as it is out of its housing or terminal. Near
+        /// the ends, where the wire leaves its own part, the arcs are not checked.
+        /// </summary>
+        List<Vector3> Fillet(List<Vector3> curve, float guardA, float guardB)
+        {
+            int n = curve.Count;
+            var a = curve[0];
+            var b = curve[n - 1];
+            var side = new float[n - 1];
+            for (int i = 0; i + 1 < n; i++) side[i] = Vector3.Distance(curve[i], curve[i + 1]);
+            var turn = new float[n];
+            var slope = new float[n]; // tan(turn / 2): how much of its sides a bend of radius 1 takes
+            for (int i = 1; i + 1 < n; i++)
+            {
+                if (side[i - 1] < 1e-3f || side[i] < 1e-3f) continue;
+                var u = (curve[i] - curve[i - 1]) / side[i - 1];
+                var w = (curve[i + 1] - curve[i]) / side[i];
+                turn[i] = MathF.Acos(Math.Max(-1f, Math.Min(1f, Vector3.Dot(u, w))));
+                // Straight on, or a fold no wire makes: it stays a point.
+                if (turn[i] >= 0.03f && turn[i] <= 3.1f) slope[i] = MathF.Tan(turn[i] / 2);
+            }
+            var radius = new float[n];
+            for (int i = 1; i + 1 < n; i++)
+                if (slope[i] > 0)
+                    radius[i] = Math.Min(MaxBendRadius, Math.Min(side[i - 1] / (slope[i - 1] + slope[i]), side[i] / (slope[i] + slope[i + 1])));
+            for (int i = 1; i + 1 < n; i++)
+                if (slope[i] > 0)
+                    radius[i] = Math.Min(MaxBendRadius, Math.Min(side[i - 1] - slope[i - 1] * radius[i - 1], side[i] - slope[i + 1] * radius[i + 1]) / slope[i]);
+
+            var result = new List<Vector3>(n * 6) { a };
+            for (int i = 1; i + 1 < n; i++)
+            {
+                var corner = curve[i];
+                if (slope[i] <= 0)
+                {
+                    result.Add(corner);
+                    continue;
+                }
+                var u = (corner - curve[i - 1]) / side[i - 1];
+                var w = (curve[i + 1] - corner) / side[i];
+                float reach = slope[i] * radius[i];
+                List<Vector3>? arc = null;
+                for (int attempt = 0; attempt < 8 && arc == null; attempt++, reach *= 0.7f)
+                {
+                    var candidate = Arc(corner, u, w, turn[i], reach);
+                    if (CurveFree(candidate, a, guardA, b, guardB, Touch)) arc = candidate;
+                }
+                if (arc != null) result.AddRange(arc);
+                else result.Add(corner);
+            }
+            result.Add(b);
+            return result;
+        }
+
+        /// <summary>
+        /// The arc that turns from direction <paramref name="u"/> into <paramref name="w"/> at a corner, touching
+        /// each side <paramref name="reach"/> from the corner, in steps of at most 10°.
+        /// </summary>
+        static List<Vector3> Arc(Vector3 corner, Vector3 u, Vector3 w, float turn, float reach)
+        {
+            var inward = w - u * Vector3.Dot(u, w); // across u, toward the inside of the bend
+            float across = inward.Length();
+            if (across < 1e-5f) return new List<Vector3> { corner };
+            inward /= across;
+            float radius = reach / MathF.Tan(turn / 2);
+            var centre = corner - u * reach + inward * radius;
+            int steps = Math.Max(2, (int)MathF.Ceiling(turn / (10f * MathF.PI / 180f)));
+            var points = new List<Vector3>(steps + 1);
+            for (int k = 0; k <= steps; k++)
+            {
+                float angle = turn * k / steps;
+                points.Add(centre - inward * (radius * MathF.Cos(angle)) + u * (radius * MathF.Sin(angle)));
+            }
+            return points;
+        }
+
+        /// <summary>The same line with a point every <paramref name="spacing"/> mm along it (and at its two ends).</summary>
+        static List<Vector3> Resample(List<Vector3> curve, float spacing)
+        {
+            var result = new List<Vector3> { curve[0] };
+            float carried = 0; // length since the last point put down
+            for (int i = 0; i + 1 < curve.Count; i++)
+            {
+                var p = curve[i];
+                var q = curve[i + 1];
+                float length = Vector3.Distance(p, q);
+                float at = spacing - carried;
+                while (at < length)
+                {
+                    result.Add(p + (q - p) * (at / length));
+                    at += spacing;
+                }
+                carried = length - (at - spacing);
+            }
+            if (Vector3.DistanceSquared(result[result.Count - 1], curve[curve.Count - 1]) > 1e-6f) result.Add(curve[curve.Count - 1]);
+            return result;
         }
 
         /// <summary>
@@ -468,7 +601,7 @@ namespace CoreEngine.Sim.Design
                 var lifted = new List<Vector3>(curve.Count);
                 for (int i = 0; i < curve.Count; i++)
                     lifted.Add(curve[i] + Vector3.UnitY * (rise * share * MathF.Sin(MathF.PI * along[i] / length)));
-                if (CurveFree(lifted, guardA, guardB)) return lifted;
+                if (CurveFree(lifted, guardA, guardB, Touch)) return lifted;
             }
             return curve;
         }
@@ -477,10 +610,11 @@ namespace CoreEngine.Sim.Design
         /// True when the curve is clear, except within the guards round its two ends, where the wire leaves its own
         /// part: a segment reaching into a guard is checked from where it comes out of it.
         /// </summary>
-        bool CurveFree(List<Vector3> curve, float guardA, float guardB)
+        bool CurveFree(List<Vector3> curve, float guardA, float guardB, float room) => CurveFree(curve, curve[0], guardA, curve[curve.Count - 1], guardB, room);
+
+        /// <summary>As the other overload, for a piece of a wire whose ends are <paramref name="a"/> and <paramref name="b"/>.</summary>
+        bool CurveFree(List<Vector3> curve, Vector3 a, float guardA, Vector3 b, float guardB, float room)
         {
-            var a = curve[0];
-            var b = curve[curve.Count - 1];
             for (int i = 0; i + 1 < curve.Count; i++)
             {
                 var p = curve[i];
@@ -489,7 +623,7 @@ namespace CoreEngine.Sim.Design
                 OutsideOf(p, q, a, guardA, ref t0, ref t1);
                 OutsideOf(p, q, b, guardB, ref t0, ref t1);
                 if (t1 - t0 < 1e-4f) continue;
-                if (!SegmentFree(p + (q - p) * t0, p + (q - p) * t1)) return false;
+                if (!SegmentFree(p + (q - p) * t0, p + (q - p) * t1, room)) return false;
             }
             return true;
         }

@@ -4,6 +4,13 @@ using Xunit.Abstractions;
 
 namespace CoreEngine.Sim.Tests;
 
+/// <summary>Tests that time themselves run after the others, alone, so the emulator tests do not slow them down.</summary>
+[CollectionDefinition("Timed", DisableParallelization = true)]
+public class TimedCollection
+{
+}
+
+[Collection("Timed")]
 public class WireRouterTests
 {
     readonly ITestOutputHelper output;
@@ -90,6 +97,67 @@ public class WireRouterTests
             AssertClear(design, route!, what);
         }
         output.WriteLine($"16 kit wires routed in {watch.Elapsed.TotalMilliseconds:F1} ms, {router.Evaluations} field evaluations");
+    }
+
+    /// <summary>The sharpest bend along a route: the largest angle between one short step and the next.</summary>
+    static double SharpestBendDegrees(List<(float x, float y, float z)> route)
+    {
+        double sharpest = 0;
+        (double x, double y, double z)? before = null;
+        for (int i = 0; i + 1 < route.Count; i++)
+        {
+            double dx = route[i + 1].x - route[i].x, dy = route[i + 1].y - route[i].y, dz = route[i + 1].z - route[i].z;
+            double length = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            if (length < 0.05) continue;
+            var direction = (dx / length, dy / length, dz / length);
+            if (before != null)
+            {
+                double dot = before.Value.x * direction.Item1 + before.Value.y * direction.Item2 + before.Value.z * direction.Item3;
+                sharpest = Math.Max(sharpest, Math.Acos(Math.Clamp(dot, -1, 1)) * 180 / Math.PI);
+            }
+            before = direction;
+        }
+        return sharpest;
+    }
+
+    /// <summary>
+    /// The owner's first robot as it stood on 2026-09-25: the two-wheeler with the sonar at the L298N's end and
+    /// the Uno on VIN. Its motor leads leave the L298N's terminals away from the motors and turn back at once.
+    /// </summary>
+    static RobotDesign OwnersRobot()
+    {
+        var design = DesignPresets.PwmTwoWheeler();
+        design.Parts.Add(new PartInstance { Id = "sonar1", Part = PartCatalog.HcSr04, X = -15, Y = 56, Z = 135 });
+        design.Wires.RemoveAll(w => w.FromPart == "driver1" && w.FromPin == "+5V");
+        design.AddWire("driver1", "+12V", "uno1", "VIN", "red");
+        design.AddWire("sonar1", "VCC", "driver1", "+5V", "red");
+        design.AddWire("sonar1", "TRIG", "uno1", "D2", "orange");
+        design.AddWire("uno1", "D3", "sonar1", "ECHO", "white");
+        design.AddWire("sonar1", "GND", "uno1", "GND.1", "black");
+        return design;
+    }
+
+    public static IEnumerable<object[]> Robots() => new[] { new object[] { "kit" }, new object[] { "owner's" } };
+
+    [Theory]
+    [MemberData(nameof(Robots))]
+    public void EveryWireBendsSmoothlyWithoutCorners(string robot)
+    {
+        // The owner (2026-09-25): wires "with sharp edges... should be smooth like real life". Points lie about
+        // 2 mm apart, so 32° between one step and the next is a bend of about 3.6 mm radius, the tightest allowed:
+        // a wire that must turn right back as it leaves its pin, round the edge of a part, bends about that tight.
+        var design = robot == "kit" ? DesignPresets.ObstacleAvoiderKit() : OwnersRobot();
+        var router = new WireRouter(design);
+        foreach (var wire in design.Wires)
+        {
+            var route = router.Route(design, wire);
+            string what = $"{wire.FromPart}.{wire.FromPin} to {wire.ToPart}.{wire.ToPin}";
+            Assert.True(route != null, what + ": no way found");
+            double sharpest = SharpestBendDegrees(route!);
+            output.WriteLine($"{what}: {route!.Count} points, sharpest bend {sharpest:F1}°");
+            Assert.True(sharpest <= 32, $"{what} bends {sharpest:F1}° in one step");
+            AssertClear(design, route, what);
+        }
     }
 
     [Fact]
