@@ -100,6 +100,28 @@ namespace CoreEngine.Spike.Garage
             else Rect(centre, size, fill, Halo);
         }
 
+        /// <summary>A round handle: a border of <paramref name="border"/> pixels round a filled middle.</summary>
+        public void Circle(Vector2 centre, float radius, Color fill, Color edge, float border)
+        {
+            if (border > 0)
+            {
+                Disc(centre, radius, edge, Halo);
+                Disc(centre, radius - border, fill, 0);
+            }
+            else Disc(centre, radius, fill, Halo);
+        }
+
+        void Disc(Vector2 centre, float radius, Color colour, float halo)
+        {
+            const int sides = 20;
+            commands.Add(new Command { Start = points.Count, Count = sides, Colour = colour, Halo = halo });
+            for (int i = 0; i < sides; i++)
+            {
+                float a = i * 2 * Mathf.PI / sides;
+                points.Add(centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius);
+            }
+        }
+
         void Rect(Vector2 centre, float size, Color colour, float halo)
         {
             float h = size / 2;

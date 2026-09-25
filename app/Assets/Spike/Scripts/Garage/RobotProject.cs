@@ -116,6 +116,8 @@ namespace CoreEngine.Spike.Garage
             Design.Body.Features ??= new List<BodyFeature>();
             Design.Parts ??= new List<PartInstance>();
             Design.Wires ??= new List<WireInstance>();
+            foreach (var wire in Design.Wires) wire.Points ??= new List<WirePoint>();
+            Design.DropLooseGlue();
         }
 
         /// <summary>Copies the live battery and motor state into the serialised fields.</summary>

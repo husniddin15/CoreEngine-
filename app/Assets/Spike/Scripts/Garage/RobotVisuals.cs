@@ -10,6 +10,43 @@ namespace CoreEngine.Spike.Garage
         public string PartId = "";
     }
 
+    /// <summary>A wire as <see cref="WireRouter"/> laid it, in the robot's frame (metres): its curve and the player's points on it.</summary>
+    public sealed class LaidWire
+    {
+        public LaidWire(Vector3[] curve, WireMark[] marks)
+        {
+            Curve = curve;
+            Marks = marks;
+        }
+
+        public Vector3[] Curve { get; }
+        public WireMark[] Marks { get; }
+    }
+
+    /// <summary>Where a laid wire passes one of the player's points (robot frame, metres).</summary>
+    public readonly struct WireMark
+    {
+        public WireMark(PathAnchor anchor, float scale)
+        {
+            Point = anchor.Point;
+            At = new Vector3(anchor.At.x, anchor.At.y, anchor.At.z) * scale;
+            Along = new Vector3(anchor.Along.x, anchor.Along.y, anchor.Along.z);
+            Normal = new Vector3(anchor.Normal.x, anchor.Normal.y, anchor.Normal.z);
+            Glued = anchor.Glued;
+            Index = anchor.Index;
+        }
+
+        /// <summary>Its index in the wire's list of points.</summary>
+        public int Point { get; }
+        public Vector3 At { get; }
+        public Vector3 Along { get; }
+        public Vector3 Normal { get; }
+        public bool Glued { get; }
+
+        /// <summary>The curve's point there.</summary>
+        public int Index { get; }
+    }
+
     /// <summary>
     /// The robot's look, built from its <see cref="RobotDesign"/>: the body's shapes in their materials, every
     /// part where the player put it and turned it, each motor's wheel on its shaft, and each jumper wire between
@@ -54,7 +91,7 @@ namespace CoreEngine.Spike.Garage
         readonly Dictionary<string, PinKind> pinKinds = new Dictionary<string, PinKind>();
         readonly List<(MeshRenderer renderer, BodyMaterial material, string colour)> bodyRenderers = new List<(MeshRenderer, BodyMaterial, string)>();
         BodyMeshes? body;
-        Material black = null!, holes = null!, metal = null!, darkMetal = null!, gold = null!, tin = null!, activePin = null!, selectedWire = null!;
+        Material black = null!, holes = null!, metal = null!, darkMetal = null!, gold = null!, tin = null!, activePin = null!, selectedWire = null!, glue = null!;
         Transform wiresRoot = null!, pinsRoot = null!;
         string importFolder = "";
         string? hoveredPin, chosenPin;
@@ -77,6 +114,9 @@ namespace CoreEngine.Spike.Garage
 
         /// <summary>Each wire's curve in the robot's local frame (metres), by wire index; null for a wire whose pins are gone.</summary>
         public List<Vector3[]?> WirePaths { get; } = new List<Vector3[]?>();
+
+        /// <summary>Where each wire passes the points the player gave it (robot frame, metres), by wire index.</summary>
+        public List<WireMark[]> WireMarks { get; } = new List<WireMark[]>();
 
         /// <summary>Unity's cylinder mesh: 1 unit across, 2 units tall. The arena uses it for a round body's collider.</summary>
         public static Mesh CylinderMesh
@@ -116,6 +156,7 @@ namespace CoreEngine.Spike.Garage
             v.gold = v.Mat(new Color(0.86f, 0.70f, 0.32f), 0.75f, 1f);
             v.tin = v.Mat(new Color(0.72f, 0.72f, 0.70f), 0.7f, 1f);
             v.selectedWire = v.Mat(new Color(0.31f, 0.76f, 1.0f), 0.7f, 0f);
+            v.glue = v.Mat(new Color(0.93f, 0.93f, 0.88f), 0.88f, 0f); // hot glue: milky and glossy
             v.wiresRoot = Group(v.Root.transform, "Wires", Vector3.zero);
             v.pinsRoot = Group(v.Root.transform, "Pins", Vector3.zero);
             var design = project.Design;
@@ -510,10 +551,13 @@ namespace CoreEngine.Spike.Garage
             for (int i = 0; i < design.Wires.Count; i++) BuildWire(design, i);
         }
 
-        // Routes by the design's shapes and the wire's pins (WireRouter.Key and the pin names), kept between builds:
+        // Routes by the design's shapes and the wire's pins and points (WireRouter.KeyFor), kept between builds:
         // adding a wire, switching modes or drawing a thumbnail lays out only what changed.
-        static readonly Dictionary<string, Vector3[]> routes = new Dictionary<string, Vector3[]>();
+        static readonly Dictionary<string, LaidWire> routes = new Dictionary<string, LaidWire>();
         WireRouter? router;
+
+        /// <summary>The router for this build's design (its parts and body do not change while the build is shown).</summary>
+        public WireRouter Router => router ??= new WireRouter(design);
 
         /// <summary>Wires laid round the parts and the body in this build, and those left as plain arches.</summary>
         public int RoutedWires { get; private set; }
@@ -525,29 +569,40 @@ namespace CoreEngine.Spike.Garage
         /// <summary>Forgets every kept route (for measuring).</summary>
         public static void ClearRoutes() => routes.Clear();
 
-        /// <summary>The wire's way round the parts and the body (robot frame, metres), or null when there is none.</summary>
-        Vector3[]? Route(RobotDesign design, WireInstance wire)
+        /// <summary>The wire's way round the parts and the body and through its points (robot frame, metres), or null when there is none.</summary>
+        LaidWire? Route(RobotDesign design, WireInstance wire)
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             router ??= new WireRouter(design);
-            string key = $"{router.Key}|{wire.FromPart}.{wire.FromPin}|{wire.ToPart}.{wire.ToPin}";
+            string key = router.KeyFor(wire);
             if (routes.TryGetValue(key, out var cached)) return cached;
-            var points = router.Route(design, wire);
+            var path = router.Path(design, wire);
             RouteMs += watch.Elapsed.TotalMilliseconds;
-            if (points == null) return null;
-            var route = new Vector3[points.Count];
-            for (int i = 0; i < points.Count; i++) route[i] = new Vector3(points[i].x, points[i].y, points[i].z) * Mm;
+            if (path == null) return null;
+            var curve = new Vector3[path.Points.Count];
+            for (int i = 0; i < curve.Length; i++) curve[i] = new Vector3(path.Points[i].x, path.Points[i].y, path.Points[i].z) * Mm;
+            var marks = new WireMark[path.Anchors.Count];
+            for (int i = 0; i < marks.Length; i++) marks[i] = new WireMark(path.Anchors[i], Mm);
+            var laid = new LaidWire(curve, marks);
             if (routes.Count > 512) routes.Clear();
-            routes[key] = route;
-            return route;
+            routes[key] = laid;
+            return laid;
+        }
+
+        /// <summary>Lays one wire again after its points changed (a drag in Wire), keeping its highlight.</summary>
+        public void RebuildWire(RobotDesign design, int index)
+        {
+            this.design = design;
+            if (index >= 0 && index < design.Wires.Count) BuildWire(design, index);
         }
 
         /// <summary>
         /// One jumper: a Dupont housing on header pins (on top of a female header, over a male pin), a tinned end in
         /// a screw terminal, nothing extra on a part's own lead; between the ends a smooth tube laid by
         /// <see cref="WireRouter"/>: out of the pin along its exit, then over the parts, round the plates' edges or
-        /// through a hole, never through anything. While a part is being dragged (<paramref name="quick"/>) its
-        /// wires are plain arches, laid properly once it is let go.
+        /// through a hole, never through anything, and through the points the player gave it, with a blob of hot
+        /// glue where it is glued. While a part is being dragged (<paramref name="quick"/>) its wires are plain
+        /// arches, laid properly once it is let go.
         /// </summary>
         void BuildWire(RobotDesign design, int index, bool quick = false)
         {
@@ -555,12 +610,14 @@ namespace CoreEngine.Spike.Garage
             while (wireRenderers.Count <= index) wireRenderers.Add(null);
             while (wireMeshes.Count <= index) wireMeshes.Add(null);
             while (WirePaths.Count <= index) WirePaths.Add(null);
+            while (WireMarks.Count <= index) WireMarks.Add(System.Array.Empty<WireMark>());
             if (wireGroups[index] != null) Object.Destroy(wireGroups[index]);
             if (wireMeshes[index] != null) Object.Destroy(wireMeshes[index]);
             wireGroups[index] = null;
             wireRenderers[index] = null;
             wireMeshes[index] = null;
             WirePaths[index] = null;
+            WireMarks[index] = System.Array.Empty<WireMark>();
 
             var wire = design.Wires[index];
             var a = PinFrame(design, wire.FromPart, wire.FromPin);
@@ -574,8 +631,14 @@ namespace CoreEngine.Spike.Garage
             List<Vector3> curve;
             if (route != null)
             {
-                curve = new List<Vector3>(route);
+                curve = new List<Vector3>(route.Curve);
                 RoutedWires++;
+                WireMarks[index] = route.Marks;
+                // A blob of hot glue over each glued stretch: its middle on the surface, long along the wire.
+                foreach (var mark in route.Marks)
+                    if (mark.Glued)
+                        Shape(group, sphere!, mark.At - mark.Normal * 0.00085f, new Vector3(0.006f, 0.0044f, 0.012f),
+                            Quaternion.LookRotation(mark.Along, mark.Normal), glue, "Glue");
             }
             else
             {

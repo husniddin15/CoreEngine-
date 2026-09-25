@@ -75,11 +75,12 @@ namespace CoreEngine.Spike.Garage
             tooltip = Classed(new Label { pickingMode = PickingMode.Ignore }, "edit-tooltip");
             tooltip.style.display = DisplayStyle.None;
             root.Add(tooltip);
+            BuildWireOverlay();
         }
 
         void UpdateHint() => hint.text = Tr(mode switch
         {
-            EditMode.Wire => "garage.hint.wire",
+            EditMode.Wire => gluing ? "wire.gluingHint" : ChosenWire != null ? "garage.hint.wireShape" : "garage.hint.wire",
             EditMode.Body => "garage.hint.body",
             _ => "garage.hint",
         });
@@ -96,6 +97,7 @@ namespace CoreEngine.Spike.Garage
             // Wire comes closer to the small pins; the Body Studio keeps some room around the robot for new shapes.
             SetView(200f, 42f, next == EditMode.Wire ? 0.40f : next == EditMode.Body ? 0.52f : 0.50f, DefaultTarget);
             selectedWire = -1;
+            ResetPointState();
             wireStart = null;
             focusedPart = null;
             if (next == EditMode.Body) OpenStudio(tab);
@@ -115,6 +117,7 @@ namespace CoreEngine.Spike.Garage
             bodyDirty = false;
             mode = EditMode.None;
             selectedWire = -1;
+            ResetPointState();
             wireStart = null;
             hoveredPin = null;
             tooltip.style.display = DisplayStyle.None;
@@ -135,6 +138,7 @@ namespace CoreEngine.Spike.Garage
         void ResetEditState()
         {
             selectedWire = -1;
+            ResetPointState();
             wireStart = null;
             hoveredPin = null;
             undo.Clear();
@@ -186,8 +190,10 @@ namespace CoreEngine.Spike.Garage
         {
             selection.RemoveAll(p => !Exists(p));
             selectedWire = -1;
+            ResetPointState();
             wireStart = null;
             DesignChanged();
+            UpdateHint();
         }
 
         /// <summary>
@@ -197,6 +203,7 @@ namespace CoreEngine.Spike.Garage
         void DesignChanged()
         {
             designEpoch++;
+            Design.DropLooseGlue(); // glue on a part or shape that is gone goes with it
             if (mode == EditMode.Body)
             {
                 bodyDirty = true;
@@ -231,6 +238,7 @@ namespace CoreEngine.Spike.Garage
             if (bodyDirty && Time.unscaledTime >= bodyRebuildAt) FlushBody();
             UpdateStudioScene();
             UpdatePinTags();
+            UpdateWireHandles();
             if (saveAt > 0 && Time.unscaledTime >= saveAt)
             {
                 saveAt = -1;
@@ -278,12 +286,15 @@ namespace CoreEngine.Spike.Garage
                 leftDown = true;
                 pressPosition = mouse;
                 lastMouse = mouse;
-                if (mode == EditMode.Wire) BeginWireGesture(mouse);
+                // With Glue on, a click glues and pins are left alone; a chosen wire's points and the wire itself
+                // come before pins, so it can be shaped where it runs over a header.
+                if (mode == EditMode.Wire && !gluing && !BeginPointPress(mouse)) BeginWireGesture(mouse);
                 if (mode == EditMode.Body) BeginStudioPress(mouse);
             }
             if (leftDown && input.LeftHeld)
             {
                 if (drag.grip != Grip.None) UpdateStudioDrag(mouse);
+                else if (pointGrip != PointGrip.None) UpdatePointDrag(mouse);
                 else if (!wireGesture && (mouse - pressPosition).magnitude > 4) DragView(mouse);
             }
             if (leftDown && !input.LeftHeld)
@@ -291,8 +302,10 @@ namespace CoreEngine.Spike.Garage
                 leftDown = false;
                 bool click = (mouse - pressPosition).magnitude <= 4;
                 if (drag.grip != Grip.None) EndStudioDrag();
+                else if (pointGrip != PointGrip.None) EndPointDrag();
                 else if (wireGesture) EndWireGesture(mouse, click);
                 else if (click && (input.Scripted ? input.Double : DoubleClick(mouse))) PivotAt(mouse); // the first click picked already
+                else if (click && gluing && mode == EditMode.Wire) GlueAt(mouse);
                 else if (click) SceneClick(mouse);
             }
 
@@ -337,6 +350,8 @@ namespace CoreEngine.Spike.Garage
             if (mode == EditMode.Body && StudioKeys()) return;
             if (input.Ctrl && KeyPressed(KeyCode.Z)) Undo();
             if (input.Ctrl && KeyPressed(KeyCode.Y)) Redo();
+            bool delete = KeyPressed(KeyCode.Delete) || KeyPressed(KeyCode.Backspace);
+            if (mode == EditMode.Wire && PointKeys(delete)) return;
             if (KeyPressed(KeyCode.Escape))
             {
                 if (wireStart != null) CancelWire();
@@ -344,7 +359,6 @@ namespace CoreEngine.Spike.Garage
                 else CloseSide();
                 return;
             }
-            bool delete = KeyPressed(KeyCode.Delete) || KeyPressed(KeyCode.Backspace);
             if (mode == EditMode.Wire && delete && selectedWire >= 0) RemoveWire(selectedWire);
         }
 
@@ -395,6 +409,8 @@ namespace CoreEngine.Spike.Garage
         void SelectNothing()
         {
             selectedWire = -1;
+            ResetPointState();
+            UpdateHint();
             shown?.Highlight(null);
             shown?.HighlightWire(-1);
             renderSide?.Invoke();
@@ -412,7 +428,11 @@ namespace CoreEngine.Spike.Garage
             hoveredPin = null;
             if (!overUi && (!leftDown || wireGesture) && viewDrag == ViewDrag.None)
             {
-                if (mode == EditMode.Wire)
+                if (mode == EditMode.Wire && gluing)
+                {
+                    text = GlueHoverText(mouse);
+                }
+                else if (mode == EditMode.Wire)
                 {
                     // While a wire is being dragged only pins count: it is dropped on one.
                     var (pin, wire) = wireGesture ? (PinUnder(mouse), -1) : WireModeTarget(mouse);
@@ -542,7 +562,9 @@ namespace CoreEngine.Spike.Garage
             }
             wireStart = key;
             selectedWire = -1;
+            ResetPointState();
             shown?.HighlightWire(-1);
+            UpdateHint();
             renderSide?.Invoke();
             return true;
         }
@@ -567,8 +589,10 @@ namespace CoreEngine.Spike.Garage
             }
             wireStart = null;
             selectedWire = Design.Wires.Count - 1;
+            ResetPointState();
             DesignChanged();
             shown?.HighlightWire(selectedWire);
+            UpdateHint();
             return true;
         }
 
@@ -707,9 +731,11 @@ namespace CoreEngine.Spike.Garage
 
         void SelectWire(int index)
         {
+            if (index != selectedWire) ResetPointState();
             selectedWire = index;
             wireStart = null;
             shown?.HighlightWire(index);
+            UpdateHint();
             renderSide?.Invoke();
         }
 
@@ -719,6 +745,8 @@ namespace CoreEngine.Spike.Garage
             PushUndo();
             Design.Wires.RemoveAt(index);
             selectedWire = -1;
+            ResetPointState();
+            UpdateHint();
             DesignChanged();
         }
 
@@ -828,6 +856,7 @@ namespace CoreEngine.Spike.Garage
                 var (part, pin) = SplitKey(wireStart);
                 sideContent.Add(Classed(new Label(SpikeStrings.Format("wire.from", PartLabel(part) + " " + PinLabel(part, pin))), "try-line"));
             }
+            RenderWireShape(); // first, when a wire is chosen: what can be done with it
 
             Section("wire.lookAt");
             var look = Layout("seg-row");
@@ -1117,7 +1146,7 @@ namespace CoreEngine.Spike.Garage
             yield return Frames(6);
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-scratch"));
             report.AppendLine($"  back on the turntable: {robot.PartCount} parts, {robot.MassKg * 1000:F0} g; screenshots -garage-body, " +
-                              "-garage-wire, -garage-wire-warning, -garage-wire-mouse, -garage-look, -garage-studio-drag, -garage-scratch");
+                              "-garage-wire, -garage-wire-warning, -garage-wire-mouse, -garage-wire-points, -garage-look, -garage-studio-drag, -garage-scratch");
         }
 
         /// <summary>
@@ -1152,6 +1181,7 @@ namespace CoreEngine.Spike.Garage
             bool deleted = Design.Wires.Count == count - 1;
             yield return Press(KeyCode.Z, true);
             bool undone = Design.Wires.Count == count && HasWire("uno1/D9", "sonar1/TRIG");
+            yield return ShapeWireByMouse();
 
             FocusPart("uno1");
             yield return Frames(4);
