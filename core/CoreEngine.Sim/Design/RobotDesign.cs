@@ -168,7 +168,10 @@ namespace CoreEngine.Sim.Design
         public PartInstance Clone() => (PartInstance)MemberwiseClone();
     }
 
-    /// <summary>A jumper wire (or lead) from one pin to another (docs/03 §6).</summary>
+    /// <summary>
+    /// A jumper wire (or lead) from one pin to another (docs/03 §6), through the points the player gave it, in
+    /// order from its first pin to its second.
+    /// </summary>
     [Serializable]
     public sealed class WireInstance
     {
@@ -177,6 +180,34 @@ namespace CoreEngine.Sim.Design
         public string ToPart = "";
         public string ToPin = "";
         public string Color = "yellow";
+        public List<WirePoint> Points = new List<WirePoint>();
+
+        public WireInstance Clone()
+        {
+            var copy = (WireInstance)MemberwiseClone();
+            copy.Points = new List<WirePoint>();
+            if (Points != null) foreach (var point in Points) copy.Points.Add(point.Clone());
+            return copy;
+        }
+    }
+
+    /// <summary>
+    /// A point the player gave a wire (docs/03 §6.2): the wire passes through it, as a builder bends a jumper
+    /// round where it should go, or, glued, lies on a surface there under a blob of hot glue. A free point is in
+    /// the chassis frame (mm). A glued point belongs to the part or body shape it is glued to and moves with it:
+    /// on a part, in the part's own frame (mm); on a shape, as shares of the shape's half sizes in its own frame,
+    /// so it stays on the same face when the shape is made bigger or smaller.
+    /// </summary>
+    [Serializable]
+    public sealed class WirePoint
+    {
+        public float X, Y, Z;
+        public bool Glued;
+        public string Part = "";      // glued to this part…
+        public string Shape = "";     // …or to this body shape
+        public float NX, NY = 1, NZ;  // the surface's outward normal there, in the same frame (a glued point)
+
+        public WirePoint Clone() => (WirePoint)MemberwiseClone();
     }
 
     /// <summary>
@@ -219,12 +250,21 @@ namespace CoreEngine.Sim.Design
             return instance;
         }
 
-        /// <summary>Removes a part and every wire attached to it.</summary>
+        /// <summary>Removes a part, every wire attached to it and every wire's glue on it.</summary>
         public void RemovePart(string id)
         {
             Parts.RemoveAll(p => p.Id == id);
             Wires.RemoveAll(w => w.FromPart == id || w.ToPart == id);
+            foreach (var w in Wires) w.Points?.RemoveAll(p => p.Glued && p.Part == id);
         }
+
+        /// <summary>Takes away the wires' glue on parts and body shapes that are gone (after shapes are deleted).</summary>
+        public void DropLooseGlue()
+        {
+            foreach (var w in Wires) w.Points?.RemoveAll(p => p.Glued && !GlueHolds(p));
+        }
+
+        bool GlueHolds(WirePoint p) => p.Part.Length > 0 ? Find(p.Part) != null : Body.Feature(p.Shape) is { Kind: not FeatureKind.Group };
 
         /// <summary>Adds a wire unless it would join a pin to itself or duplicate an existing wire.</summary>
         public WireInstance? AddWire(string fromPart, string fromPin, string toPart, string toPin, string color)
@@ -285,7 +325,7 @@ namespace CoreEngine.Sim.Design
         {
             var copy = new RobotDesign { Body = Body.Clone() };
             foreach (var p in Parts) copy.Parts.Add(p.Clone());
-            foreach (var w in Wires) copy.Wires.Add(new WireInstance { FromPart = w.FromPart, FromPin = w.FromPin, ToPart = w.ToPart, ToPin = w.ToPin, Color = w.Color });
+            foreach (var w in Wires) copy.Wires.Add(w.Clone());
             return copy;
         }
 
@@ -568,14 +608,87 @@ namespace CoreEngine.Sim.Design
             return Math.Max(0, grams);
         }
 
-        /// <summary>Length of a wire in millimetres (straight line; a jumper's slack comes on top).</summary>
+        /// <summary>
+        /// Length of a wire in millimetres: straight from pin to pin, through its points (a jumper's slack and its
+        /// way round the parts come on top).
+        /// </summary>
         public static double WireLength(RobotDesign design, WireInstance wire)
         {
             var a = PinPosition(design, wire.FromPart, wire.FromPin);
             var b = PinPosition(design, wire.ToPart, wire.ToPin);
             if (a == null || b == null) return 0;
-            double dx = a.Value.x - b.Value.x, dy = a.Value.y - b.Value.y, dz = a.Value.z - b.Value.z;
+            double length = 0;
+            var from = a.Value;
+            if (wire.Points != null)
+                foreach (var point in wire.Points)
+                {
+                    var place = PointPlace(design, point);
+                    if (place == null) continue;
+                    length += Distance(from, place.Value.at);
+                    from = place.Value.at;
+                }
+            return length + Distance(from, b.Value);
+        }
+
+        static double Distance((float x, float y, float z) a, (float x, float y, float z) b)
+        {
+            double dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
             return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        // ------------------------------------------------------------------ the points players give wires
+
+        /// <summary>
+        /// Where a wire's point is in the chassis frame (mm) and the outward normal of the surface a glued point
+        /// is on (straight up for a free one); null when the part or shape it was glued to is gone.
+        /// </summary>
+        public static ((float x, float y, float z) at, (float x, float y, float z) normal)? PointPlace(RobotDesign design, WirePoint point)
+        {
+            if (!point.Glued) return ((point.X, point.Y, point.Z), (0f, 1f, 0f));
+            if (point.Part.Length > 0)
+            {
+                var part = design.Find(point.Part);
+                if (part == null) return null;
+                return (ToChassis(part, (point.X, point.Y, point.Z)), Unit(Direction(part, (point.NX, point.NY, point.NZ))));
+            }
+            var f = design.Body.Feature(point.Shape);
+            if (f == null || f.Kind == FeatureKind.Group) return null;
+            var turn = Rot3.Euler(f.RotX, f.RotY, f.RotZ);
+            var r = turn.Apply(point.X * f.SizeX / 2, point.Y * f.SizeY / 2, point.Z * f.SizeZ / 2);
+            return ((f.X + r.x, f.Y + r.y, f.Z + r.z), Unit(turn.Apply(point.NX, point.NY, point.NZ)));
+        }
+
+        /// <summary>
+        /// A glued point at a spot (chassis frame, mm) on a part or a body shape, with the surface's outward normal
+        /// there; null when there is no such part or shape.
+        /// </summary>
+        public static WirePoint? GluePoint(RobotDesign design, string owner, (float x, float y, float z) at, (float x, float y, float z) normal)
+        {
+            var part = design.Find(owner);
+            if (part != null)
+            {
+                var back = part.Turn.Inverse();
+                var local = back.Apply(at.x - part.X, at.y - part.Y, at.z - part.Z);
+                var n = back.Apply(normal);
+                return new WirePoint { Glued = true, Part = owner, X = local.x, Y = local.y, Z = local.z, NX = n.x, NY = n.y, NZ = n.z };
+            }
+            var f = design.Body.Feature(owner);
+            if (f == null || f.Kind == FeatureKind.Group) return null;
+            var inverse = Rot3.Euler(f.RotX, f.RotY, f.RotZ).Inverse();
+            var l = inverse.Apply(at.x - f.X, at.y - f.Y, at.z - f.Z);
+            var m = inverse.Apply(normal);
+            return new WirePoint
+            {
+                Glued = true, Shape = owner,
+                X = l.x / Math.Max(0.05f, f.SizeX / 2), Y = l.y / Math.Max(0.05f, f.SizeY / 2), Z = l.z / Math.Max(0.05f, f.SizeZ / 2),
+                NX = m.x, NY = m.y, NZ = m.z,
+            };
+        }
+
+        static (float x, float y, float z) Unit((float x, float y, float z) v)
+        {
+            float length = (float)Math.Sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            return length > 1e-6f ? (v.x / length, v.y / length, v.z / length) : (0f, 1f, 0f);
         }
     }
 }

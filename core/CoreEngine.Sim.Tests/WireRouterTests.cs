@@ -220,11 +220,184 @@ public class WireRouterTests
         Assert.Contains(route, p => p.y > 15); // over the top of the 15 mm holder, or round it
     }
 
+    // ------------------------------------------------------------------ the player's points (2026-09-25)
+
+    static double Nearest(List<(float x, float y, float z)> route, (float x, float y, float z) p)
+    {
+        double best = double.MaxValue;
+        foreach (var q in route) best = Math.Min(best, Distance(q, p));
+        return best;
+    }
+
+    static WireInstance KitWire(RobotDesign design, string fromPart, string fromPin) =>
+        design.Wires.Find(w => w.FromPart == fromPart && w.FromPin == fromPin)!;
+
+    static BodyFeature TopDeck(RobotDesign design) => design.Body.Features.Find(f => f.Kind == FeatureKind.Plate && f.Y > 60)!;
+
+    [Fact]
+    public void AWireGoesThroughItsBendPointSmoothly()
+    {
+        // The owner: "user can decide where it will go ... where it will rotate, where it will pass".
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "uno1", "D5");
+        var bend = (x: -40f, y: 115f, z: 30f); // high above the robot, well off the wire's own way
+        wire.Points.Add(new WirePoint { X = bend.x, Y = bend.y, Z = bend.z });
+        var path = new WireRouter(design).Path(design, wire)!;
+        Assert.Single(path.Anchors);
+        Assert.True(Nearest(path.Points, bend) < 0.01, $"through the point: {Nearest(path.Points, bend):F3} mm away");
+        Assert.Equal(bend, path.Points[path.Anchors[0].Index]);
+        double sharpest = SharpestBendDegrees(path.Points);
+        output.WriteLine($"through a bend point: {path.Points.Count} points, sharpest bend {sharpest:F1}°");
+        Assert.True(sharpest <= 32, $"bends {sharpest:F1}° in one step");
+        AssertClear(design, path.Points, "through a bend point");
+    }
+
+    [Fact]
+    public void AGluedWireLiesOnThePlateUnderItsGlue()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "battery1", "-");
+        var top = TopDeck(design); // 63.5 mm up, 3 mm thick
+        var glue = DesignGeometry.GluePoint(design, top.Id, (-40, 65, 30), (0, 1, 0))!; // an open spot on the deck, beside the Uno
+        wire.Points.Add(glue);
+        var path = new WireRouter(design).Path(design, wire)!;
+        var anchor = Assert.Single(path.Anchors);
+        Assert.True(anchor.Glued);
+        Assert.Equal(65.85f, anchor.At.y, 2);
+        Assert.True(Math.Abs(anchor.Along.y) < 1e-4, "the glued stretch runs along the deck");
+        // Flat on the deck for the glue's length, then up off it; never into anything.
+        int flat = 0;
+        foreach (var q in path.Points)
+        {
+            double along = (q.x - anchor.At.x) * anchor.Along.x + (q.z - anchor.At.z) * anchor.Along.z;
+            double across = Math.Abs((q.x - anchor.At.x) * anchor.Along.z - (q.z - anchor.At.z) * anchor.Along.x);
+            if (Math.Abs(along) > WireRouter.GlueLength / 2 + 0.01 || across > 0.01) continue;
+            Assert.Equal(65.85f, q.y, 2);
+            flat++;
+        }
+        output.WriteLine($"glued: {flat} points flat on the deck; along ({anchor.Along.x:F2}, {anchor.Along.y:F2}, {anchor.Along.z:F2})");
+        Assert.True(flat >= 4, "a flat stretch under the glue");
+        AssertClear(design, path.Points, "glued on the deck");
+        double sharpest = SharpestBendDegrees(path.Points);
+        Assert.True(sharpest <= 32, $"bends {sharpest:F1}° in one step");
+    }
+
+    [Fact]
+    public void GlueMovesWithItsPartAndStaysOnItsFace()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var battery = design.Find("battery1")!; // 58 × 15 × 62 mm about its middle, at (0, 45.5, -5): its top at 53 mm
+        var onHolder = DesignGeometry.GluePoint(design, "battery1", (10, 53, -5), (0, 1, 0))!;
+        battery.X += 10;
+        battery.Rotation = 90;
+        var moved = DesignGeometry.PointPlace(design, onHolder)!.Value;
+        Assert.Equal(10f, moved.at.x, 3);   // turned a quarter about its middle: its +x went to -z
+        Assert.Equal(53f, moved.at.y, 3);
+        Assert.Equal(-15f, moved.at.z, 3);
+        Assert.Equal(1f, moved.normal.y, 4);
+
+        var top = TopDeck(design);
+        var onDeck = DesignGeometry.GluePoint(design, top.Id, (40, 65, 50), (0, 1, 0))!;
+        top.SizeY = 5; // a thicker deck: the glue stays on its top face
+        top.X += 5;
+        var place = DesignGeometry.PointPlace(design, onDeck)!.Value;
+        Assert.Equal(top.Y + 2.5f, place.at.y, 3);
+        Assert.Equal(45f, place.at.x, 3);
+    }
+
+    [Fact]
+    public void RemovingWhatAWireIsGluedToTakesTheGlue()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "uno1", "D5");
+        wire.Points.Add(DesignGeometry.GluePoint(design, "battery1", (0, 53, -5), (0, 1, 0))!);
+        wire.Points.Add(new WirePoint { X = 0, Y = 110, Z = 0 });
+        design.RemovePart("battery1");
+        Assert.Single(wire.Points);
+        var top = TopDeck(design);
+        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (40, 65, 50), (0, 1, 0))!);
+        design.Body.Remove(top.Id);
+        design.DropLooseGlue();
+        Assert.Single(wire.Points);
+        Assert.False(wire.Points[0].Glued);
+    }
+
+    [Fact]
+    public void APointInsideAPartIsPushedOutAndTheWireGoesRound()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "uno1", "D5");
+        wire.Points.Add(new WirePoint { X = 0, Y = 45, Z = -5 }); // in the middle of the battery holder
+        var router = new WireRouter(design);
+        var path = router.Path(design, wire)!;
+        var at = Assert.Single(path.Anchors).At;
+        output.WriteLine($"pushed out to ({at.x:F1}, {at.y:F1}, {at.z:F1})");
+        Assert.True(router.Distance(at.x, at.y, at.z) >= WireRouter.Clearance, "the point it passes has room");
+        AssertClear(design, path.Points, "through a point that was inside the holder");
+    }
+
+    [Fact]
+    public void ARayFindsTheDeckAndTheWheel()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var router = new WireRouter(design);
+        var top = TopDeck(design);
+        var deck = router.Pick((40, 300, -60), (0, -1, 0), 1000)!.Value;
+        Assert.Equal(top.Id, deck.Owner);
+        Assert.Equal(65f, deck.Point.y, 1);
+        Assert.Equal(1f, deck.Normal.y, 2);
+        Assert.False(deck.Wheel);
+        // The left wheel: 65 mm across, 26 mm wide, its middle at x = -77.5.
+        var wheel = router.Pick((-300, 32.5f, -30), (1, 0, 0), 1000)!.Value;
+        Assert.Equal("motor1", wheel.Owner);
+        Assert.True(wheel.Wheel);
+        Assert.Equal(-90.5f, wheel.Point.x, 1);
+        Assert.Null(router.Pick((200, 300, 200), (0, -1, 0), 1000)); // beside the robot: only the floor
+    }
+
+    [Fact]
+    public void APointsKeyChangesWhenItMovesAndACloneKeepsItsOwn()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "uno1", "D5");
+        var router = new WireRouter(design);
+        string plain = router.KeyFor(wire);
+        wire.Points.Add(new WirePoint { X = -40, Y = 115, Z = 30 });
+        string bent = router.KeyFor(wire);
+        Assert.NotEqual(plain, bent);
+        var copy = design.Clone();
+        KitWire(copy, "uno1", "D5").Points[0].X += 5;
+        Assert.Equal(bent, router.KeyFor(wire));
+        Assert.NotEqual(bent, router.KeyFor(KitWire(copy, "uno1", "D5")));
+    }
+
+    [Fact]
+    public void AWireThroughSeveralPointsStaysSmoothAndClear()
+    {
+        var design = DesignPresets.ObstacleAvoiderKit();
+        var wire = KitWire(design, "motor1", "M+");
+        var top = TopDeck(design);
+        wire.Points.Add(new WirePoint { X = -70, Y = 50, Z = 10 });                              // out beside the decks
+        wire.Points.Add(DesignGeometry.GluePoint(design, top.Id, (-45, 65, 30), (0, 1, 0))!);   // glued on the deck
+        wire.Points.Add(new WirePoint { X = 10, Y = 95, Z = 40 });                               // up over the L298N
+        var path = new WireRouter(design).Path(design, wire)!;
+        Assert.Equal(3, path.Anchors.Count);
+        for (int i = 1; i < 3; i++) Assert.True(path.Anchors[i].Index > path.Anchors[i - 1].Index, "in order along the wire");
+        double sharpest = SharpestBendDegrees(path.Points);
+        output.WriteLine($"through three points: {path.Points.Count} points, sharpest bend {sharpest:F1}°");
+        Assert.True(sharpest <= 32, $"bends {sharpest:F1}° in one step");
+        AssertClear(design, path.Points, "through three points");
+    }
+
     [Fact]
     public void RoutingTheKitIsQuick()
     {
+        // The work is counted exactly (A*'s cells and the field's evaluations: about 6400 and 33000 on
+        // 2026-09-25); the time only loosely, since the tests run unoptimised, two to three times slower than the
+        // players (the kit takes about 10-20 ms optimised), and the machine may be busy with other programs.
         var design = DesignPresets.ObstacleAvoiderKit();
         double best = double.MaxValue;
+        int expansions = 0, evaluations = 0;
         for (int run = 0; run < 5; run++)
         {
             var watch = Stopwatch.StartNew();
@@ -232,9 +405,12 @@ public class WireRouterTests
             foreach (var wire in design.Wires) router.Route(design, wire);
             double ms = watch.Elapsed.TotalMilliseconds;
             best = Math.Min(best, ms);
+            (expansions, evaluations) = (router.Expansions, router.Evaluations);
             output.WriteLine($"run {run}: {ms:F1} ms, {router.Expansions} expansions, {router.Evaluations} evaluations");
         }
-        Assert.True(best < 60, $"the kit's 16 wires took {best:F1} ms at best");
+        Assert.True(expansions < 8000, $"A* took {expansions} cells from its queue for the kit's 16 wires");
+        Assert.True(evaluations < 40000, $"the field was worked out {evaluations} times for the kit's 16 wires");
+        Assert.True(best < 150, $"the kit's 16 wires took {best:F1} ms at best");
     }
 
     [Fact]

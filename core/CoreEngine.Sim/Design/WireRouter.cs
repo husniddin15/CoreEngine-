@@ -4,6 +4,76 @@ using System.Numerics;
 
 namespace CoreEngine.Sim.Design
 {
+    /// <summary>A wire laid by <see cref="WireRouter.Path"/>: its points about 2 mm apart, and where it passes the player's points.</summary>
+    public sealed class WirePath
+    {
+        public WirePath(List<(float x, float y, float z)> points, List<PathAnchor> anchors)
+        {
+            Points = points;
+            Anchors = anchors;
+        }
+
+        /// <summary>From the first pin to the second (chassis frame, mm).</summary>
+        public List<(float x, float y, float z)> Points { get; }
+
+        /// <summary>The player's points the wire passes, in order.</summary>
+        public List<PathAnchor> Anchors { get; }
+    }
+
+    /// <summary>Where a wire passes one of the player's points (chassis frame, mm).</summary>
+    public readonly struct PathAnchor
+    {
+        public PathAnchor(int point, (float x, float y, float z) at, (float x, float y, float z) along, (float x, float y, float z) normal, bool glued, int index)
+        {
+            Point = point;
+            At = at;
+            Along = along;
+            Normal = normal;
+            Glued = glued;
+            Index = index;
+        }
+
+        /// <summary>Its place in the wire's list of points.</summary>
+        public int Point { get; }
+
+        /// <summary>The wire's middle there: a free point pushed out of anything it was in, or just off a glued surface.</summary>
+        public (float x, float y, float z) At { get; }
+
+        /// <summary>The way the wire runs through it, from the first pin toward the second.</summary>
+        public (float x, float y, float z) Along { get; }
+
+        /// <summary>The outward normal of the surface a glued point is on.</summary>
+        public (float x, float y, float z) Normal { get; }
+
+        public bool Glued { get; }
+
+        /// <summary>The index of the path's point there.</summary>
+        public int Index { get; }
+    }
+
+    /// <summary>What a ray meets first on the robot (chassis frame, mm): a part or a body shape.</summary>
+    public readonly struct SurfaceHit
+    {
+        public SurfaceHit((float x, float y, float z) point, (float x, float y, float z) normal, string owner, bool wheel)
+        {
+            Point = point;
+            Normal = normal;
+            Owner = owner;
+            Wheel = wheel;
+        }
+
+        public (float x, float y, float z) Point { get; }
+
+        /// <summary>The surface's outward normal there (unit length).</summary>
+        public (float x, float y, float z) Normal { get; }
+
+        /// <summary>The part's id, or the body shape's.</summary>
+        public string Owner { get; }
+
+        /// <summary>A motor's wheel: it turns, so nothing is glued to it.</summary>
+        public bool Wheel { get; }
+    }
+
     /// <summary>
     /// Lays jumper wires the way a builder does (docs/03 §6): out of a header or a terminal, then over the parts,
     /// round the edges of the plates or through a hole wide enough, never through a part or solid material.
@@ -15,7 +85,8 @@ namespace CoreEngine.Sim.Design
     /// without coming closer to anything than it was, short jogs are taken out, every corner becomes an arc of up
     /// to 16 mm radius (two bends close together share the side between them, so that neither is a kink; smaller
     /// only where something is in the way), and the wire gets some slack upward: a real jumper cannot fold, it
-    /// bends and arches. Everything is in millimetres in the chassis frame.
+    /// bends and arches. The player may give a wire points (<see cref="WirePoint"/>): it passes through each, and
+    /// lies flat on the surface under each glued one. Everything is in millimetres in the chassis frame.
     /// </summary>
     public sealed class WireRouter
     {
@@ -42,6 +113,21 @@ namespace CoreEngine.Sim.Design
 
         /// <summary>A side of the path shorter than this between two bends is a jog, taken out where it can be.</summary>
         const float Jog = 6f;
+
+        /// <summary>How long a glued stretch lies flat on its surface, under the glue (mm).</summary>
+        public const float GlueLength = 8f;
+
+        /// <summary>A glued wire's middle above its surface: its radius and a hair (mm).</summary>
+        const float GlueHeight = 0.85f;
+
+        /// <summary>How steeply a wire rises off its glue: tan 15°.</summary>
+        const float GlueRise = 0.27f;
+
+        /// <summary>How far out of its glue a wire's path starts (mm).</summary>
+        const float GlueLead = 6f;
+
+        /// <summary>How far a wire runs straight on through one of the player's points, at most (mm).</summary>
+        const float PointLead = 4f;
 
         const float Far = 24f;        // the field is only worked out this far; beyond it, "far" is enough
         const float Margin = 30f;     // room round the robot for wires going round it
@@ -231,6 +317,130 @@ namespace CoreEngine.Sim.Design
 
         bool SegmentFree(Vector3 a, Vector3 b, float room = Clearance) => SegmentFree(a, Distance(a), b, Distance(b), Vector3.Distance(a, b), room);
 
+        /// <summary>
+        /// How far a point is from the nearest part or body shape (not the floor), up to <see cref="Far"/>, and
+        /// which shape that is: every shape near it is looked at, so the distance is never more than the true one.
+        /// </summary>
+        float SolidDistance(Vector3 p, out Shape? nearest)
+        {
+            nearest = null;
+            float d = Far;
+            var nodes = buckets[(BucketOf(p.X, x0, bx) * by + BucketOf(p.Y, y0, by)) * bz + BucketOf(p.Z, z0, bz)];
+            foreach (var node in nodes)
+            {
+                if (node.Bounds.DistanceSquared(p.X, p.Y, p.Z) >= d * d) continue;
+                float nd = NodeDistance(node, p.X, p.Y, p.Z, d);
+                if (nd >= d) continue;
+                d = nd;
+                nearest = NearestShape(node, p);
+            }
+            return d;
+        }
+
+        /// <summary>The solid shape of a node nearest a point (a group's nearest member).</summary>
+        static Shape? NearestShape(Node node, Vector3 p)
+        {
+            if (node.Shape != null) return node.Shape;
+            Shape? best = null;
+            float bestDistance = float.MaxValue;
+            foreach (var s in node.Solids!)
+            {
+                float d = NodeDistance(s, p.X, p.Y, p.Z, float.MaxValue);
+                if (d >= bestDistance) continue;
+                bestDistance = d;
+                best = NearestShape(s, p);
+            }
+            return best;
+        }
+
+        /// <summary>The field with the floor and nothing left out, for pushing points and finding slopes.</summary>
+        float FullDistance(Vector3 p) => Math.Min(p.Y - floor, SolidDistance(p, out _));
+
+        /// <summary>The way the field rises fastest at a point (unit length): away from the nearest surface.</summary>
+        Vector3 Gradient(Vector3 p)
+        {
+            const float h = 0.25f;
+            var g = new Vector3(
+                FullDistance(p + Vector3.UnitX * h) - FullDistance(p - Vector3.UnitX * h),
+                FullDistance(p + Vector3.UnitY * h) - FullDistance(p - Vector3.UnitY * h),
+                FullDistance(p + Vector3.UnitZ * h) - FullDistance(p - Vector3.UnitZ * h));
+            return g.LengthSquared() > 1e-10f ? Vector3.Normalize(g) : Vector3.Zero;
+        }
+
+        /// <summary>
+        /// The first part or body shape a ray meets (chassis frame, mm), within <paramref name="reach"/>: for gluing
+        /// a wire where the player clicks. It walks the ray by the distance to the nearest solid, so it never steps
+        /// into one. Null when it meets nothing, or the floor first.
+        /// </summary>
+        public SurfaceHit? Pick((float x, float y, float z) from, (float x, float y, float z) direction, float reach)
+        {
+            var o = V(from);
+            var d = Unit(direction);
+            float t = 0;
+            for (int step = 0; step < 512 && t <= reach; step++)
+            {
+                var p = o + d * t;
+                if (p.Y <= floor) return null;
+                float distance = SolidDistance(p, out var shape);
+                if (distance < 0.02f && shape != null)
+                {
+                    var n = SolidGradient(p);
+                    if (n == Vector3.Zero) n = -d;
+                    return new SurfaceHit(T(p), T(n), shape.Owner, shape.IsWheel);
+                }
+                t += Math.Max(distance, 0.02f);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The part or body shape nearest a point, within <paramref name="reach"/> (at most <see cref="Far"/>), and
+        /// the spot on it nearest the point: for gluing a wire's point to what it is beside.
+        /// </summary>
+        public SurfaceHit? NearestSurface((float x, float y, float z) point, float reach)
+        {
+            var p = V(point);
+            if (SolidDistance(p, out _) > Math.Min(reach, Far - 1)) return null;
+            var g = SolidGradient(p);
+            return g == Vector3.Zero ? null : Pick(point, T(-g), reach + 1);
+        }
+
+        Vector3 SolidGradient(Vector3 p)
+        {
+            const float h = 0.2f;
+            var g = new Vector3(
+                SolidDistance(p + Vector3.UnitX * h, out _) - SolidDistance(p - Vector3.UnitX * h, out _),
+                SolidDistance(p + Vector3.UnitY * h, out _) - SolidDistance(p - Vector3.UnitY * h, out _),
+                SolidDistance(p + Vector3.UnitZ * h, out _) - SolidDistance(p - Vector3.UnitZ * h, out _));
+            return g.LengthSquared() > 1e-10f ? Vector3.Normalize(g) : Vector3.Zero;
+        }
+
+        /// <summary>
+        /// Where a wire could pass nearest a point (chassis frame, mm): the point itself when it has room, else
+        /// pushed out of what it is in or too near, up the field's slope.
+        /// </summary>
+        public (float x, float y, float z) Clear((float x, float y, float z) point)
+        {
+            var p = V(point);
+            TryClear(ref p);
+            return T(p);
+        }
+
+        /// <summary>Pushes a point out to <see cref="Clearance"/> and a little more; false when it cannot get that far out.</summary>
+        bool TryClear(ref Vector3 p)
+        {
+            const float wanted = Clearance + 0.6f;
+            for (int i = 0; i < 32; i++)
+            {
+                float d = FullDistance(p);
+                if (d >= wanted) return true;
+                var g = Gradient(p);
+                if (g == Vector3.Zero) g = Vector3.UnitY;
+                p += g * Math.Max(0.3f, wanted - d);
+            }
+            return FullDistance(p) >= Clearance;
+        }
+
         // ------------------------------------------------------------------ routing
 
         /// <summary>
@@ -252,14 +462,216 @@ namespace CoreEngine.Sim.Design
         /// </summary>
         const float Lead = 8f;
 
-        /// <summary>A way for one of the design's wires, from its first pin to its second (see the other overload).</summary>
-        public List<(float x, float y, float z)>? Route(RobotDesign design, WireInstance wire)
+        /// <summary>A way for one of the design's wires, from its first pin through its points to its second (see <see cref="Path"/>).</summary>
+        public List<(float x, float y, float z)>? Route(RobotDesign design, WireInstance wire) => Path(design, wire)?.Points;
+
+        /// <summary>
+        /// A way for one of the design's wires, from its first pin through the points the player gave it to its
+        /// second, and where it passes each point; null when a pin is gone, or a wire without points has no way
+        /// (the caller then draws its plain arc). Each stretch between two pins or points is laid as a wire of its
+        /// own, so it goes round the parts as any wire does, and the stretches meet at a point running the same
+        /// way, so the wire bends smoothly through it. Under a glued point the wire lies flat on the surface for
+        /// <see cref="GlueLength"/> and rises off it at each end. A stretch with no way round (a point shut in)
+        /// is a plain curve.
+        /// </summary>
+        public WirePath? Path(RobotDesign design, WireInstance wire)
         {
             var a = End(design, wire.FromPart, wire.FromPin);
             var b = End(design, wire.ToPart, wire.ToPin);
             if (a == null || b == null) return null;
-            return Route(a.Value.start, a.Value.exit, a.Value.lead, b.Value.start, b.Value.exit, b.Value.lead);
+            var first = new Tip(V(a.Value.start), Unit(a.Value.exit), a.Value.lead, guarded: true, point: false);
+            var last = new Tip(V(b.Value.start), Unit(b.Value.exit), b.Value.lead, guarded: true, point: false);
+            var anchors = Anchors(design, wire, first.At + first.Exit * first.Lead, last.At + last.Exit * last.Lead);
+
+            var curve = new List<Vector3>();
+            var placed = new List<PathAnchor>();
+            var from = first;
+            for (int k = 0; k <= anchors.Count; k++)
+            {
+                var to = k < anchors.Count ? Arrival(anchors[k]) : last;
+                var stretch = Stretch(from, to);
+                if (stretch == null)
+                {
+                    if (anchors.Count == 0) return null;
+                    stretch = PlainStretch(from, to);
+                }
+                if (k > 0)
+                {
+                    var anchor = anchors[k - 1];
+                    int index;
+                    if (anchor.Glued)
+                    {
+                        // Flat on the surface under the glue, from where the last stretch ended to where this one starts.
+                        var e1 = curve[curve.Count - 1];
+                        AddLine(curve, e1, anchor.At);
+                        index = curve.Count - 1;
+                        AddLine(curve, anchor.At, stretch[0]);
+                        curve.RemoveAt(curve.Count - 1); // the stretch starts there
+                    }
+                    else
+                    {
+                        index = curve.Count - 1; // the last stretch ended at the point, and this one starts there
+                        stretch.RemoveAt(0);
+                    }
+                    placed.Add(new PathAnchor(anchor.Point, T(anchor.At), T(anchor.Along), T(anchor.Normal), anchor.Glued, index));
+                }
+                curve.AddRange(stretch);
+                if (k < anchors.Count) from = Departure(anchors[k]);
+            }
+            var points = new List<(float x, float y, float z)>(curve.Count);
+            foreach (var p in curve) points.Add(T(p));
+            return new WirePath(points, placed);
         }
+
+        /// <summary>The same as the route's cache key: the router's <see cref="Key"/>, the wire's pins and its points.</summary>
+        public string KeyFor(WireInstance wire)
+        {
+            var hash = new Hasher();
+            hash.Add(Key).Add(wire.FromPart).Add(wire.FromPin).Add(wire.ToPart).Add(wire.ToPin);
+            if (wire.Points != null)
+                foreach (var p in wire.Points)
+                    hash.Add(p.Glued ? 1 : 0).Add(p.Part).Add(p.Shape).Add(p.X).Add(p.Y).Add(p.Z).Add(p.NX).Add(p.NY).Add(p.NZ);
+            return hash.ToString();
+        }
+
+        /// <summary>One end of a stretch of wire: a pin, or one side of a player's point.</summary>
+        readonly struct Tip
+        {
+            public Tip(Vector3 at, Vector3 exit, float lead, bool guarded, bool point)
+            {
+                At = at;
+                Exit = exit;
+                Lead = lead;
+                Guarded = guarded;
+                Point = point;
+            }
+
+            public Vector3 At { get; }
+
+            /// <summary>The way the wire leaves it for the stretch.</summary>
+            public Vector3 Exit { get; }
+
+            /// <summary>How far out along the exit the stretch's path starts.</summary>
+            public float Lead { get; }
+
+            /// <summary>The wire leaves a part or its glue there, so its first millimetres are not checked.</summary>
+            public bool Guarded { get; }
+
+            /// <summary>One of the player's points: the slack has no slope there, so the wire runs on smoothly.</summary>
+            public bool Point { get; }
+        }
+
+        /// <summary>A player's point as the wire passes it.</summary>
+        struct Anchor
+        {
+            public int Point;
+            public Vector3 At, Normal, Along;
+            public bool Glued;
+        }
+
+        /// <summary>The end of the stretch that comes to a point: the wire arrives running along it.</summary>
+        static Tip Arrival(Anchor anchor) => anchor.Glued
+            ? new Tip(anchor.At - anchor.Along * (GlueLength / 2), Vector3.Normalize(-anchor.Along + anchor.Normal * GlueRise), GlueLead, guarded: true, point: true)
+            : new Tip(anchor.At, -anchor.Along, PointLead, guarded: false, point: true);
+
+        /// <summary>The start of the stretch that leaves a point.</summary>
+        static Tip Departure(Anchor anchor) => anchor.Glued
+            ? new Tip(anchor.At + anchor.Along * (GlueLength / 2), Vector3.Normalize(anchor.Along + anchor.Normal * GlueRise), GlueLead, guarded: true, point: true)
+            : new Tip(anchor.At, anchor.Along, PointLead, guarded: false, point: true);
+
+        /// <summary>
+        /// The wire's points where it passes them: a free point pushed out of anything it is in (left out when it
+        /// cannot be), a glued one just off its surface; the way through each is halfway between the way in and the
+        /// way out, along the surface when it is glued or near a surface.
+        /// </summary>
+        List<Anchor> Anchors(RobotDesign design, WireInstance wire, Vector3 before, Vector3 after)
+        {
+            var list = new List<Anchor>();
+            if (wire.Points == null) return list;
+            for (int i = 0; i < wire.Points.Count; i++)
+            {
+                var place = DesignGeometry.PointPlace(design, wire.Points[i]);
+                if (place == null) continue;
+                bool glued = wire.Points[i].Glued;
+                var normal = Unit(place.Value.normal);
+                var at = V(place.Value.at);
+                if (glued) at += normal * GlueHeight;
+                else if (!TryClear(ref at)) continue;
+                list.Add(new Anchor { Point = i, At = at, Normal = normal, Glued = glued });
+            }
+            for (int k = 0; k < list.Count; k++)
+            {
+                var anchor = list[k];
+                var prev = k == 0 ? before : list[k - 1].At;
+                var next = k + 1 == list.Count ? after : list[k + 1].At;
+                var along = Direction(anchor.At - prev) + Direction(next - anchor.At);
+                var across = anchor.Normal;
+                if (!anchor.Glued)
+                {
+                    // Near a surface a wire runs along it: one of its two sides would otherwise point into it.
+                    across = Gradient(anchor.At);
+                    if (FullDistance(anchor.At) > 6 || across.LengthSquared() < 1e-6f) across = Vector3.Zero;
+                }
+                along -= across * Vector3.Dot(along, across);
+                if (along.LengthSquared() < 1e-4f)
+                {
+                    along = next - prev;
+                    along -= across * Vector3.Dot(along, across);
+                }
+                if (along.LengthSquared() < 1e-4f) along = Perpendicular(anchor.Glued || across.LengthSquared() > 0 ? across : Vector3.UnitY);
+                anchor.Along = Vector3.Normalize(along);
+                list[k] = anchor;
+            }
+            return list;
+        }
+
+        static Vector3 Direction(Vector3 v) => v.LengthSquared() > 1e-8f ? Vector3.Normalize(v) : Vector3.Zero;
+
+        static Vector3 Perpendicular(Vector3 n)
+        {
+            var other = Math.Abs(n.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
+            return Vector3.Normalize(Vector3.Cross(n, other));
+        }
+
+        /// <summary>
+        /// One stretch of a wire, laid as a wire of its own: slack as a jumper's between two pins, half of it at a
+        /// point, and with no slope at a point, so the wire runs on smoothly there. Points a few millimetres apart
+        /// are simply joined.
+        /// </summary>
+        List<Vector3>? Stretch(Tip from, Tip to)
+        {
+            float gap = Vector3.Distance(from.At, to.At);
+            if ((from.Point || to.Point) && gap < 3) return Resample(new List<Vector3> { from.At, to.At }, Spacing);
+            float leadFrom = from.Guarded ? from.Lead : Math.Min(from.Lead, 0.3f * gap);
+            float leadTo = to.Guarded ? to.Lead : Math.Min(to.Lead, 0.3f * gap);
+            float slack = (from.Point ? 0.5f : 1f) * (to.Point ? 0.5f : 1f);
+            return Leg(from.At, from.Exit, leadFrom, from.Guarded, to.At, to.Exit, leadTo, to.Guarded, slack, from.Point || to.Point);
+        }
+
+        /// <summary>A stretch with no way round: a plain curve leaving each end along its exit.</summary>
+        static List<Vector3> PlainStretch(Tip from, Tip to)
+        {
+            float reach = Math.Max(2f, Vector3.Distance(from.At, to.At) / 3);
+            Vector3 a = from.At, p1 = from.At + from.Exit * reach, p2 = to.At + to.Exit * reach, b = to.At;
+            var curve = new List<Vector3>(25);
+            for (int i = 0; i <= 24; i++)
+            {
+                float t = i / 24f, u = 1 - t;
+                curve.Add(u * u * u * a + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * b);
+            }
+            return Resample(curve, Spacing);
+        }
+
+        /// <summary>Points from <paramref name="a"/> (already in the list) to <paramref name="b"/>, about <see cref="Spacing"/> apart.</summary>
+        static void AddLine(List<Vector3> curve, Vector3 a, Vector3 b)
+        {
+            int n = Math.Max(1, (int)Math.Ceiling(Vector3.Distance(a, b) / Spacing));
+            for (int i = 1; i <= n; i++) curve.Add(Vector3.Lerp(a, b, i / (float)n));
+        }
+
+        static Vector3 V((float x, float y, float z) v) => new Vector3(v.x, v.y, v.z);
+
+        static (float x, float y, float z) T(Vector3 v) => (v.X, v.Y, v.Z);
 
         static ((float x, float y, float z) start, (float x, float y, float z) exit, float lead)? End(RobotDesign design, string partId, string pinId)
         {
@@ -283,10 +695,25 @@ namespace CoreEngine.Sim.Design
         public List<(float x, float y, float z)>? Route((float x, float y, float z) from, (float x, float y, float z) fromExit, float fromLead,
             (float x, float y, float z) to, (float x, float y, float z) toExit, float toLead)
         {
-            var a = new Vector3(from.x, from.y, from.z);
-            var b = new Vector3(to.x, to.y, to.z);
-            var pa = LeadOut(a, Unit(fromExit), fromLead, out float leadA);
-            var pb = LeadOut(b, Unit(toExit), toLead, out float leadB);
+            var curve = Leg(V(from), Unit(fromExit), fromLead, true, V(to), Unit(toExit), toLead, true, 1f, false);
+            if (curve == null) return null;
+            var result = new List<(float x, float y, float z)>(curve.Count);
+            foreach (var p in curve) result.Add(T(p));
+            return result;
+        }
+
+        /// <summary>
+        /// One wire or stretch of wire from <paramref name="a"/> to <paramref name="b"/>: out along each exit, A*,
+        /// pulled straight, jogs out, the corners made arcs, a point every 2 mm, and <paramref name="slack"/> times
+        /// a jumper's slack (with no slope at the ends when <paramref name="flatEnds"/>). A guarded end leaves a part
+        /// or its glue: its first millimetres are not checked. An unguarded end (a player's point, in the open) runs
+        /// straight on only as far as it is clear.
+        /// </summary>
+        List<Vector3>? Leg(Vector3 a, Vector3 ea, float fromLead, bool guardFrom, Vector3 b, Vector3 eb, float toLead, bool guardTo, float slack, bool flatEnds)
+        {
+            float leadA, leadB;
+            var pa = guardFrom ? LeadOut(a, ea, fromLead, out leadA) : OpenLead(a, ea, fromLead, out leadA);
+            var pb = guardTo ? LeadOut(b, eb, toLead, out leadB) : OpenLead(b, eb, toLead, out leadB);
             int start = NearestFreeCell(pa), goal = NearestFreeCell(pb);
             if (start < 0 || goal < 0) return null;
             var cells = Search(start, goal);
@@ -299,14 +726,19 @@ namespace CoreEngine.Sim.Design
             var curve = new List<Vector3>(path.Count + 2) { a };
             foreach (var p in path) if (Vector3.DistanceSquared(p, curve[curve.Count - 1]) > 1e-4f) curve.Add(p);
             if (Vector3.DistanceSquared(b, curve[curve.Count - 1]) > 1e-4f) curve.Add(b);
-            float guardA = leadA + 2, guardB = leadB + 2;
+            float guardA = guardFrom ? leadA + 2 : 0, guardB = guardTo ? leadB + 2 : 0;
             curve = Fillet(curve, guardA, guardB);
             curve = Resample(curve, Spacing);
-            curve = Slacken(curve, guardA, guardB);
+            return slack > 0 ? Slacken(curve, guardA, guardB, slack, flatEnds) : curve;
+        }
 
-            var result = new List<(float x, float y, float z)>(curve.Count);
-            foreach (var p in curve) result.Add((p.X, p.Y, p.Z));
-            return result;
+        /// <summary>From a point in the open: straight on along the exit as far as the lead, or less where that is not clear.</summary>
+        Vector3 OpenLead(Vector3 end, Vector3 exit, float lead, out float used)
+        {
+            for (used = lead; used >= 0.5f; used *= 0.5f)
+                if (SegmentFree(end, end + exit * used)) return end + exit * used;
+            used = 0;
+            return end;
         }
 
         static Vector3 Unit((float x, float y, float z) v)
@@ -586,21 +1018,26 @@ namespace CoreEngine.Sim.Design
         }
 
         /// <summary>
-        /// Gives the wire some slack: its middle rises by up to a tenth of its length (2 to 16 mm), as a jumper
-        /// arches, or by less where that would touch something.
+        /// Gives the wire some slack: its middle rises by up to a tenth of its length (2 to 16 mm) times
+        /// <paramref name="scale"/>, as a jumper arches, or by less where that would touch something. With
+        /// <paramref name="flatEnds"/> the rise starts with no slope (sin²), so a stretch meets the next one at a
+        /// point smoothly.
         /// </summary>
-        List<Vector3> Slacken(List<Vector3> curve, float guardA, float guardB)
+        List<Vector3> Slacken(List<Vector3> curve, float guardA, float guardB, float scale = 1, bool flatEnds = false)
         {
             var along = new float[curve.Count];
             for (int i = 1; i < curve.Count; i++) along[i] = along[i - 1] + Vector3.Distance(curve[i - 1], curve[i]);
             float length = along[curve.Count - 1];
             if (length < 1) return curve;
-            float rise = Math.Min(16f, Math.Max(2f, 0.1f * length));
+            float rise = Math.Min(16f, Math.Max(2f, 0.1f * length)) * scale;
             for (float share = 1; share > 0.2f; share /= 2)
             {
                 var lifted = new List<Vector3>(curve.Count);
                 for (int i = 0; i < curve.Count; i++)
-                    lifted.Add(curve[i] + Vector3.UnitY * (rise * share * MathF.Sin(MathF.PI * along[i] / length)));
+                {
+                    float wave = MathF.Sin(MathF.PI * along[i] / length);
+                    lifted.Add(curve[i] + Vector3.UnitY * (rise * share * (flatEnds ? wave * wave : wave)));
+                }
                 if (CurveFree(lifted, guardA, guardB, Touch)) return lifted;
             }
             return curve;
@@ -716,18 +1153,25 @@ namespace CoreEngine.Sim.Design
             float detail;
             float[]? outline;                                     // an extrusion's outline, x and z in mm
             public Box3 Bounds;
+            public string Owner = "";                             // the part's id, or the body shape's
+            public bool IsWheel;
 
             public static Shape Block(Rot3 turn, PartInstance part, PartBlock block)
             {
                 var c = turn.Apply(block.Centre);
-                return Make(FeatureKind.Box, turn, part.X + c.x, part.Y + c.y, part.Z + c.z, block.Size.x / 2, block.Size.y / 2, block.Size.z / 2);
+                var s = Make(FeatureKind.Box, turn, part.X + c.x, part.Y + c.y, part.Z + c.z, block.Size.x / 2, block.Size.y / 2, block.Size.z / 2);
+                s.Owner = part.Id;
+                return s;
             }
 
             /// <summary>A motor's 65 mm wheel on its shaft (the motor's x axis).</summary>
             public static Shape Wheel(Rot3 turn, PartInstance part)
             {
                 var c = DesignGeometry.WheelCentre(part);
-                return Make(FeatureKind.Cylinder, turn, c.x, c.y, c.z, DesignGeometry.WheelRadius, DesignGeometry.WheelWidth / 2, DesignGeometry.WheelRadius, alongX: true);
+                var s = Make(FeatureKind.Cylinder, turn, c.x, c.y, c.z, DesignGeometry.WheelRadius, DesignGeometry.WheelWidth / 2, DesignGeometry.WheelRadius, alongX: true);
+                s.Owner = part.Id;
+                s.IsWheel = true;
+                return s;
             }
 
             public static Shape Feature(BodyFeature f)
@@ -736,6 +1180,7 @@ namespace CoreEngine.Sim.Design
                 var s = Make(kind, Rot3.Euler(f.RotX, f.RotY, f.RotZ), f.X, f.Y, f.Z,
                     Math.Max(0.1f, f.SizeX) / 2, Math.Max(0.1f, f.SizeY) / 2, Math.Max(0.1f, f.SizeZ) / 2);
                 s.detail = f.Detail;
+                s.Owner = f.Id;
                 if (kind == FeatureKind.Extrusion)
                 {
                     int n = f.Outline.Count / 2;
