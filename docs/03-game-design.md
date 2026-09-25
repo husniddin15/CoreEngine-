@@ -44,9 +44,9 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 +----------------+--------------------------------------------------------+--------------------+
 | ROBOT          |                                                        | [Build]  [Wire]    |
 | Obstacle avoider                                                        |  what     what     |
-| (READY)        |          the selected robot on a turntable             | [Code]   [Body]    |
+| (READY)        |          the selected robot on a turntable     [cube]  | [Code]   [Body]    |
 | board, sketch  |          on the lab bench, the room out of focus       |                    |
-| parts, mass    |          (drag to orbit, wheel to zoom)                | [Customize]        |
+| parts, mass    |          (drag to turn, Shift+drag to move, wheel)     | [Customize]        |
 | battery ====   |                                                        | [Check & repair]   |
 | ! warnings     |                                                        |                    |
 +----------------+--------------------------------------------------------+--------------------+
@@ -73,11 +73,15 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
     - a window with white blinds.
   - Light: LED panels in the ceiling and daylight through the blinds, baked with bounced light; the lamp and the daylight also light the robot in real time, with soft shadows.
   - Everything is modelled in code with the part toolkit and saved into the scene, so no file is downloaded (`app/Assets/Spike/Editor/WhiteLab/`).
-  - The camera works like a product photographer's: a 50 mm lens at f/2.8 keeps the robot sharp and blurs the room behind it. The blur turns off in Build, Wire and Body, where every part must be sharp.
+  - The camera works like a product photographer's: the room behind the robot is soft, the robot sharp all over, however close the camera comes (the owner, 2026-09-25: parts went "blur" in close-ups when the blur followed a lens's focus). The blur turns off in Build, Wire and Body, where every part must be sharp.
   - A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor.
+- **Camera** (2026-09-25, the owner: "I am struggling to see it from angles and positions I want"), the same in the showroom, Wire and the Body Studio, as in Tinkercad:
+  - a drag turns the view round its pivot (the right button in Wire and the Studio, where the left one picks); **Shift**+drag or the middle button moves the pivot, so the camera no longer turns round one fixed point; the wheel zooms toward the spot under the mouse; a double-click makes a spot on the robot the pivot;
+  - a **view cube** in the corner names the robot's sides (TOP, FRONT, RIGHT…); a click on a face, an edge or a corner turns the view to look from there, a drag on the cube turns it; **Home** returns to the starting view and **Fit** frames the whole robot; the camera glides to each;
+  - limits: the pivot stays within 12 cm of the robot and the camera within 10 cm–1.4 m of it; in the showroom it stays above the bench, while in Wire and the Studio it may look from below, and the room is then left out of the picture.
 - **Robot bar**: every saved robot as a card with a rendered thumbnail; click to select, right-click to rename, duplicate or delete; **+ New robot** starts empty: no chassis; the player builds the body from shapes and places every part ([§5](#5-build-mode)). The shipped game starts with an empty bar (no example robots, [§9](#9-no-missions-a-pure-sandbox)); the tutorial creates the first robot.
 - **Robot card**: name, board, sketch name with compile status and size, number of parts, mass, battery charge, and warnings from the wiring check. Warnings never block START.
-- **Build, Wire, Code, Body** open the editors of [§5](#5-build-mode)–[§7](#7-code-mode) and the Body Studio with this robot; a **Garage** button returns. In the prototype (2026-09-24) Build, Wire and Body are modes of the Garage itself: the turntable stops, the camera comes closer and the right column becomes the mode's panel; **Ctrl+Z** undoes, **Esc** or **◀** goes back.
+- **Build, Wire, Code, Body** open the editors of [§5](#5-build-mode)–[§7](#7-code-mode) and the Body Studio with this robot; a **Garage** button returns. In the prototype (2026-09-24) Build, Wire and Body are modes of the Garage itself: the turntable is put away and the robot stands on the bench's measuring mat (the owner, 2026-09-25: the turntable is for the showroom), the camera comes closer and the right column becomes the mode's panel; **Ctrl+Z** undoes, **Esc** or **◀** goes back.
   - *Build* opens the Body Studio on its **Parts** tab (2026-09-24). The library lists the catalogue with how many of each part fit (one Uno, two L298N, two TT motors, two servos, four LED modules…) and each one's mass. A click puts a part on the mouse; it slides over the robot and a click sets it down: boards stand on the surface under the mouse, motors and the caster hang under a plate. Parts keep their real size; they move, lift and turn freely about all three axes (Tinkercad's cone and curled arrows, or typed values). **Del** removes a part with its wires.
   - *Wire*: drag from one pin to another, or click one pin and then the other. Pins show as coloured dots just outside the header, terminal or lead (yellow signal, red supply, grey ground, orange motor); the label under the mouse names the pin and what it is already wired to, and the wheel zooms toward the mouse. **Look at** turns the camera to a part from the side its pins face (from above for headers, from behind for the sensor) and prints the pin names beside the pins, like the white print on a real board. **Connect from the lists** picks both ends by name, for when the mouse is awkward. As on the desk, a header pin takes one jumper and a screw terminal two wires; a full pin says so and suggests removing the old wire. **Auto** colours follow the maker's habit: red for supply, black for ground, the motor's own red and black leads, a new colour for each signal. Jumpers are drawn with their Dupont housings: on top of the Uno's female headers, over the L298N's and the sensor's male pins. The wiring check ([06 §3.8](06-electrical-simulation-spec.md)) runs after every change; clicking a wire selects it, **Del** removes it.
   - *Body* opens the **Body Studio** full screen on its **Shapes** tab ([08 §3.1](08-body-designer-spec.md), 2026-09-24), modelled on Tinkercad and on the rma_fullstack modeller:
@@ -140,7 +144,7 @@ Target iteration time from "edit code" to "robot moving again": **< 3 seconds** 
 
 ### 6.2 Interaction
 - Click a pin/hole/terminal → click another → wire created. Pins highlight on hover with name and function ("D9 · PWM · OC1A"). Illegal targets (e.g., wire to plastic) are not selectable.
-- Wires auto-route as smooth curves with gravity sag; drag any point to add a control point; colour picker; **Tidy** bundles nearby wires; **Hide wires** toggle; **X-ray** makes boards translucent to see breadboard strips.
+- Wires find their own way (2026-09-25, the owner: wires went "from inside components or body even where there are no holes"): out of the pin the way a real wire leaves it, then over the parts, round the edges of the plates or through a hole big enough, never through a part or solid material, with a little slack so a jumper arches as a real one does. Planned: drag any point to add a control point; **Tidy** bundles nearby wires; **Hide wires** toggle; **X-ray** makes boards translucent to see breadboard strips.
 - Net inspection: hover a wire/pin → the whole net glows; running sim shows voltage and (where measurable) current on the tooltip.
 - **Schematic view** (v1.x): auto-generated 2D schematic/netlist diagram from the 3D wiring; MVP ships a netlist table in the Inspector.
 
@@ -158,7 +162,7 @@ Warnings never block Play. Examples: VCC↔GND short (blocking is *off* by defau
 
 ## 7. Code mode
 
-- Editor: Arduino C++ syntax highlighting, line numbers, auto-indent, bracket matching, find/replace, multiple tabs (sketch `.ino` + `.h/.cpp`), examples menu identical in structure to the Arduino IDE (01.Basics, 02.Digital, 03.Analog, …, plus library examples), library manager (bundled offline set; online install when available).
+- Editor: edits as any code editor does (2026-09-25, the owner: "why can't I just copy or paste the code or edit code where I want"): click anywhere to put the caret, drag, Shift+click, double-click (a word) or triple-click (a line) to select; **Ctrl+A/C/X/V**, **Ctrl+Z/Y** and a right-click menu with the same; typing replaces the selection; **Tab**/**Shift+Tab** indent the selected lines; Ctrl+arrows jump by words. Also Arduino C++ syntax highlighting, line numbers, auto-indent, bracket matching, find/replace, multiple tabs (sketch `.ino` + `.h/.cpp`), examples menu identical in structure to the Arduino IDE (01.Basics, 02.Digital, 03.Analog, …, plus library examples), library manager (bundled offline set; online install when available).
 - **Upload** (Ctrl+U): compile with the bundled toolchain → load `.hex` → reset the board. **Verify** (Ctrl+R): compile only. Progress and full compiler output in the Console.
 - Diagnostics: errors/warnings parsed from GCC output, shown inline and in a list; click to jump. Plain-language explanation cards for the 30 most common beginner errors (missing semicolon, undeclared identifier, wrong case, missing library include, `Serial` used before `begin`).
 - Serial Monitor: baud (300–2 000 000), line ending, autoscroll, timestamps, send box, clear; shows garbage if baud mismatches (real behaviour). Opening the monitor **resets the board** (DTR auto-reset) exactly as the Arduino IDE does — with a tooltip explaining it.
@@ -222,7 +226,9 @@ On first launch a 5–10 minute interactive tutorial teaches the controls: camer
 ### 12.2 Controls (mouse + keyboard)
 | Action | Default |
 |---|---|
-| Orbit / pan / zoom | RMB drag / MMB drag / wheel |
+| Orbit / pan / zoom | LMB drag in the showroom, RMB drag in the editors / MMB drag or Shift+drag / wheel (toward the mouse) |
+| Turn round a spot | Double-click it |
+| Look from a side, edge or corner | Click the view cube; **Home** and **Fit** under it |
 | Focus selection | F |
 | Select / multi-select | LMB / Shift+LMB |
 | Move / rotate / scale gizmos | W / E / R (Body Studio) |

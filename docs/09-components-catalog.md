@@ -243,6 +243,7 @@ The helper drops the hole set and, where relevant, the part's outline as a trans
   - Uno R3: USB-B and barrel jacks, the ATmega328P in its socket, the 16U2, the 16 MHz crystal, the regulator, two electrolytics, the reset button, both ICSP headers and the small SMD parts. Its four LEDs light: ON, L (D13), TX and RX.
   - L298N: the finned heatsink with the chip screwed to it, the terminals, the ENA/ENB jumpers (gone when a wire takes the pin), the 78M05, the 220 µF capacitors, the diodes and the PWR LED.
   - HC-SR04 on its stand; the TT motor with its FA-130 can and its treaded wheel; the 4×AA holder with printed cells and springs; the ball caster on brass spacers; the SG90 as its three glossy blue mouldings with the screw holes and slits cut through its tabs, its lead and socket; the LED module.
+- **Solid blocks** (`PartDef.Solids`, 2026-09-25): what jumper wires go round. A part is its bounding box, except the L298N, whose board, heatsink with the chip, terminals, logic header and capacitors are separate blocks, so a jumper can come down to the header beside the tall heatsink. A motor's wheel is a 65 mm cylinder on its shaft.
 - **Pins** are where the catalogue has them: a jumper lands on the pin the player sees. Two layouts follow the real boards since 2026-09-24:
   - the L298N's logic header is at the front right, the power terminal at the front left, and a motor terminal on each side of the heatsink;
   - the HC-SR04's pins read VCC, TRIG, ECHO, GND from left to right, seen from the front.

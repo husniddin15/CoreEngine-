@@ -124,6 +124,14 @@ Progress (2026-09-24, evening): the owner asked for a chassis the player makes, 
 - **Tests.** 145 core tests pass. The benchmark builds the kit robot from nothing with the mouse, drags every handle, wires it, and drives it in the arena at about 130–140 fps.
 - **Speed.** In the release player the Garage runs at 135 fps and the arena at 141 fps. The part models are built the first time they are needed: 0.43 s for all eight, 0.14 s of it the Uno. Making the board painter faster cut this time to a third (the Mono player went from 4.1 s to 1.3 s).
 
+Progress (2026-09-25): the owner could not copy or paste code, saw wires going through parts and the body, struggled to see the robot from the angles they wanted, found the turntable in the way while building and the parts blurred in close-ups (D22).
+- **Wires** go round everything ([04 §10](04-technical-design.md)): `WireRouter` in the core finds each jumper's way (A* over 5 mm cells against a distance field of the part blocks and body shapes, then pulled straight, rounded and given slack), over the parts, round the plates' edges or through a hole, never through material. Seven core tests check routes against the solids independently, including a plate with and without a hole.
+- **Camera** (Tinkercad's navigation): a view cube with Home and Fit, a pivot that Shift+drag or the middle button moves and a double-click sets, the wheel toward the mouse, limits round the robot; the showroom stays above the bench, Wire and the Studio may look from below with the room left out.
+- **Turntable** only in the showroom: in Wire and the Studio the robot stands on the bench's measuring mat.
+- **Blur** only behind the robot: the depth of field starts behind the robot's far side, so a close-up is sharp all over.
+- **Code editor**: selection by mouse and keys, Ctrl+A/C/X/V with Windows' clipboard, undo and redo, word moves, line indenting, a right-click menu.
+- **Tests.** 152 core tests pass. The benchmark clicks the view cube, pans to the limit, double-clicks a pivot, zooms in as far as it goes, looks from below in the Studio, and copies, pastes, cuts and undoes in the Code window by keys; all pass in the release player, which lays the kit's 16 wires from nothing in 20 ms and keeps 140 fps in the Garage and 141 fps in the arena.
+
 ## 5. Phase 2 — Breadth and content (months 9–18)
 
 | Work package | Days |
