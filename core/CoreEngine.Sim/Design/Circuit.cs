@@ -222,13 +222,17 @@ namespace CoreEngine.Sim.Design
                 bool grounded = Ground(uno, "GND.1");
                 bool vin = BatteryPlus(uno, "VIN");
                 bool fromDriver = DriverFive(uno, "5V");
+                // VIN feeds the Uno's own 5 V regulator, which needs 7-12 V: the L298N's 5 V there (about 4.4 V
+                // from four AA cells) leaves about 3.4 V for the chip, too little to run at 16 MHz.
+                if (DriverFive(uno, "VIN")) Warn("fiveVoltOnVin");
                 if (BatteryPlus(uno, "5V"))
                 {
                     circuit.BoardDamaged = true; // F7: about 6 V on the 5V pin, absolute maximum 5.5 V
                     Warn("board5vOvervoltage");
                 }
                 circuit.BoardPowered = grounded && !circuit.BoardDamaged && (vin || fromDriver);
-                if (!circuit.BoardPowered && !circuit.BoardDamaged) Warn(!grounded && (vin || fromDriver) ? "noGround" : "boardUnpowered");
+                if (!circuit.BoardPowered && !circuit.BoardDamaged && !DriverFive(uno, "VIN"))
+                    Warn(!grounded && (vin || fromDriver) ? "noGround" : "boardUnpowered");
                 if (circuit.BoardPowered && fromDriver) Note("driver5vLow");
             }
 
@@ -341,6 +345,22 @@ namespace CoreEngine.Sim.Design
             int a = 2 * link.Channel;
             string? enable = circuit.DriverInputs[4 + link.Channel];
             double volts = bridge.ChannelVolts(enable == null || High(enable), High(circuit.DriverInputs[a]), High(circuit.DriverInputs[a + 1]));
+            return volts == 0 ? 0 : volts * link.Polarity;
+        }
+
+        /// <summary>
+        /// As <see cref="MotorVolts(RobotCircuit, string, Func{string, bool}, L298NModel)"/>, averaged over a
+        /// stretch of time from the share of it each Uno pin was high (<paramref name="pinDuty"/>, 0 to 1): what
+        /// analogWrite on ENA/ENB (or on the inputs) gives a motor.
+        /// </summary>
+        public static double MotorVolts(RobotCircuit circuit, string slotOrId, Func<string, double> pinDuty, L298NModel bridge)
+        {
+            var link = circuit.Motor(slotOrId);
+            if (link == null || !circuit.DriverPowered) return double.NaN;
+            double Duty(string? pin) => pin == null ? 0 : pinDuty(pin); // a floating input reads low
+            int a = 2 * link.Channel;
+            string? enable = circuit.DriverInputs[4 + link.Channel];
+            double volts = bridge.AverageChannelVolts(enable == null ? 1 : Duty(enable), Duty(circuit.DriverInputs[a]), Duty(circuit.DriverInputs[a + 1]));
             return volts == 0 ? 0 : volts * link.Polarity;
         }
     }

@@ -43,6 +43,19 @@ public class DesignTests
     }
 
     [Fact]
+    public void FiveVoltsOnVinIsNamedAsTheMistake()
+    {
+        // The owner's first own robot (2026-09-25): the L298N's +5V on the Uno's VIN, which needs 7-12 V.
+        var d = DesignPresets.ObstacleAvoiderKit();
+        d.Wires.RemoveAll(w => w.FromPart == "driver1" && w.FromPin == "+5V" && w.ToPart == "uno1" && w.ToPin == "5V");
+        d.AddWire("driver1", "+5V", "uno1", "VIN", "red");
+        var circuit = Analyse(d);
+        Assert.False(circuit.BoardPowered);
+        Assert.Contains(circuit.Warnings, w => w.Code == "fiveVoltOnVin" && !w.Info);
+        Assert.DoesNotContain(circuit.Warnings, w => w.Code == "boardUnpowered"); // the specific finding, not the general one
+    }
+
+    [Fact]
     public void BatteryOnTheFiveVoltPinDamagesTheBoard()
     {
         var d = DesignPresets.ObstacleAvoiderKit();

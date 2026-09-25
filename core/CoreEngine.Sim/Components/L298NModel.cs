@@ -26,5 +26,18 @@ namespace CoreEngine.Sim.Components
             double volts = Math.Max(0.0, SupplyVolts - BridgeDropVolts);
             return in1 ? volts : -volts;
         }
+
+        /// <summary>
+        /// The average voltage across a channel whose inputs switch (PWM), from the share of the time each is
+        /// high: driving forward while enable and IN1 are high and IN2 low, backward the other way round, and 0 V
+        /// otherwise (brake, or coasting while enable is low). That is (supply − drop) · enable · (IN1 − IN2): with
+        /// ENA at analogWrite 180 and IN1 high, IN2 low, 180/255 of the full voltage, as a motor on a real L298N
+        /// averages it. NaN when enable is never high (the motor coasts).
+        /// </summary>
+        public double AverageChannelVolts(double enable, double in1, double in2)
+        {
+            if (enable <= 0) return double.NaN;
+            return Math.Max(0.0, SupplyVolts - BridgeDropVolts) * enable * (in1 - in2);
+        }
     }
 }

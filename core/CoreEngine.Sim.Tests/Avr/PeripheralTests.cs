@@ -13,10 +13,10 @@ public class TimerTests
         m.Cpu.WriteData(Atmega328P.TCCR0B, 3); // clk/64
         m.Mcu.RunCycles(64 * 100);
         Assert.Equal(100, m.Cpu.ReadData(Atmega328P.TCNT0));
-        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagOverflow);
+        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagOverflow);
         m.Mcu.RunCycles(64 * 156);
         Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TCNT0));
-        Assert.Equal(AvrTimer8.FlagOverflow, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagOverflow);
+        Assert.Equal(AvrTimer.FlagOverflow, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagOverflow);
     }
 
     [Fact]
@@ -43,17 +43,17 @@ public class TimerTests
         m.Cpu.WriteData(Atmega328P.OCR0A, 99);
         m.Cpu.WriteData(Atmega328P.TCCR0B, 2);    // clk/8: one match every 800 cycles
         m.Mcu.RunCycles(750);
-        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagCompareA);
+        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagCompareA);
         m.Mcu.RunCycles(100);
-        const int aAndOverflow = AvrTimer8.FlagCompareA | AvrTimer8.FlagOverflow;
-        Assert.Equal(AvrTimer8.FlagCompareA, m.Cpu.ReadData(Atmega328P.TIFR0) & aAndOverflow); // no TOV in CTC
+        const int aAndOverflow = AvrTimer.FlagCompareA | AvrTimer.FlagOverflow;
+        Assert.Equal(AvrTimer.FlagCompareA, m.Cpu.ReadData(Atmega328P.TIFR0) & aAndOverflow); // no TOV in CTC
         // OCR0B is 0, so compare match B fires each time the counter clears to 0, as on the chip.
-        Assert.Equal(AvrTimer8.FlagCompareB, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagCompareB);
+        Assert.Equal(AvrTimer.FlagCompareB, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagCompareB);
 
-        m.Cpu.WriteData(Atmega328P.TIFR0, AvrTimer8.FlagCompareA); // writing one clears only that flag
-        Assert.Equal(AvrTimer8.FlagCompareB, m.Cpu.ReadData(Atmega328P.TIFR0) & 0x07);
+        m.Cpu.WriteData(Atmega328P.TIFR0, AvrTimer.FlagCompareA); // writing one clears only that flag
+        Assert.Equal(AvrTimer.FlagCompareB, m.Cpu.ReadData(Atmega328P.TIFR0) & 0x07);
         m.Mcu.RunCycles(800);
-        Assert.Equal(AvrTimer8.FlagCompareA, m.Cpu.ReadData(Atmega328P.TIFR0) & aAndOverflow);
+        Assert.Equal(AvrTimer.FlagCompareA, m.Cpu.ReadData(Atmega328P.TIFR0) & aAndOverflow);
     }
 
     [Fact]
@@ -65,9 +65,9 @@ public class TimerTests
         m.Cpu.WriteData(Atmega328P.TCCR0B, 1);
         m.Mcu.RunCycles(300 - (m.Cpu.Cycles - start));
         Assert.Equal(510 - 300, m.Cpu.ReadData(Atmega328P.TCNT0)); // counting down after TOP
-        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagOverflow);
+        Assert.Equal(0, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagOverflow);
         m.Mcu.RunCycles(220);
-        Assert.Equal(AvrTimer8.FlagOverflow, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer8.FlagOverflow); // TOV at BOTTOM
+        Assert.Equal(AvrTimer.FlagOverflow, m.Cpu.ReadData(Atmega328P.TIFR0) & AvrTimer.FlagOverflow); // TOV at BOTTOM
     }
 }
 

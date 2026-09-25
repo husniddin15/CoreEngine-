@@ -20,7 +20,9 @@ namespace CoreEngine.Sim.Avr
 
     /// <summary>
     /// A GPIO port with PINx, DDRx and PORTx registers at consecutive data addresses.
-    /// Writing a one to PINx toggles the matching PORTx bit.
+    /// Writing a one to PINx toggles the matching PORTx bit. A peripheral can take over an output pin, as a
+    /// timer's output-compare unit does for PWM (<see cref="SetAlternateOutput"/>): while it holds the pin, an
+    /// output drives the peripheral's level instead of the PORTx bit.
     /// </summary>
     public sealed class AvrPort
     {
@@ -33,6 +35,8 @@ namespace CoreEngine.Sim.Avr
         byte port;
         byte externalLevels;
         byte externallyDriven;
+        byte alternate;       // pins a peripheral drives
+        byte alternateLevels; // and the levels it drives them to
 
         public AvrPort(AvrCpu cpu, char name, int pinAddress)
         {
@@ -60,7 +64,22 @@ namespace CoreEngine.Sim.Avr
         /// <summary>Raised whenever a pin's drive state changes.</summary>
         public event PinDriveChangedHandler? PinDriveChanged;
 
-        public PinDrive GetDrive(int bit) => DriveOf(ddr, port, bit);
+        public PinDrive GetDrive(int bit) => DriveOf(ddr, port, alternate, alternateLevels, bit);
+
+        /// <summary>
+        /// A peripheral takes over a pin's output with <paramref name="level"/>, or gives it back with null. It shows
+        /// only while the pin is an output, as on the chip (a timer's OCnx needs its DDR bit set).
+        /// </summary>
+        /// <param name="cycle">When it happened, for <see cref="PinDriveChanged"/>: a timer's compare match, which the
+        /// CPU may reach a few cycles later.</param>
+        public void SetAlternateOutput(int bit, bool? level, long cycle)
+        {
+            byte m = (byte)(1 << bit);
+            byte newAlternate = level == null ? (byte)(alternate & ~m) : (byte)(alternate | m);
+            byte newLevels = level == true ? (byte)(alternateLevels | m) : (byte)(alternateLevels & ~m);
+            if (newAlternate == alternate && newLevels == alternateLevels) return;
+            Apply(ddr, port, newAlternate, newLevels, cycle);
+        }
 
         /// <summary>
         /// Sets the level an external circuit applies to an input pin, or null when nothing drives it.
@@ -84,12 +103,12 @@ namespace CoreEngine.Sim.Avr
 
         public void Reset()
         {
-            Update(0, 0);
+            Apply(0, 0, 0, 0, cpu.Cycles);
         }
 
         byte ReadPins()
         {
-            byte outputs = (byte)(ddr & port);
+            byte outputs = (byte)(ddr & ((port & ~alternate) | (alternateLevels & alternate)));
             byte undrivenInputs = (byte)(~ddr & ~externallyDriven & port); // pull-ups read high
             byte drivenInputs = (byte)(~ddr & externallyDriven & externalLevels);
             return (byte)(outputs | undrivenInputs | drivenInputs);
@@ -100,11 +119,15 @@ namespace CoreEngine.Sim.Avr
             if (bits != 0) Update(ddr, (byte)(port ^ bits));
         }
 
-        void Update(byte newDdr, byte newPort)
+        void Update(byte newDdr, byte newPort) => Apply(newDdr, newPort, alternate, alternateLevels, cpu.Cycles);
+
+        void Apply(byte newDdr, byte newPort, byte newAlternate, byte newLevels, long cycle)
         {
-            byte oldDdr = ddr, oldPort = port;
+            byte oldDdr = ddr, oldPort = port, oldAlternate = alternate, oldLevels = alternateLevels;
             ddr = newDdr;
             port = newPort;
+            alternate = newAlternate;
+            alternateLevels = newLevels;
             var data = cpu.DataSpace;
             data[ddrAddress] = ddr;
             data[portAddress] = port;
@@ -113,18 +136,18 @@ namespace CoreEngine.Sim.Avr
             if (handler == null) return;
             for (int bit = 0; bit < 8; bit++)
             {
-                PinDrive before = DriveOf(oldDdr, oldPort, bit);
-                PinDrive after = DriveOf(ddr, port, bit);
-                if (before != after) handler(this, bit, after, cpu.Cycles);
+                PinDrive before = DriveOf(oldDdr, oldPort, oldAlternate, oldLevels, bit);
+                PinDrive after = DriveOf(ddr, port, alternate, alternateLevels, bit);
+                if (before != after) handler(this, bit, after, cycle);
             }
         }
 
-        static PinDrive DriveOf(byte ddr, byte port, int bit)
+        static PinDrive DriveOf(byte ddr, byte port, byte alternate, byte levels, int bit)
         {
-            bool output = (ddr & (1 << bit)) != 0;
-            bool high = (port & (1 << bit)) != 0;
-            if (output) return high ? PinDrive.High : PinDrive.Low;
-            return high ? PinDrive.PullUp : PinDrive.HighZ;
+            int m = 1 << bit;
+            bool output = (ddr & m) != 0;
+            if (output) return ((alternate & m) != 0 ? (levels & m) != 0 : (port & m) != 0) ? PinDrive.High : PinDrive.Low;
+            return (port & m) != 0 ? PinDrive.PullUp : PinDrive.HighZ;
         }
     }
 }

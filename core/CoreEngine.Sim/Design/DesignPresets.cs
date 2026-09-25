@@ -42,6 +42,42 @@ namespace CoreEngine.Sim.Design
             return d;
         }
 
+        /// <summary>
+        /// The owner's first own robot (2026-09-25), with its Uno on the L298N's 5 V as it should be: one plate,
+        /// the wheels at the Uno's end and the caster at the L298N's, and ENA and ENB on D5 and D10 so the golden
+        /// PwmMotors sketch sets both speeds with analogWrite. For tests and the benchmark, not an example robot
+        /// (docs/13 D16). Its motors' leads are the other way round from the kit's, so the kit's forward (IN1
+        /// and IN3 high) drives it wheels first, toward −z.
+        /// </summary>
+        public static RobotDesign PwmTwoWheeler()
+        {
+            var d = new RobotDesign { Body = new BodyDesign { Decks = 0 } };
+            d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, X = -15, Y = 37.5f, Z = 42.5f, SizeX = 85, SizeY = 5, SizeZ = 185, Colour = "#2F6FD8" });
+            void Part(string id, string part, float x, float y, float z, float turn) =>
+                d.Parts.Add(new PartInstance { Id = id, Part = part, X = x, Y = y, Z = z, Rotation = turn });
+            Part("caster1", PartCatalog.Caster, -15, 11, 115, 0);
+            Part("uno1", PartCatalog.Uno, -15, 40.1f, -20, 0);
+            Part("driver1", PartCatalog.L298N, 5, 40.1f, 95, 90);
+            Part("battery1", PartCatalog.Battery4AA, -15, 47.6f, 40, -90);
+            Part("motor1", PartCatalog.TtMotor, -55, 24, -20, 0);
+            Part("motor2", PartCatalog.TtMotor, 20, 24, -20, 180);
+            d.AddWire("battery1", "+", "driver1", "+12V", "red");
+            d.AddWire("battery1", "-", "driver1", "GND", "black");
+            d.AddWire("driver1", "OUT3", "motor2", "M+", "red");
+            d.AddWire("driver1", "OUT4", "motor2", "M-", "black");
+            d.AddWire("driver1", "OUT2", "motor1", "M+", "red");
+            d.AddWire("driver1", "OUT1", "motor1", "M-", "black");
+            d.AddWire("driver1", "+5V", "uno1", "5V", "red");
+            d.AddWire("uno1", "GND.2", "driver1", "GND", "black");
+            d.AddWire("driver1", "ENA", "uno1", "D5", "yellow");
+            d.AddWire("driver1", "IN1", "uno1", "D6", "green");
+            d.AddWire("driver1", "IN2", "uno1", "D7", "blue");
+            d.AddWire("driver1", "IN3", "uno1", "D8", "orange");
+            d.AddWire("driver1", "IN4", "uno1", "D9", "white");
+            d.AddWire("driver1", "ENB", "uno1", "D10", "purple");
+            return d;
+        }
+
         /// <summary>A new robot: nothing yet. The player builds the body from shapes and places every part (docs/03 §3.1).</summary>
         public static RobotDesign Empty() => new RobotDesign { Body = new BodyDesign { Decks = 0 } };
     }
