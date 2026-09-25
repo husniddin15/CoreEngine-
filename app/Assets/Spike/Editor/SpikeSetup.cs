@@ -159,6 +159,10 @@ namespace CoreEngine.Spike.Editor
             SetFloat(settings, "m_Settings.Radius", 0.03f);       // 3 cm: the scale of the robot's parts
             SetFloat(settings, "m_Settings.DirectLightingStrength", 0.3f);
             SetBool(settings, "m_Settings.Downsample", true);     // half resolution: a quarter of the cost
+            // Interleaved-gradient noise, the same every frame. Blue noise changes every frame for a temporal filter to
+            // average, which the game does not use, so the shading at every edge and crease flickered like black
+            // specks (the owner, 2026-09-25): about 5,700 pixels a frame changed in a still showroom, now none.
+            SetInt(settings, "m_Settings.AOMethod", 1);
             settings.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(ssao);
             EditorUtility.SetDirty(renderer);

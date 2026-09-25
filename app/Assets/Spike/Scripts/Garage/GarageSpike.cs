@@ -265,16 +265,24 @@ namespace CoreEngine.Spike.Garage
 
         /// <summary>
         /// Builds the robot's model: on the turntable in the showroom, on the bench's mat in Wire and the Studio;
-        /// with part colliders in the Body Studio, with pin markers in Wire. Outside the Studio the robot stands on
-        /// its lowest point (a wheel, the caster, a part hanging lower), as it would on a real bench; in the Studio
-        /// the workplane stays put on the mat.
+        /// with part colliders in the Body Studio, with pin markers in Wire. In the showroom it is let go on the
+        /// turntable and comes to rest as physics has it (<see cref="RobotSettle"/>: a robot without a caster tips
+        /// onto its front); while it is built and wired it stays level, as designed (the owner, 2026-09-25). In Wire
+        /// it stands on its lowest point (a wheel, the caster, a part hanging lower); in the Studio the workplane
+        /// stays put on the mat.
         /// </summary>
         void ShowRobot(BodyMeshes? body = null)
         {
             shown?.Destroy();
-            float lift = mode == EditMode.Body ? 0 : Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f;
-            robotAnchor.localPosition = new Vector3(0, (mode == EditMode.None ? turntableTop : 0) + lift, 0);
-            shown = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
+            shown = null;
+            bool showroom = mode == EditMode.None;
+            robotAnchor.localPosition = new Vector3(0, showroom ? turntableTop : 0, 0);
+            var built = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
+            shown = built;
+            settling = showroom ? Settle(Robot.Design, built.Body) : null;
+            settleStart = Time.time;
+            if (settling != null) PoseRobot();
+            else if (mode != EditMode.Body) robotAnchor.localPosition += new Vector3(0, Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f, 0);
             MeasureRobot();
             if (mode == EditMode.Wire)
             {
@@ -284,10 +292,40 @@ namespace CoreEngine.Spike.Garage
             if (mode == EditMode.Body) RebuildGhosts();
         }
 
+        List<RobotSettle.Pose>? settling; // the showroom's robot coming to rest, a pose every 10 ms
+        float settleStart;
+
+        /// <summary>Where the robot comes to rest on a flat floor, or null (it then stands on its lowest point).</summary>
+        static List<RobotSettle.Pose>? Settle(RobotDesign design, BodyMeshes? body)
+        {
+            if (body == null) return null;
+            try
+            {
+                return RobotSettle.Drop(design, body);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("GarageSpike: the robot could not settle: " + e.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Puts the showroom's robot where it has come to by now as it settles; it then stays in its last pose.</summary>
+        void PoseRobot()
+        {
+            if (settling == null || shown == null) return;
+            int i = Mathf.Min(settling.Count - 1, Mathf.FloorToInt((Time.time - settleStart) / RobotSettle.Step));
+            shown.Root.transform.SetLocalPositionAndRotation(settling[i].Position, settling[i].Rotation);
+            if (i < settling.Count - 1) return;
+            settling = null;
+            MeasureRobot();
+        }
+
         void Update()
         {
             if (mode == EditMode.None)
             {
+                PoseRobot();
                 input = ReadInput();
                 bool overUi = overlay.style.display == DisplayStyle.Flex || IsPointerOverUi(input.Position);
                 CameraControls(overUi, leftTurns: true);
@@ -1076,8 +1114,12 @@ namespace CoreEngine.Spike.Garage
             var target = RenderTexture.GetTemporary(width, height, 24);
             var stage = new GameObject("ThumbnailStage");
             var design = GarageState.Robots[index].Design;
-            stage.transform.position = new Vector3(40f + index * 3f, Mathf.Max(0, -DesignGeometry.LowestPoint(design)) * 0.001f, 0);
+            stage.transform.position = new Vector3(40f + index * 3f, 0, 0);
             var visual = RobotVisuals.Build(stage.transform, null, GarageState.Robots[index], litMaterial);
+            // As it rests in the showroom: a robot without a caster on its front.
+            var rest = Settle(design, visual.Body);
+            if (rest != null) visual.Root.transform.SetLocalPositionAndRotation(rest[rest.Count - 1].Position, rest[rest.Count - 1].Rotation);
+            else stage.transform.position += new Vector3(0, Mathf.Max(0, -DesignGeometry.LowestPoint(design)) * 0.001f, 0);
             var camera = new GameObject("ThumbnailCamera").AddComponent<Camera>();
             camera.enabled = false;
             camera.targetTexture = target;
@@ -1171,6 +1213,14 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine("  garage view with the turntable turning: " + SpikeReport.FrameStats(frames) + "; " + cost + (slow.Length > 0 ? ";" + slow : ""));
             report.AppendLine($"  robot thumbnails rendered off-screen; the first needed {ThumbnailAttempts} attempt(s) after start-up: " +
                               SaveThumbnail(0, SpikeReport.Shot("garage-thumbnail")));
+            holdTurntable = true;
+            float still = Time.time;
+            while (settling != null && Time.time - still < 5f) yield return null;
+            yield return Frames(10);
+            double flickering = -1;
+            yield return FlickeringPixels(8, n => flickering = n);
+            holdTurntable = false;
+            report.AppendLine($"  a still showroom stays still: {flickering:F0} pixels a frame changed brightness by more than 24 of 255: {Yes(flickering >= 0 && flickering < 20)}");
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-en"));
 
             // Customize: trying pack finishes changes the look but not the saved finishes.
@@ -1251,16 +1301,27 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine("  screenshot: -garage-return");
 
             // The owner's third robot without a caster (2026-09-25): the card and Check & repair say it tips and drags.
+            // In the showroom it settles on the turntable as physics has it: tipped onto its front, as the check says.
+            float kitLean = shown != null ? Vector3.Angle(shown.Root.transform.up, robotAnchor.up) : -1;
             GarageState.Robots.Add(new RobotProject { Name = "No caster", Design = DesignPresets.NoCasterTwoWheeler(), BodyFinish = Finishes.AsBuilt });
+            var watch = Stopwatch.StartNew();
             Select(GarageState.Robots.Count - 1);
+            double settleMs = watch.Elapsed.TotalMilliseconds;
             OnAction("act.repair");
+            float waited = Time.time;
+            while (settling != null && Time.time - waited < 5f) yield return null;
+            float settleSeconds = Time.time - waited;
             yield return Frames(4);
-            string warning = StanceWarning(RobotStance.Of(Robot.Design), Robot.Design).TrimStart('⚠', ' ');
+            var stance = RobotStance.Of(Robot.Design);
+            float lean = shown != null ? Vector3.Angle(shown.Root.transform.up, robotAnchor.up) : -1;
+            string warning = StanceWarning(stance, Robot.Design).TrimStart('⚠', ' ');
             bool onCard = cardWarnings.Query<Label>().ToList().Exists(label => label.text == warning);
             bool inRepair = sideContent.Query<Label>().ToList().Exists(label => label.text.Contains(warning));
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-no-caster"));
             report.AppendLine($"  a robot on two wheels without a caster: the card says \"{warning}\": {Yes(onCard)}; Check & repair says so: {Yes(inRepair)}; " +
-                              $"the kit says it stands on its wheels and caster: {Yes(RobotStance.Of(DesignPresets.ObstacleAvoiderKit()).Rolls)}; screenshot -garage-no-caster");
+                              $"the kit says it stands on its wheels and caster: {Yes(RobotStance.Of(DesignPresets.ObstacleAvoiderKit()).Rolls)}; " +
+                              $"on the turntable it came to rest in {settleSeconds:F1} s leaning {lean:F1}° as the check's {stance.TiltDegrees:F1}°: {Yes(Math.Abs(lean - stance.TiltDegrees) < 2.5f)} " +
+                              $"(the kit before it {kitLean:F1}°: {Yes(kitLean >= 0 && kitLean < 1.5f)}; showing it and working out its settling took {settleMs:F0} ms); screenshot -garage-no-caster");
 
             // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
             // and ENB (D10, Timer1), running its compiled sketch in the arena.
