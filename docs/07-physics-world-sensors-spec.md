@@ -63,6 +63,7 @@ The Body Studio assembly ([08 §2](08-body-designer-spec.md)) is converted at "P
 | Caster | Sphere collider on the root with the caster material (no separate body) |
 | Pan-tilt bracket | Two chained servo joints |
 | Gripper fingers | Two revolute children driven from one servo (mirrored) or a linkage approximation (v1: direct mirrored drive) |
+| Pieces that touch nothing on the robot ([03 §5.2](03-game-design.md#52-placement-rules-physical-realism), `RobotPieces`) | Not part of the tree: a `Rigidbody` for each group of touching pieces, with their colliders, mass and centre of mass; it falls off as the run starts |
 | Loose objects (cans, cubes) | `Rigidbody` with convex colliders |
 | Second robot | Another articulation tree; no joints between robots |
 
