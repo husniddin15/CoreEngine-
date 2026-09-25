@@ -41,6 +41,7 @@ namespace CoreEngine.Spike.Garage
         Transform turntable = null!;
         Transform robotAnchor = null!;
         float turntableTop;       // the turntable's top above its base, where the robot's floor (y = 0) is
+        float turntableRadius;    // its top's radius: a piece not attached to the robot past it falls onto the desk
         RobotVisuals? shown;
         float yaw = 215f, pitch = 14f, distance = 0.62f;
         float idleSeconds = 10f;
@@ -150,6 +151,7 @@ namespace CoreEngine.Spike.Garage
             robotAnchor = new GameObject("RobotAnchor").transform;
             robotAnchor.SetParent(turntable, false);
             turntableTop = 0.0215f;
+            turntableRadius = 0.14f;
             robotAnchor.localPosition = new Vector3(0, turntableTop, 0); // the robot's floor is the turntable's top
         }
 
@@ -228,6 +230,7 @@ namespace CoreEngine.Spike.Garage
             robotAnchor = new GameObject("RobotAnchor").transform;
             robotAnchor.SetParent(turntable, false);
             turntableTop = 0.035f;
+            turntableRadius = 0.185f;
             robotAnchor.localPosition = new Vector3(0, turntableTop, 0); // the robot's floor is the turntable's top
 
             var sun = new GameObject("Sun").AddComponent<Light>();
@@ -282,7 +285,7 @@ namespace CoreEngine.Spike.Garage
             robotAnchor.localPosition = new Vector3(0, showroom ? turntableTop : 0, 0);
             var built = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
             shown = built;
-            settling = showroom ? Settle(Robot.Design, built.Body) : null;
+            settling = showroom ? Settle(Robot.Design, built.Body, turntableRadius, turntableTop) : null;
             settleStart = Time.time;
             if (settling != null)
             {
@@ -310,13 +313,16 @@ namespace CoreEngine.Spike.Garage
         float settleStart;
         readonly List<Transform> looseHolders = new List<Transform>(); // pieces not attached to the robot, falling on their own
 
-        /// <summary>Where the robot comes to rest on a flat floor, or null (it then stands on its lowest point).</summary>
-        static RobotSettle.Settling? Settle(RobotDesign design, BodyMeshes? body)
+        /// <summary>
+        /// Where the robot comes to rest on a flat floor, or on a turntable of that radius and height standing on a desk;
+        /// or null (it then stands on its lowest point).
+        /// </summary>
+        static RobotSettle.Settling? Settle(RobotDesign design, BodyMeshes? body, float standRadius = 0, float standHeight = 0)
         {
             if (body == null) return null;
             try
             {
-                return RobotSettle.Drop(design, body);
+                return RobotSettle.Drop(design, body, standRadius, standHeight);
             }
             catch (Exception e)
             {
@@ -348,6 +354,9 @@ namespace CoreEngine.Spike.Garage
             for (int k = 0; k < settling.Loose.Count && k < looseHolders.Count; k++)
                 if (looseHolders[k] != null) looseHolders[k].SetLocalPositionAndRotation(settling.Loose[k].Poses[i].Position, settling.Loose[k].Poses[i].Rotation);
             if (i < last) return;
+            // A piece that fell off the turntable's edge lies on the desk: it stays there when the turntable turns.
+            foreach (int k in settling.OnTheDesk)
+                if (k < looseHolders.Count && looseHolders[k] != null) looseHolders[k].SetParent(turntable.parent, true);
             settling = null;
             MeasureRobot();
         }
@@ -1442,6 +1451,20 @@ namespace CoreEngine.Spike.Garage
             string looseText = LooseWarning(apart, Robot.Design).TrimStart('⚠', ' ');
             bool looseOnCard = cardWarnings.Query<Label>().ToList().Exists(label => label.text == looseText);
             bool fellApart = looseHolders.Count == apart.Groups.Count - 1 && looseHolders.Exists(h => h != null && h.localPosition.y < -0.02f);
+            // The plate lies 23 cm from the turntable's middle, past its edge: it falls onto the desk and stays there.
+            var onDesk = looseHolders.FindAll(h => h != null && h.parent != robotAnchor);
+            float deskGap = float.MaxValue;
+            foreach (var holder in onDesk)
+                foreach (var renderer in holder.GetComponentsInChildren<MeshRenderer>())
+                    deskGap = Mathf.Min(deskGap, renderer.bounds.min.y - turntable.position.y);
+            var deskWas = onDesk.ConvertAll(h => h.position);
+            holdTurntable = false;
+            idleSeconds = 10f;
+            float turnedFrom = turntable.eulerAngles.y;
+            yield return new WaitForSeconds(0.5f);
+            float turned = Mathf.Abs(Mathf.DeltaAngle(turnedFrom, turntable.eulerAngles.y));
+            bool stayed = onDesk.Count > 0;
+            for (int k = 0; k < onDesk.Count; k++) stayed &= onDesk[k] != null && Vector3.Distance(deskWas[k], onDesk[k].position) < 0.001f;
             yield return SpikeReport.Capture(SpikeReport.Shot("garage-loose"));
             OnAction("act.build");
             yield return Frames(20);
@@ -1450,8 +1473,9 @@ namespace CoreEngine.Spike.Garage
             LeaveMode();
             yield return Frames(4);
             report.AppendLine($"  a robot whose plate was dragged 17.5 cm away: the card says \"{looseText}\": {Yes(looseOnCard)}; " +
-                              $"{apart.Groups.Count - 1} loose groups fall apart on the turntable: {Yes(fellApart)}; Build boxes the {looseCount} loose pieces in red: {Yes(redBoxes == looseCount)}; " +
-                              "screenshots -garage-loose, -garage-loose-build");
+                              $"{apart.Groups.Count - 1} loose groups fall apart on the turntable: {Yes(fellApart)}; {onDesk.Count} of them past its edge fell onto the desk " +
+                              $"({deskGap * 1000:F1} mm above the mat) and stayed there while the turntable turned {turned:F0}°: {Yes(onDesk.Count >= 1 && Mathf.Abs(deskGap) < 0.004f && stayed && turned > 1f)}; " +
+                              $"Build boxes the {looseCount} loose pieces in red: {Yes(redBoxes == looseCount)}; screenshots -garage-loose, -garage-loose-build");
 
             // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
             // and ENB (D10, Timer1), running its compiled sketch in the arena.

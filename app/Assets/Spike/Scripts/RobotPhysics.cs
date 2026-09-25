@@ -193,7 +193,7 @@ namespace CoreEngine.Spike
         }
 
         /// <summary>The box round a design's parts and solid shapes (mm, chassis frame).</summary>
-        static ((float x, float y, float z) min, (float x, float y, float z) max) PiecesBounds(RobotDesign design)
+        internal static ((float x, float y, float z) min, (float x, float y, float z) max) PiecesBounds(RobotDesign design)
         {
             var min = (x: float.MaxValue, y: float.MaxValue, z: float.MaxValue);
             var max = (x: float.MinValue, y: float.MinValue, z: float.MinValue);
