@@ -79,6 +79,46 @@ namespace CoreEngine.Sim.Design
             return d;
         }
 
+        /// <summary>
+        /// The owner's third robot as saved on 2026-09-25: one 5 mm PLA plate with both wheels at its back end,
+        /// the battery holder under it, the HC-SR04 on a wedge at the front, and no ball caster, so it tips onto the
+        /// plate's front edge (<see cref="RobotStance"/>). Wired as the owner wired it: the battery on the Uno's VIN,
+        /// the L298N's ENA and ENB on D5 and D10. For tests and the benchmark, not an example robot (docs/13 D16).
+        /// </summary>
+        public static RobotDesign NoCasterTwoWheeler()
+        {
+            var d = new RobotDesign { Body = new BodyDesign { Decks = 0 } };
+            d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Box, X = -15, Y = 46.05f, Z = 42.5f, SizeX = 85, SizeY = 5, SizeZ = 185, Material = BodyMaterial.Pla });
+            d.Body.AddFeature(new BodyFeature { Kind = FeatureKind.Wedge, X = -40, Y = 53.55f, Z = 125, RotX = -90, SizeX = 30, SizeY = 15, SizeZ = 10, Material = BodyMaterial.Pla });
+            void Part(string id, string part, float x, float y, float z, float turn, float rotX = 0, float rotZ = 0) =>
+                d.Parts.Add(new PartInstance { Id = id, Part = part, X = x, Y = y, Z = z, Rotation = turn, RotX = rotX, RotZ = rotZ });
+            Part("uno1", PartCatalog.Uno, -15, 48.6f, -20, 0);
+            Part("driver1", PartCatalog.L298N, -15, 48.6f, 50, 0);
+            Part("battery1", PartCatalog.Battery4AA, -15, 37.5f, 40, -90, rotZ: 180);
+            Part("motor1", PartCatalog.TtMotor, -55, 32.5f, -20, 180, rotZ: 180);
+            Part("motor2", PartCatalog.TtMotor, 20, 32.5f, -20, 180);
+            Part("sonar1", PartCatalog.HcSr04, -42.45f, 71.24f, 122.59f, 0, rotX: -33.69f); // on the wedge's slope
+            d.AddWire("battery1", "+", "driver1", "+12V", "red");
+            d.AddWire("battery1", "-", "driver1", "GND", "black");
+            d.AddWire("driver1", "OUT3", "motor2", "M+", "red");
+            d.AddWire("driver1", "OUT4", "motor2", "M-", "black");
+            d.AddWire("driver1", "OUT2", "motor1", "M+", "red");
+            d.AddWire("driver1", "OUT1", "motor1", "M-", "black");
+            d.AddWire("uno1", "GND.2", "driver1", "GND", "black");
+            d.AddWire("driver1", "ENA", "uno1", "D5", "yellow");
+            d.AddWire("driver1", "IN1", "uno1", "D6", "green");
+            d.AddWire("driver1", "IN2", "uno1", "D7", "blue");
+            d.AddWire("driver1", "IN3", "uno1", "D8", "orange");
+            d.AddWire("driver1", "IN4", "uno1", "D9", "white");
+            d.AddWire("driver1", "ENB", "uno1", "D10", "purple");
+            d.AddWire("driver1", "+12V", "uno1", "VIN", "red");
+            d.AddWire("sonar1", "VCC", "driver1", "+5V", "red");
+            d.AddWire("sonar1", "GND", "uno1", "GND.1", "black");
+            d.AddWire("sonar1", "ECHO", "uno1", "D2", "grey");
+            d.AddWire("uno1", "D3", "sonar1", "TRIG", "brown");
+            return d;
+        }
+
         /// <summary>A new robot: nothing yet. The player builds the body from shapes and places every part (docs/03 §3.1).</summary>
         public static RobotDesign Empty() => new RobotDesign { Body = new BodyDesign { Decks = 0 } };
     }

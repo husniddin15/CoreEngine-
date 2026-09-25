@@ -228,6 +228,35 @@ public class PwmTests
     }
 
     [Fact]
+    public void TheOwnersTurnRightDrivesItsWheelsOppositeWays()
+    {
+        // The owner's third robot (2026-09-25) running its turnRight(), held (SpinInPlace.ino).
+        var d = DesignPresets.NoCasterTwoWheeler();
+        var circuit = CircuitAnalysis.Analyse(d);
+        Assert.True(circuit.BoardPowered, string.Join(", ", circuit.Warnings));
+        Assert.False(circuit.HasProblems, string.Join(", ", circuit.Warnings));
+
+        var mcu = new Atmega328P();
+        mcu.LoadHex(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Golden", "Hex", "SpinInPlace.hex")));
+        mcu.RunSeconds(0.1);
+        var meter = new PinDuty(mcu);
+        meter.Begin(mcu.Cpu.Cycles);
+        mcu.RunSeconds(0.05);
+        long end = mcu.Cpu.Cycles;
+        var bridge = new L298NModel { SupplyVolts = 4.9 }; // four AA cells under the motors' load, as in the arena
+        double full = 4.9 - bridge.BridgeDropVolts;
+        double left = DriveMap.MotorVolts(circuit, "motor1", pin => meter.Duty(pin, end), bridge);
+        double right = DriveMap.MotorVolts(circuit, "motor2", pin => meter.Duty(pin, end), bridge);
+        Assert.InRange(Math.Abs(left), 0.96 * full, full); // analogWrite 250 of 255
+        Assert.InRange(Math.Abs(right), 0.96 * full, full);
+
+        // Its left wheel rolls forward and its right one back: it turns right on the spot, as its comments say.
+        Assert.Equal("left", DesignGeometry.SideOf(d.Find("motor1")!));
+        Assert.Equal(1, Math.Sign(left) * DesignGeometry.ForwardSign(d.Find("motor1")!));
+        Assert.Equal(-1, Math.Sign(right) * DesignGeometry.ForwardSign(d.Find("motor2")!));
+    }
+
+    [Fact]
     public void AMotorOnAPwmEnableGetsTheAverageVoltage()
     {
         var design = DesignPresets.ObstacleAvoiderKit();
