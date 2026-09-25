@@ -45,7 +45,7 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 | ROBOT          |                                                        | [Build]  [Wire]    |
 | Obstacle avoider                                                        |  what     what     |
 | (READY)        |          the selected robot on a turntable     [cube]  | [Code]   [Body]    |
-| board, sketch  |          on the lab bench, the room out of focus       |                    |
+| board, sketch  |          on the lab bench, everything sharp            |                    |
 | parts, mass    |          (drag to turn, Shift+drag to move, wheel)     | [Customize]        |
 | battery ====   |                                                        | [Check & repair]   |
 | ! warnings     |                                                        |                    |
@@ -54,7 +54,7 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
 +----------------------------------------------------------------------------------------------+
 ```
 
-- **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the bright lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are tiles with an icon, a name and one line saying what they do. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
+- **Look** (2026-09-24, after the owner found the first Garage "cartoon"): dark glass panels over the bright lab, one accent colour (cyan) for selection and one (green) for START. Line icons are drawn in code (`UI/Icons.cs`), so they stay sharp at any size and need no image files. The robot card has a status chip (**READY** or **2 TO CHECK**) and one icon per row. The six actions are big cards (2026-09-25, D24; the owner: "easy to select things like cs2 design ... we need real images"): on top a picture rendered from the game's own models when the Garage opens (the parts laid out for Build, an Uno and an L298N joined by jumpers for Wire, the lab's monitor showing the sketch for Code, the bare chassis for Body, the selected robot for Customize, the multimeter for Check & repair) with the action's icon as a small badge; under it the name and one short, plain line ("Put parts on your robot", "Join the parts with wires"). Three rows of cards fit beside the view at 1280 × 720 in all three languages. The robot bar shows rendered thumbnails with the name on the picture and a dot for ready or not. Tiles grow with the text, because Uzbek and Russian names are longer.
 
 - **Room**: a bright, modern engineering lab (the owner's choice, 2026-09-24, D20: "light and white rooms, but tools should be there"). It replaced the photographed lab of D19 the same day.
   - The robot turns on an aluminium turntable on a white lab bench, standing on a grey-blue measuring mat printed with a millimetre grid, rulers along two edges and a protractor.
@@ -73,7 +73,7 @@ The game opens here ([ADR-0009](adr/ADR-0009-garage-main-screen.md), the owner's
     - a window with white blinds.
   - Light: LED panels in the ceiling and daylight through the blinds, baked with bounced light; the lamp and the daylight also light the robot in real time, with soft shadows.
   - Everything is modelled in code with the part toolkit and saved into the scene, so no file is downloaded (`app/Assets/Spike/Editor/WhiteLab/`).
-  - The camera works like a product photographer's: the room behind the robot is soft, the robot sharp all over, however close the camera comes (the owner, 2026-09-25: parts went "blur" in close-ups when the blur followed a lens's focus). The blur turns off in Build, Wire and Body, where every part must be sharp.
+  - Everything is sharp, the room as well as the robot, as in a game: no blur, film grain or darkened corners (D24; the owner, 2026-09-25: the lab looked "dizzy like fog"). Until then the showroom blurred the room behind the robot like a product photo.
   - A desk-sized scene keeps the room in view behind a 20–30 cm robot; a big hall would only show floor.
 - **Camera** (2026-09-25, the owner: "I am struggling to see it from angles and positions I want"), the same in the showroom, Wire and the Body Studio, as in Tinkercad:
   - a drag turns the view round its pivot (the right button in Wire and the Studio, where the left one picks); **Shift**+drag or the middle button moves the pivot, so the camera no longer turns round one fixed point; the wheel zooms toward the spot under the mouse; a double-click makes a spot on the robot the pivot;
@@ -263,14 +263,14 @@ English, Uzbek (Latin script) and Russian at release, for everything the player 
 - The Garage looks photographed (D11, D20, 2026-09-24):
   - a bright, white engineering lab with baked bounced light from ceiling panels and a window;
   - physically based materials on everything: gloss on laminate and screens, metal on tools and chassis parts;
-  - filmic (ACES) tone mapping, a clean cool white balance, fine film grain;
-  - a product photo's shallow depth of field;
+  - filmic (ACES) tone mapping and a clean cool white balance;
+  - sharp all over, as in a game rather than a photo: no depth of field, film grain or darkened corners (D24, 2026-09-25);
   - small rounded edges on every board and plug, because sharp edges catch no light and look drawn.
-- Arenas keep simpler, legible lighting. In the editors readability wins over the photo: no blur, pin labels always on top.
+- Arenas keep simpler, legible lighting: a clear blue sky, the floor running out to the horizon, no fog, neutral grey shadows (D24). In the editors readability wins over the photo: pin labels always on top.
 - Scale cues everywhere: cutting-mat grid (1 cm), ruler, breadboard hole pitch (2.54 mm).
 - Robots are 10–30 cm; arenas are table (1.2 × 0.8 m) or floor (3 × 3 m) sized.
 - Damage states: burnt (dark, cracked), smoke VFX, heat shimmer on hot regulators.
-- UI: clean, high-contrast, engineering-notebook feel; monospace font in code and telemetry.
+- UI: clean, high-contrast, engineering-notebook feel; monospace font in code and telemetry. Choices are big cards with real pictures, like a modern shooter's menus (D24): renders of the parts and the robot rather than symbols, the name and one short, plain line.
 
 ## 14. Audio
 
