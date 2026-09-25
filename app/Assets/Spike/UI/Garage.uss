@@ -1443,12 +1443,12 @@
     align-items: center;
 }
 .view-tools--garage {
-    top: 76px;
-    right: 330px;
+    top: 60px;
+    left: 298px;
 }
 .view-tools--studio {
     top: 10px;
-    right: 12px;
+    left: 12px;
 }
 .view-cube {
     width: 104px;

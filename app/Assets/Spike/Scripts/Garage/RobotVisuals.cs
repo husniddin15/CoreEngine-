@@ -335,13 +335,17 @@ namespace CoreEngine.Spike.Garage
             }
         }
 
-        /// <summary>The motor's wheel on its shaft: its own mesh, since it turns; the hub in the wheels' finish.</summary>
+        /// <summary>
+        /// The motor's wheel on its shaft, on whichever end the player put it: its own mesh, since it turns; the hub
+        /// in the wheels' finish. On the +x end it is turned round, so its screw face is still on the outside.
+        /// </summary>
         void BuildModelWheel(PartInstance part, Transform t, Transform? wheelBody)
         {
-            var hub = DesignGeometry.WheelInMotor;
+            var hub = DesignGeometry.WheelOffset(part);
             var wheel = wheelBody ?? Group(t, part.Id + ".wheel", new Vector3(hub.x, hub.y, hub.z) * Mm);
             var go = new GameObject("Wheel");
             go.transform.SetParent(wheel, false);
+            if (part.WheelOtherEnd) go.transform.localRotation = Quaternion.Euler(0, 180, 0);
             go.AddComponent<MeshFilter>().sharedMesh = CoreEngine.Spike.Parts.MotorModel.WheelMesh;
             var materials = (Material[])CoreEngine.Spike.Parts.MotorModel.WheelMaterials.Clone();
             materials[CoreEngine.Spike.Parts.MotorModel.HubSlot] = hubMaterial;
@@ -498,7 +502,7 @@ namespace CoreEngine.Spike.Garage
             Box(t, new Vector3(0, 0.002f, 0.0448f), new Vector3(0.012f, 0.012f, 0.0012f), black, "EndCap");
             foreach (float y in new[] { 0.004f, -0.004f })
                 Box(t, new Vector3(0, y, 0.0452f), new Vector3(0.0022f, 0.0012f, 0.0012f), tin, "Tab");
-            var hub = DesignGeometry.WheelInMotor;
+            var hub = DesignGeometry.WheelOffset(part);
             float shaftLength = Mathf.Abs(hub.x) * Mm;
             Cylinder(t, new Vector3(hub.x / 2, hub.y, hub.z) * Mm, 0.0054f, shaftLength, Axis.X, black, "Shaft");
             var wheel = wheelBody ?? Group(t, part.Id + ".wheel", new Vector3(hub.x, hub.y, hub.z) * Mm);

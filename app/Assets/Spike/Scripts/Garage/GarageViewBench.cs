@@ -23,14 +23,20 @@ namespace CoreEngine.Spike.Garage
         }
 
         /// <summary>
-        /// The showroom camera: a click on the view cube's top looks straight down, its corner from 35° up; a
-        /// middle-button drag moves the pivot and a very long one stops near the robot; a double-click on the Uno
-        /// makes it the pivot; the wheel zooms in to the closest view with the robot sharp all over.
+        /// The camera: no view cube in the showroom; in Wire it sits on the left, a click on its top looks straight
+        /// down and its corner from 35° up. Back in the showroom a middle-button drag moves the pivot and a very
+        /// long one stops near the robot; a double-click on the Uno makes it the pivot; the wheel zooms in to the
+        /// closest view with the robot sharp all over.
         /// </summary>
         IEnumerator CameraCheck()
         {
             var report = SpikeReport.Text;
             holdTurntable = true; // the robot must not turn away while its parts are being clicked
+            yield return Frames(2);
+            bool noCubeInShowroom = viewTools != null && viewTools.resolvedStyle.display == DisplayStyle.None;
+            OnAction("act.wire");
+            yield return Frames(3);
+            bool cubeOnLeft = viewTools != null && viewTools.resolvedStyle.display == DisplayStyle.Flex && viewTools.worldBound.xMax < root.worldBound.width / 2;
             HomeView();
             yield return WaitForGlide();
 
@@ -54,6 +60,8 @@ namespace CoreEngine.Spike.Garage
             cube.Pick(new Vector3Int(1, 1, 1));
             yield return WaitForGlide();
             float cornerPitch = pitch;
+            CloseSide(); // back to the showroom for the rest
+            yield return Frames(3);
 
             // A middle-button drag across a sixth of the screen moves the pivot; a very long one stops near the robot.
             var middle = new Vector2(Screen.width / 2f, Screen.height / 2f);
@@ -99,7 +107,8 @@ namespace CoreEngine.Spike.Garage
             yield return WaitForGlide();
             holdTurntable = false;
             idleSeconds = 0;
-            report.AppendLine($"  camera: the view cube's TOP, clicked, looked straight down: {Yes(straightDown)} (pitch {topPitch:F1}°); its front-top-right corner " +
+            report.AppendLine($"  camera: no view cube in the showroom: {Yes(noCubeInShowroom)}; in Wire it is on the left: {Yes(cubeOnLeft)}; " +
+                              $"its TOP, clicked, looked straight down: {Yes(straightDown)} (pitch {topPitch:F1}°); its front-top-right corner " +
                               $"from {cornerPitch:F1}° up (35.3° expected); a middle-button drag moved the pivot {moved * 100:F1} cm, a very long one stopped " +
                               $"{Mathf.Max(0, beyond) * 100:F1} cm beside the robot (12 cm allowed); a double-click on the Uno made it the pivot, {pivotGap:F1} mm from it; " +
                               $"the wheel stopped at {closest * 100:F0} cm with only what lies behind the robot blurred (from {blurFrom * 100:F0} cm): {Yes(gaussian && blurFrom > closest)}; " +

@@ -798,7 +798,7 @@ namespace CoreEngine.Spike.Garage
                 PartKind.Board => "Uno",
                 PartKind.MotorDriver => Design.Count(def.Id) > 1 ? "L298N " + part.Id.Replace("driver", "") : "L298N",
                 PartKind.Ultrasonic => "HC-SR04",
-                PartKind.Motor => Tr(part.Slot == "right" ? "side.right" : "side.left") + " TT",
+                PartKind.Motor => Tr(DesignGeometry.SideOf(part) == "right" ? "side.right" : "side.left") + " TT", // where its wheel is
                 PartKind.Battery => "4×AA",
                 PartKind.Servo => Design.Count(def.Id) > 1 ? "SG90 " + part.Id.Replace("servo", "") : "SG90",
                 PartKind.Led => Design.Count(def.Id) > 1 ? "LED " + part.Id.Replace("led", "") : "LED",
@@ -1034,6 +1034,21 @@ namespace CoreEngine.Spike.Garage
                         && DesignGeometry.SideOf(right) == "right" && Mathf.Abs(DesignGeometry.LowestPoint(Design)) < 0.2f;
             bool onPlate = Mathf.Abs(battery.Y - 45.5f) < 0.2f;
 
+            // The right motor's button puts its wheel on the other end of the shaft: under the robot, since this
+            // motor is turned round; an undo puts it back outside.
+            Select(new Pick(true, right.Id));
+            yield return Frames(2);
+            Button? wheelButton = null;
+            sideContent.Query<Button>().ForEach(b => { if (b.Q<Label>()?.text == Tr("studio.wheelEnd")) wheelButton = b; });
+            if (wheelButton != null) yield return ClickElement(wheelButton);
+            float otherEndX = DesignGeometry.WheelCentre(Design.Find(right.Id)!).x;
+            Undo();
+            yield return WaitForBody();
+            bool wheelEnd = wheelButton != null && Mathf.Abs(otherEndX - 22.5f) < 0.1f && Mathf.Abs(DesignGeometry.WheelCentre(Design.Find(right.Id)!).x - 77.5f) < 0.1f;
+            right = Design.Find(right.Id)!;
+            left = Design.Find(left.Id)!;
+            battery = Design.Find(battery.Id)!;
+
             // Four aluminium standoffs and the top deck, typed in where the kit has them.
             yield return ClickElement(tabButtons[LibraryTab.Shapes]);
             yield return ClickElement(MaterialButton(BodyMaterial.Aluminium));
@@ -1090,7 +1105,8 @@ namespace CoreEngine.Spike.Garage
             int overlaps = 0;
             foreach (var part in Design.Parts) if (DesignGeometry.Overlaps(Design, part)) overlaps++;
             report.AppendLine($"  a new robot is empty: {Yes(startsEmpty)}; plate set down on the workplane in blue acrylic: {Yes(onWorkplane)}; " +
-                              $"motors hung under it with wheels at x = {leftWheel.x:0.#} and {rightWheel.x:0.#} mm, on the floor: {Yes(hung)}; battery on the plate: {Yes(onPlate)}; " +
+                              $"motors hung under it with wheels at x = {leftWheel.x:0.#} and {rightWheel.x:0.#} mm, on the floor: {Yes(hung)}; " +
+                              $"its button put the right wheel on the other end of the shaft and an undo put it back: {Yes(wheelEnd)}; battery on the plate: {Yes(onPlate)}; " +
                               $"Uno on the top deck, turned 270°: {Yes(onDeck)}; sensor on its bracket looking forward: {Yes(facing)}; a part has only the cone and the curls, no size handles: {Yes(partHandles)}; a third motor refused: {Yes(refused)}; parts touching: {overlaps}");
             report.AppendLine($"  body: {Design.Body.Members(null).Count} shapes, {meshes?.VolumeMm3 / 1000 ?? 0:F1} cm³, {meshes?.MassG ?? 0:F0} g, built by Manifold in {meshes?.BuildMs ?? 0:F1} ms; " +
                               $"robot {Design.MassKg() * 1000:F0} g; everything placed with the mouse in {buildSeconds:F1} s");

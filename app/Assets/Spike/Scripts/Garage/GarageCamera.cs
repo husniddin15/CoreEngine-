@@ -81,10 +81,15 @@ namespace CoreEngine.Spike.Garage
             return button;
         }
 
-        /// <summary>In the Studio the tools sit in the corner of its free view; elsewhere left of the right column.</summary>
+        /// <summary>
+        /// Only while building and wiring, on the left of the view: the showroom turns the robot by itself, and the
+        /// right side holds the panels with the robot's information and properties (the owner, 2026-09-25). In the
+        /// Studio the tools sit in the top left corner of its free view; in Wire beside the robot's card.
+        /// </summary>
         void PlaceViewTools()
         {
             if (viewTools == null) return;
+            viewTools.style.display = mode == EditMode.None ? DisplayStyle.None : DisplayStyle.Flex;
             bool inStudio = mode == EditMode.Body && studio != null;
             var parent = inStudio ? studioViewport : root;
             if (viewTools.parent != parent)

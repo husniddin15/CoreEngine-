@@ -753,8 +753,12 @@ namespace CoreEngine.Spike.Garage
                 switch (def.Kind)
                 {
                     case PartKind.Motor:
-                        MotorRow(part.Slot == "right" ? robot.RightMotor : robot.LeftMotor, part.Slot == "right" ? "side.right" : "side.left");
+                    {
+                        // The side its wheel is on, as the arena gives each side its winding model.
+                        bool right = DesignGeometry.SideOf(part) == "right";
+                        MotorRow(right ? robot.RightMotor : robot.LeftMotor, right ? "side.right" : "side.left");
                         break;
+                    }
                     case PartKind.Battery:
                         PartRow(SpikeStrings.Format("rep.battery", robot.Battery.StateOfCharge * 100), robot.Battery.IsEmpty ? Tr("rep.burnt") : Tr("rep.ok"), !robot.Battery.IsEmpty);
                         if (robot.Battery.StateOfCharge < 0.999)

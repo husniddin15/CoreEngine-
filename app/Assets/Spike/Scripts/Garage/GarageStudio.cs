@@ -1646,6 +1646,11 @@ namespace CoreEngine.Spike.Garage
                 int sign = DesignGeometry.ForwardSign(part);
                 string side = Tr(DesignGeometry.SideOf(part) == "right" ? "side.right" : "side.left");
                 sideContent.Add(Classed(new Label(sign == 0 ? Tr("studio.noDrive") : SpikeStrings.Format(sign > 0 ? "studio.driveForward" : "studio.driveBack", side)), sign == 0 ? "warn-line" : "info-text"));
+                // A TT motor's shaft comes out on both sides: the wheel goes on the end that faces out.
+                var wheelEnd = Layout("repair-buttons");
+                wheelEnd.Add(IconSmallButton(Icon.Mirror, "studio.wheelEnd", () => EditPart(x => x.WheelOtherEnd = !x.WheelOtherEnd)));
+                sideContent.Add(wheelEnd);
+                Info("studio.wheelEndNote");
             }
             var buttons = Layout("repair-buttons");
             buttons.Add(IconSmallButton(Icon.Drop, "studio.drop", DropSelected));
