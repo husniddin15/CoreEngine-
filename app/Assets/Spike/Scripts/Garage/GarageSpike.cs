@@ -276,13 +276,26 @@ namespace CoreEngine.Spike.Garage
         {
             shown?.Destroy();
             shown = null;
+            foreach (var holder in looseHolders) if (holder != null) Destroy(holder.gameObject);
+            looseHolders.Clear();
             bool showroom = mode == EditMode.None;
             robotAnchor.localPosition = new Vector3(0, showroom ? turntableTop : 0, 0);
             var built = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
             shown = built;
             settling = showroom ? Settle(Robot.Design, built.Body) : null;
             settleStart = Time.time;
-            if (settling != null) PoseRobot();
+            if (settling != null)
+            {
+                // Pieces not attached to the robot fall off it on the turntable, each on its own (RobotPieces).
+                foreach (var (pieces, _) in settling.Loose)
+                {
+                    var holder = new GameObject("Loose piece").transform;
+                    holder.SetParent(robotAnchor, false);
+                    built.MovePieces(pieces, holder);
+                    looseHolders.Add(holder);
+                }
+                PoseRobot();
+            }
             else if (mode != EditMode.Body) robotAnchor.localPosition += new Vector3(0, Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f, 0);
             MeasureRobot();
             if (mode == EditMode.Wire)
@@ -293,11 +306,12 @@ namespace CoreEngine.Spike.Garage
             if (mode == EditMode.Body) RebuildGhosts();
         }
 
-        List<RobotSettle.Pose>? settling; // the showroom's robot coming to rest, a pose every 10 ms
+        RobotSettle.Settling? settling; // the showroom's robot coming to rest, a pose every 10 ms
         float settleStart;
+        readonly List<Transform> looseHolders = new List<Transform>(); // pieces not attached to the robot, falling on their own
 
         /// <summary>Where the robot comes to rest on a flat floor, or null (it then stands on its lowest point).</summary>
-        static List<RobotSettle.Pose>? Settle(RobotDesign design, BodyMeshes? body)
+        static RobotSettle.Settling? Settle(RobotDesign design, BodyMeshes? body)
         {
             if (body == null) return null;
             try
@@ -311,13 +325,29 @@ namespace CoreEngine.Spike.Garage
             }
         }
 
+        /// <summary>A robot model as it lies once settled, its loose pieces where they fell, under <paramref name="stage"/>.</summary>
+        static void PlaceAtRest(RobotVisuals visual, RobotSettle.Settling rest, Transform stage)
+        {
+            visual.Root.transform.SetLocalPositionAndRotation(rest.RobotAtRest.Position, rest.RobotAtRest.Rotation);
+            foreach (var (pieces, poses) in rest.Loose)
+            {
+                var holder = new GameObject("Loose piece").transform;
+                holder.SetParent(stage, false);
+                holder.SetLocalPositionAndRotation(poses[poses.Count - 1].Position, poses[poses.Count - 1].Rotation);
+                visual.MovePieces(pieces, holder);
+            }
+        }
+
         /// <summary>Puts the showroom's robot where it has come to by now as it settles; it then stays in its last pose.</summary>
         void PoseRobot()
         {
             if (settling == null || shown == null) return;
-            int i = Mathf.Min(settling.Count - 1, Mathf.FloorToInt((Time.time - settleStart) / RobotSettle.Step));
-            shown.Root.transform.SetLocalPositionAndRotation(settling[i].Position, settling[i].Rotation);
-            if (i < settling.Count - 1) return;
+            int last = settling.Robot.Count - 1;
+            int i = Mathf.Min(last, Mathf.FloorToInt((Time.time - settleStart) / RobotSettle.Step));
+            shown.Root.transform.SetLocalPositionAndRotation(settling.Robot[i].Position, settling.Robot[i].Rotation);
+            for (int k = 0; k < settling.Loose.Count && k < looseHolders.Count; k++)
+                if (looseHolders[k] != null) looseHolders[k].SetLocalPositionAndRotation(settling.Loose[k].Poses[i].Position, settling.Loose[k].Poses[i].Rotation);
+            if (i < last) return;
             settling = null;
             MeasureRobot();
         }
@@ -557,6 +587,10 @@ namespace CoreEngine.Spike.Garage
                 if (problems > 0 && robot.Electronics) warnings.Add((SpikeStrings.Format("warn.wiring", problems), "act.wire"));
                 var stance = RobotStance.Of(design);
                 if (!stance.Rolls) warnings.Add((StanceWarning(stance, design), "act.build"));
+                var pieces = RobotPieces.Of(design);
+                if (!pieces.AllAttached) warnings.Add((LooseWarning(pieces, design), "act.build"));
+                string? aim = SonarWarning(design);
+                if (aim != null) warnings.Add((aim, "act.build"));
             }
             if (robot.Electronics && robot.CodeNotUploaded) warnings.Add((Tr("warn.notUploaded"), "act.code"));
             if (robot.IsTrying) warnings.Add((Tr("warn.trying"), null));
@@ -804,6 +838,11 @@ namespace CoreEngine.Spike.Garage
             var stance = RobotStance.Of(design);
             if (!stance.Rolls) sideContent.Add(Classed(new Label(StanceWarning(stance, design)), "warn-line"));
             else if (design.Count(PartCatalog.TtMotor) == 2) sideContent.Add(Classed(new Label("✓ " + Tr("stance.rolls")), "ok-line"));
+            var pieces = RobotPieces.Of(design);
+            if (!pieces.AllAttached) sideContent.Add(Classed(new Label(LooseWarning(pieces, design)), "warn-line"));
+            else if (design.Parts.Count > 0) sideContent.Add(Classed(new Label("✓ " + Tr("loose.none")), "ok-line"));
+            string? aim = SonarWarning(design);
+            if (aim != null) sideContent.Add(Classed(new Label(aim), "warn-line"));
 
             Section("rep.parts", Icon.Parts);
             foreach (var part in design.Parts)
@@ -1125,7 +1164,7 @@ namespace CoreEngine.Spike.Garage
             var visual = RobotVisuals.Build(stage.transform, null, GarageState.Robots[index], litMaterial);
             // As it rests in the showroom: a robot without a caster on its front.
             var rest = Settle(design, visual.Body);
-            if (rest != null) visual.Root.transform.SetLocalPositionAndRotation(rest[rest.Count - 1].Position, rest[rest.Count - 1].Rotation);
+            if (rest != null) PlaceAtRest(visual, rest, stage.transform);
             else stage.transform.position += new Vector3(0, Mathf.Max(0, -DesignGeometry.LowestPoint(design)) * 0.001f, 0);
             var camera = new GameObject("ThumbnailCamera").AddComponent<Camera>();
             camera.enabled = false;
@@ -1184,6 +1223,39 @@ namespace CoreEngine.Spike.Garage
         /// </summary>
         static string StanceWarning(RobotStance stance, RobotDesign design) =>
             SpikeStrings.Format("stance.drags", Tr("tip." + stance.Side), UiSpike.DraggingName(stance, design));
+
+        /// <summary>
+        /// Pieces that touch nothing holding them to the robot (the owner, 2026-09-25: a plate dragged 17 cm away still
+        /// drove along): named, at most three, and what happens to them.
+        /// </summary>
+        static string LooseWarning(RobotPieces pieces, RobotDesign design)
+        {
+            var names = new List<string>();
+            foreach (var piece in pieces.Loose) names.Add(PieceName(piece, design));
+            string list = names.Count <= 3 ? string.Join(", ", names)
+                : string.Join(", ", names.GetRange(0, 3)) + " " + SpikeStrings.Format("loose.more", names.Count - 3);
+            return SpikeStrings.Format("loose.pieces", list);
+        }
+
+        /// <summary>A piece by the name the player knows it by: the part's catalogue name, or the shape's as the Studio lists it.</summary>
+        static string PieceName(string piece, RobotDesign design)
+        {
+            if (piece.StartsWith(RobotPieces.ShapePrefix))
+            {
+                var shape = design.Body.Feature(piece.Substring(RobotPieces.ShapePrefix.Length));
+                return shape != null ? FeatureName(shape) : piece;
+            }
+            var part = design.Find(piece);
+            return part != null ? PartCatalog.Get(part.Part)?.Name ?? piece : piece;
+        }
+
+        /// <summary>An HC-SR04 tipped more than 15° up or down sees over or under what is ahead (the owner's, on a wedge's slope: 34° up).</summary>
+        static string? SonarWarning(RobotDesign design)
+        {
+            float? tilt = RobotPieces.SonarTilt(design);
+            if (tilt == null || Mathf.Abs(tilt.Value) <= 15f) return null;
+            return SpikeStrings.Format(tilt > 0 ? "sonar.up" : "sonar.down", Mathf.Abs(tilt.Value));
+        }
 
         // ------------------------------------------------------------------ benchmark (-spikeBench)
 
@@ -1356,6 +1428,30 @@ namespace CoreEngine.Spike.Garage
             report.AppendLine($"  its Fix opens Build: {Yes(fix != null && inBuild)}; the Balance view shows by itself: {Yes(balanceShown)}, saying why: {Yes(noteSays)}; screenshot -garage-balance");
             LeaveMode();
             yield return Frames(4);
+
+            // The owner's robot with its plate dragged 17.5 cm away (2026-09-25, "where is logic and physics"): the card
+            // names what is not attached, the pieces fall apart on the turntable, Build draws a red box round each.
+            GarageState.Robots.Add(new RobotProject { Name = "Plate dragged away", Design = DesignPresets.DraggedPlate(), BodyFinish = Finishes.AsBuilt });
+            Select(GarageState.Robots.Count - 1);
+            waited = Time.time;
+            while (settling != null && Time.time - waited < 5f) yield return null;
+            yield return Frames(4);
+            var apart = RobotPieces.Of(Robot.Design);
+            int looseCount = 0;
+            foreach (var _ in apart.Loose) looseCount++;
+            string looseText = LooseWarning(apart, Robot.Design).TrimStart('⚠', ' ');
+            bool looseOnCard = cardWarnings.Query<Label>().ToList().Exists(label => label.text == looseText);
+            bool fellApart = looseHolders.Count == apart.Groups.Count - 1 && looseHolders.Exists(h => h != null && h.localPosition.y < -0.02f);
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-loose"));
+            OnAction("act.build");
+            yield return Frames(20);
+            int redBoxes = looseBoxes.FindAll(b => b != null && b.gameObject.activeInHierarchy).Count;
+            yield return SpikeReport.Capture(SpikeReport.Shot("garage-loose-build"));
+            LeaveMode();
+            yield return Frames(4);
+            report.AppendLine($"  a robot whose plate was dragged 17.5 cm away: the card says \"{looseText}\": {Yes(looseOnCard)}; " +
+                              $"{apart.Groups.Count - 1} loose groups fall apart on the turntable: {Yes(fellApart)}; Build boxes the {looseCount} loose pieces in red: {Yes(redBoxes == looseCount)}; " +
+                              "screenshots -garage-loose, -garage-loose-build");
 
             // A robot like the owner's first one (2026-09-25): its speed set by analogWrite on ENA (D5, Timer0)
             // and ENB (D10, Timer1), running its compiled sketch in the arena.

@@ -72,6 +72,26 @@ namespace CoreEngine.Spike.UI
                 "⚠ {0} ogʻib ketadi: {1} polga sudraladi, shuning uchun sekin buriladi. U yerga sharikli tayanch qoʻying.",
                 "⚠ Заваливается {0}: {1} волочится по полу, поэтому робот медленно поворачивает. Поставьте туда шаровую опору.",
             },
+            ["loose.pieces"] = new[]
+            {
+                "⚠ Not attached to the robot: {0}. Loose pieces fall off: set them on the plate or the body.",
+                "⚠ Robotga biriktirilmagan: {0}. Boʻsh qismlar tushib ketadi: ularni plastina yoki korpus ustiga qoʻying.",
+                "⚠ Не прикреплено к роботу: {0}. Незакреплённое отвалится: поставьте это на пластину или корпус.",
+            },
+            ["loose.more"] = new[] { "and {0} more", "va yana {0} ta", "и ещё {0}" },
+            ["loose.none"] = new[] { "Every part is attached to the robot", "Barcha qismlar robotga biriktirilgan", "Все детали прикреплены к роботу" },
+            ["sonar.up"] = new[]
+            {
+                "⚠ The HC-SR04 looks {0:F0}° up: it sees over low boxes. Turn it level (Rotation X 0).",
+                "⚠ HC-SR04 {0:F0}° yuqoriga qaragan: past qutilarni koʻrmaydi. Uni tekis qiling (Burilish X 0).",
+                "⚠ HC-SR04 смотрит на {0:F0}° вверх: низкие коробки он не видит. Поставьте его ровно (Поворот X 0).",
+            },
+            ["sonar.down"] = new[]
+            {
+                "⚠ The HC-SR04 looks {0:F0}° down: it sees the floor. Turn it level (Rotation X 0).",
+                "⚠ HC-SR04 {0:F0}° pastga qaragan: polni koʻradi. Uni tekis qiling (Burilish X 0).",
+                "⚠ HC-SR04 смотрит на {0:F0}° вниз: он видит пол. Поставьте его ровно (Поворот X 0).",
+            },
             ["studio.balance"] = new[] { "Balance", "Muvozanat", "Баланс" },
             ["studio.balance.tip"] = new[]
             {

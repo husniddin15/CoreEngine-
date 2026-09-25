@@ -183,7 +183,7 @@ namespace CoreEngine.Spike.Garage
             pad.localRotation = Quaternion.Euler(0, 20f, 0);
             var visual = RobotVisuals.Build(pad, null, Robot, litMaterial);
             var rest = Settle(Robot.Design, visual.Body);
-            if (rest != null) visual.Root.transform.SetLocalPositionAndRotation(rest[rest.Count - 1].Position, rest[rest.Count - 1].Rotation);
+            if (rest != null) PlaceAtRest(visual, rest, pad);
 
             var target = RenderTexture.GetTemporary(ArenaWidth * 2, ArenaHeight * 2, 24, RenderTextureFormat.ARGB32);
             var camera = PictureCamera(target, 34f, postProcessing: true);

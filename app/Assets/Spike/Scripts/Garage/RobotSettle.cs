@@ -31,15 +31,27 @@ namespace CoreEngine.Spike.Garage
             public Quaternion Rotation { get; }
         }
 
+        /// <summary>The robot's poses as it comes to rest, and those of each group of pieces not attached to it, falling off.</summary>
+        public sealed class Settling
+        {
+            public List<Pose> Robot { get; } = new List<Pose>();
+            public List<(List<string> Pieces, List<Pose> Poses)> Loose { get; } = new List<(List<string>, List<Pose>)>();
+
+            /// <summary>The last pose of each: where everything lies once still.</summary>
+            public Pose RobotAtRest => Robot[Robot.Count - 1];
+        }
+
         /// <summary>
-        /// The frame's pose every 10 ms from where the robot stands on its lowest point, half a millimetre up, until
-        /// it has been still for 0.2 s (2.5 s at most). A design without parts or shapes stays where it is.
+        /// Every 10 ms, from where the robot stands on its lowest point, half a millimetre up, until everything has
+        /// been still for 0.2 s (2.5 s at most): the robot's frame and each loose group's (both in the design's frame
+        /// at the start). A design without parts or shapes stays where it is.
         /// </summary>
-        public static List<Pose> Drop(RobotDesign design, BodyMeshes body)
+        public static Settling Drop(RobotDesign design, BodyMeshes body)
         {
             var start = new Vector3(0, (0.5f - DesignGeometry.LowestPoint(design)) * RobotPhysics.Mm, 0);
-            var poses = new List<Pose> { new Pose(start, Quaternion.identity) };
-            if (design.Parts.Count == 0 && body.Solids.Count == 0 && body.Loose.Count == 0) return poses;
+            var result = new Settling();
+            result.Robot.Add(new Pose(start, Quaternion.identity));
+            if (design.Parts.Count == 0 && body.Solids.Count == 0 && body.Loose.Count == 0) return result;
 
             RobotPhysics.ConfigureWorld();
             var scene = SceneManager.CreateScene("RobotSettle " + ++scenes, new CreateSceneParameters(LocalPhysicsMode.Physics3D));
@@ -53,18 +65,25 @@ namespace CoreEngine.Spike.Garage
             var root = new GameObject("Robot");
             SceneManager.MoveGameObjectToScene(root, scene);
             root.transform.position = start;
-            var chassis = RobotPhysics.Build(root, design, body, DcMotorModel.TtGearMotor148().ReflectedInertiaKgM2, out _);
+            var chassis = RobotPhysics.Build(root, design, body, DcMotorModel.TtGearMotor148().ReflectedInertiaKgM2, out _, out var loose);
+            foreach (var piece in loose) result.Loose.Add((piece.Pieces, new List<Pose> { new Pose(start, Quaternion.identity) }));
 
             int still = 0;
             for (int i = 0; i < MaxSteps && still < 20; i++)
             {
                 physics.Simulate(Step);
-                poses.Add(new Pose(root.transform.position, root.transform.rotation));
+                result.Robot.Add(new Pose(root.transform.position, root.transform.rotation));
                 bool resting = chassis.velocity.sqrMagnitude < 1e-6f && chassis.angularVelocity.sqrMagnitude < 1e-4f;
+                for (int k = 0; k < loose.Count; k++)
+                {
+                    var t = loose[k].Body.transform;
+                    result.Loose[k].Poses.Add(new Pose(t.position, t.rotation));
+                    resting &= loose[k].Body.linearVelocity.sqrMagnitude < 1e-6f && loose[k].Body.angularVelocity.sqrMagnitude < 1e-4f;
+                }
                 still = resting && i > 10 ? still + 1 : 0;
             }
             SceneManager.UnloadSceneAsync(scene);
-            return poses;
+            return result;
         }
     }
 }

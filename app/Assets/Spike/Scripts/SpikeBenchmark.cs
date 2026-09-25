@@ -56,7 +56,7 @@ namespace CoreEngine.Spike
         /// <summary>Puts the owner's third robot in the arena running its turnRight(), held (SpinInPlace.ino).</summary>
         internal static void StartSpin(int which, string arenaScene)
         {
-            var design = DesignPresets.NoCasterTwoWheeler();
+            var design = which == 2 ? DesignPresets.DraggedPlate() : DesignPresets.NoCasterTwoWheeler();
             if (which == 1) // the kit's caster under the plate's front: 43.5 mm tall, as high as the plate's underside
                 design.Parts.Add(new PartInstance { Id = "caster1", Part = PartCatalog.Caster, X = -15, Y = 43.55f - 33.5f, Z = 110 });
             GarageState.Robots.Add(new RobotProject
@@ -115,6 +115,32 @@ namespace CoreEngine.Spike
                               $"motors {amps / Math.Max(1, samples) / 2:F2} A each on average; {check}; event log: {(events.Length == 0 ? "empty" : events)}; screenshot -{shot}");
         }
 
+        /// <summary>
+        /// The owner's robot with its plate dragged away (2026-09-25): nothing holds it together, so the pieces fall
+        /// apart as the run starts, and the plate lies where it fell instead of driving along on an invisible arm.
+        /// </summary>
+        IEnumerator LooseRun(StringBuilder report)
+        {
+            var spike = GetComponent<RobotSpike>();
+            yield return new WaitForSecondsRealtime(1.5f);
+            var plate = System.Linq.Enumerable.FirstOrDefault(spike.Loose, l => l.Pieces.Exists(p => p.StartsWith(RobotPieces.ShapePrefix) && p.EndsWith("f1")));
+            var landed = plate != null ? plate.Body.position : Vector3.zero;
+            var robotFrom = spike.RobotPosition;
+            yield return new WaitForSecondsRealtime(2f);
+            float plateMoved = plate != null ? Vector3.Distance(landed, plate.Body.position) : -1;
+            float robotMoved = Vector3.Distance(robotFrom, spike.RobotPosition);
+            float gap = plate != null ? Vector3.Distance(plate.Body.position, spike.RobotPosition) : -1;
+            var ui = FindAnyObjectByType<UiSpike>();
+            if (ui != null) ui.Visible = false;
+            spike.ShowView(ArenaView.Orbit, now: true);
+            yield return null;
+            yield return null;
+            yield return SpikeReport.Capture(SpikeReport.Shot("arena-loose"));
+            report.AppendLine($"the owner's robot with its plate dragged 17.5 cm away: {spike.Loose.Count} pieces fell off as separate bodies: {Yes(spike.Loose.Count >= 5)}; " +
+                              $"the plate lies {gap * 100:F0} cm from what is left of the robot and moved {plateMoved * 100:F1} cm while that moved {robotMoved * 100:F1} cm: " +
+                              $"{Yes(plate != null && plateMoved < 0.03f)}; screenshot -arena-loose");
+        }
+
         IEnumerator Start()
         {
             SpikeReport.Init();
@@ -130,8 +156,13 @@ namespace CoreEngine.Spike
             {
                 int which = SpikeReport.Stage - 4;
                 yield return SpinRun(report, which);
-                if (which == 0) StartSpin(1, SceneManager.GetActiveScene().name);
-                else SpikeReport.Finish();
+                StartSpin(which + 1, SceneManager.GetActiveScene().name);
+                yield break;
+            }
+            if (SpikeReport.Stage == 6)
+            {
+                yield return LooseRun(report);
+                SpikeReport.Finish();
                 yield break;
             }
             bool fromGarage = SpikeReport.Stage == 1;

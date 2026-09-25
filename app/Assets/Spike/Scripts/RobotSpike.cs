@@ -251,7 +251,7 @@ namespace CoreEngine.Spike
             root.transform.position = new Vector3(0, (0.5f - DesignGeometry.LowestPoint(design)) * Mm, 0);
             Stance = RobotStance.Of(design);
             var bodyMeshes = BodyBuilder.Build(body, project.ImportFolder);
-            chassis = RobotPhysics.Build(root, design, bodyMeshes, motor.ReflectedInertiaKgM2, out var wheelBodies);
+            chassis = RobotPhysics.Build(root, design, bodyMeshes, motor.ReflectedInertiaKgM2, out var wheelBodies, out var loose);
 
             // The motor with its wheel on the left drives the left winding model, the other the right one; with one
             // motor the robot can only turn.
@@ -279,14 +279,21 @@ namespace CoreEngine.Spike
                 var face = DesignGeometry.SonarFace(sensor);
                 var aim = DesignGeometry.SonarAim(sensor);
                 sonarMount = new GameObject("SonarMount").transform;
-                sonarMount.SetParent(root.transform, false);
+                // On whatever holds it: the robot, or a loose piece it fell off with, still wired and measuring.
+                var holder = loose.Find(l => l.Pieces.Contains(sensor.Id));
+                sonarMount.SetParent(holder != null ? holder.Body.transform : root.transform, false);
                 sonarMount.localPosition = new Vector3(face.x, face.y, face.z) * Mm; // the transducers' front faces
                 sonarMount.localRotation = Quaternion.LookRotation(new Vector3(aim.x, aim.y, aim.z), Vector3.up);
             }
 
             // The same model as on the Garage turntable, with each wheel on its turning wheel body.
             visuals = RobotVisuals.Build(root.transform, wheels, project, chassisMaterial, prebuiltBody: bodyMeshes);
+            foreach (var piece in loose) visuals.MovePieces(piece.Pieces, piece.Body.transform);
+            Loose = loose;
         }
+
+        /// <summary>The groups of pieces that fall off because nothing attaches them to the robot.</summary>
+        public IReadOnlyList<RobotPhysics.LooseBody> Loose { get; private set; } = Array.Empty<RobotPhysics.LooseBody>();
 
         /// <summary>
         /// Switching on: wiring faults that destroy parts do it now (docs/06 §7, F7 and F26), and the damage

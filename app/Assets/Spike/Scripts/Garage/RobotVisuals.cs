@@ -266,9 +266,42 @@ namespace CoreEngine.Spike.Garage
                 foreach (float z in new[] { -h.z, h.z }) Box(selectionFrame.transform, c + new Vector3(x, 0, z), new Vector3(bar, 2 * h.y, bar), material, "Edge");
         }
 
+        readonly List<GameObject> moved = new List<GameObject>();
+
+        /// <summary>
+        /// Moves the model of some pieces (part ids, or <see cref="RobotPieces.ShapePrefix"/> and a shape's id) under
+        /// another transform, keeping where they are: pieces not attached to the robot fall away on their own
+        /// (<see cref="RobotPieces"/>). Wires to their parts are hidden: a jumper holds nothing, and one stretched to a
+        /// fallen part would only confuse.
+        /// </summary>
+        public void MovePieces(ICollection<string> pieces, Transform to)
+        {
+            foreach (var piece in pieces)
+                if (Parts.TryGetValue(piece, out var go))
+                {
+                    go.transform.SetParent(to, true);
+                    moved.Add(go);
+                }
+            if (body != null)
+                for (int i = 0; i < body.Solids.Count && i < bodyRenderers.Count; i++)
+                {
+                    string? piece = RobotPieces.PieceOf(design, body.Solids[i].Id);
+                    if (piece == null || !pieces.Contains(piece)) continue;
+                    var go = bodyRenderers[i].renderer.gameObject;
+                    go.transform.SetParent(to, true);
+                    moved.Add(go);
+                }
+            for (int i = 0; i < design.Wires.Count && i < wireGroups.Count; i++)
+            {
+                var wire = design.Wires[i];
+                if (wireGroups[i] != null && (pieces.Contains(wire.FromPart) || pieces.Contains(wire.ToPart))) wireGroups[i]!.SetActive(false);
+            }
+        }
+
         public void Destroy()
         {
             Object.Destroy(Root);
+            foreach (var go in moved) if (go != null) Object.Destroy(go);
             foreach (var material in owned) Object.Destroy(material);
             foreach (var mesh in ownedMeshes) Object.Destroy(mesh);
             foreach (var mesh in wireMeshes) if (mesh != null) Object.Destroy(mesh);

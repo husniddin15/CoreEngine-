@@ -17,7 +17,9 @@ namespace CoreEngine.Spike.Garage
     {
         const float BalanceEvery = 0.1f; // s: the view follows a part being dragged
 
-        bool balanceOn, balanceTipped;
+        bool balanceOn, balanceTipped, balanceLoose;
+        readonly List<Transform> looseBoxes = new List<Transform>(); // a red box round each piece not attached to the robot
+        Material? balanceLooseMat;
         float balanceAt;
         Transform? balanceRoot, comBall, plumbLine, plumbFoot;
         MeshFilter? supportPatch;
@@ -46,25 +48,30 @@ namespace CoreEngine.Spike.Garage
             balanceAt = Time.unscaledTime + BalanceEvery;
 
             var design = Design;
+            var pieces = RobotPieces.Of(design);
+            bool loose = !pieces.AllAttached;
+            var robot = loose ? pieces.Keep(design, pieces.Main) : design; // what the wheels carry
             var stance = RobotStance.Of(design);
             bool tips = !stance.Rolls;
-            if (tips && !balanceTipped) balanceOn = true; // it has just started to tip: show why
+            if ((tips && !balanceTipped) || (loose && !balanceLoose)) balanceOn = true; // it has just started to tip or come apart: show why
             balanceTipped = tips;
+            balanceLoose = loose;
             balanceButton?.EnableInClassList("tool-button--active", balanceOn);
-            bool hasWheels = CountWheels(design) >= 1;
+            bool hasWheels = CountWheels(robot) >= 1;
             bool show = balanceOn && design.Parts.Count > 0;
             EnsureBalanceObjects();
             balanceRoot!.gameObject.SetActive(show);
             if (balanceNote != null)
             {
                 balanceNote.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
-                balanceNote.text = tips ? StanceWarning(stance, design) : "✓ " + Tr(hasWheels ? "stance.rolls" : "balance.noWheels");
-                balanceNote.EnableInClassList("balance-note--bad", tips);
+                balanceNote.text = loose ? LooseWarning(pieces, design) : tips ? StanceWarning(stance, design) : "✓ " + Tr(hasWheels ? "stance.rolls" : "balance.noWheels");
+                balanceNote.EnableInClassList("balance-note--bad", tips || loose);
             }
             if (!show) return;
+            ShowLooseBoxes(pieces, design);
 
             // The centre of mass, its plumb line and where it meets the floor (the design's y = 0 is the mat).
-            var com = DesignGeometry.CentreOfMass(design);
+            var com = DesignGeometry.CentreOfMass(robot);
             var centre = new Vector3(com.x, com.y, com.z) * 0.001f;
             comBall!.localPosition = centre;
             float height = Mathf.Max(0.001f, centre.y);
@@ -74,9 +81,48 @@ namespace CoreEngine.Spike.Garage
             plumbFoot.GetComponent<MeshRenderer>().sharedMaterial = tips ? balanceBadFoot : balanceGoodFoot;
 
             // The patch under the wheels' tyres and the casters' balls.
-            var hull = ConvexHull(Contacts(design));
+            var hull = ConvexHull(Contacts(robot));
             supportPatch!.sharedMesh = PatchMesh(supportPatch.sharedMesh, hull);
             supportPatch.GetComponent<MeshRenderer>().sharedMaterial = tips ? balanceBad : balanceGood;
+        }
+
+        /// <summary>A red see-through box round each piece that nothing holds to the robot (<see cref="RobotPieces"/>).</summary>
+        void ShowLooseBoxes(RobotPieces pieces, RobotDesign design)
+        {
+            int used = 0;
+            foreach (var piece in pieces.Loose)
+            {
+                ((float x, float y, float z) min, (float x, float y, float z) max) box;
+                if (piece.StartsWith(RobotPieces.ShapePrefix))
+                {
+                    var shape = design.Body.Feature(piece.Substring(RobotPieces.ShapePrefix.Length));
+                    if (shape == null) continue;
+                    box = DesignGeometry.FeatureBounds(shape);
+                }
+                else
+                {
+                    var part = design.Find(piece);
+                    if (part == null) continue;
+                    box = DesignGeometry.PartBounds(part);
+                }
+                if (used == looseBoxes.Count)
+                {
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    go.name = "LoosePiece";
+                    Destroy(go.GetComponent<Collider>());
+                    go.transform.SetParent(balanceRoot, false);
+                    var renderer = go.GetComponent<MeshRenderer>();
+                    renderer.sharedMaterial = balanceLooseMat;
+                    renderer.shadowCastingMode = ShadowCastingMode.Off;
+                    renderer.receiveShadows = false;
+                    looseBoxes.Add(go.transform);
+                }
+                var t = looseBoxes[used++];
+                t.gameObject.SetActive(true);
+                t.localPosition = new Vector3(box.min.x + box.max.x, box.min.y + box.max.y, box.min.z + box.max.z) * 0.0005f;
+                t.localScale = new Vector3(box.max.x - box.min.x + 3, box.max.y - box.min.y + 3, box.max.z - box.min.z + 3) * 0.001f;
+            }
+            for (int i = used; i < looseBoxes.Count; i++) looseBoxes[i].gameObject.SetActive(false);
         }
 
         static int CountWheels(RobotDesign design)
@@ -178,6 +224,7 @@ namespace CoreEngine.Spike.Garage
             balanceLineMat = OverlayMat(new Color(1.0f, 0.90f, 0.45f, 1f), true);
             balanceLineMat.SetFloat("_Shade", 0);
             balanceLineMat.SetFloat("_Rim", 0);
+            balanceLooseMat = OverlayMat(new Color(1.0f, 0.25f, 0.2f, 0.28f), true);
 
             balanceRoot = new GameObject("Balance").transform;
             balanceRoot.SetParent(studioScene, false);
@@ -212,6 +259,7 @@ namespace CoreEngine.Spike.Garage
         {
             balanceRoot = null;
             comBall = plumbLine = plumbFoot = null;
+            looseBoxes.Clear();
             supportPatch = null;
             balanceAt = 0;
         }
