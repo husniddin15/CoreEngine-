@@ -11,6 +11,7 @@ namespace CoreEngine.Spike.UI
         Move, Rotate, Size, Undo, Redo, Duplicate, Mirror, Trash, Eye, Drop, Solid, Hole, Frame,
         Plate, Driver, Sonar, Motor, Caster, Servo, Led,
         Glue, Bend, Route, Question,
+        ViewFollow, ViewTop, ViewSide, ViewArena,
     }
 
     /// <summary>
@@ -452,6 +453,32 @@ namespace CoreEngine.Spike.UI
                     p.Stroke();
                     Line(19.5f, 12.5f, 19.5f, 19.5f);
                     Line(16, 16, 23, 16);
+                    break;
+                case Icon.ViewFollow: // the robot seen from a camera behind it
+                    Poly(true, false, 7, 3.5f, 17, 3.5f, 17, 10, 7, 10);
+                    Line(9, 12, 9, 13.5f);
+                    Line(15, 12, 15, 13.5f);
+                    Poly(true, false, 8, 16, 14.5f, 16, 14.5f, 21, 8, 21);
+                    Poly(true, false, 14.5f, 17.2f, 17.5f, 15.8f, 17.5f, 21.2f, 14.5f, 19.8f);
+                    break;
+                case Icon.ViewTop: // looking straight down on a robot
+                    Line(12, 2.5f, 12, 8.5f);
+                    Head(12, 8.5f, 0, 1, 2.6f);
+                    Poly(true, false, 6.5f, 11.5f, 17.5f, 11.5f, 17.5f, 21, 6.5f, 21);
+                    Line(4.5f, 13, 4.5f, 19.5f);
+                    Line(19.5f, 13, 19.5f, 19.5f);
+                    break;
+                case Icon.ViewSide: // a robot from its side: body, two wheels, an eye beside it
+                    Poly(true, false, 4, 8, 17, 8, 17, 14, 4, 14);
+                    Circle(7.5f, 16.5f, 3);
+                    Circle(14, 16.5f, 3);
+                    Line(20.5f, 9, 20.5f, 13);
+                    break;
+                case Icon.ViewArena: // the arena's floor in perspective with the robot on it
+                    Poly(true, false, 2.5f, 20, 21.5f, 20, 17.5f, 6, 6.5f, 6);
+                    Line(12, 6, 12, 20);
+                    Line(4.5f, 13, 19.5f, 13);
+                    Circle(15.5f, 16.5f, 1.8f, true);
                     break;
                 case Icon.Question:
                     Circle(12, 12, 9.5f);

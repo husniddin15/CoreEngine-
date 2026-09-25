@@ -72,7 +72,7 @@ namespace CoreEngine.Spike
         string leftMotorId = "", rightMotorId = "";
         Transform? sonarMount;
         Camera followCamera = null!;
-        bool topView;
+        ArenaCamera arenaCamera = null!;
 
         readonly List<Vector3> rayDirections = new List<Vector3>();
         LineRenderer[] rayLines = Array.Empty<LineRenderer>();
@@ -140,7 +140,26 @@ namespace CoreEngine.Spike
         }
 
         public float Fps => fps;
-        public bool TopView { get => topView; set => topView = value; }
+
+        /// <summary>The whole arena from above (the benchmark's picture), shown at once; false goes back behind the robot.</summary>
+        public bool TopView
+        {
+            get => arenaCamera != null && arenaCamera.View == ArenaView.Arena;
+            set => arenaCamera?.Show(value ? ArenaView.Arena : ArenaView.Follow, now: true);
+        }
+
+        /// <summary>The camera's viewpoint (the buttons over the arena's view).</summary>
+        public ArenaView View
+        {
+            get => arenaCamera != null ? arenaCamera.View : ArenaView.Follow;
+            set => arenaCamera?.Show(value);
+        }
+
+        /// <summary>Goes to a viewpoint, at once with <paramref name="now"/> (the benchmark's pictures).</summary>
+        public void ShowView(ArenaView view, bool now) => arenaCamera?.Show(view, now);
+
+        /// <summary>True where a panel, not the 3D view, is under the mouse (set by the UI over the arena).</summary>
+        public Func<Vector2, bool>? OverUi { get; set; }
         public Atmega328P? Mcu => mcu;
         public Vector3 RobotPosition => chassis != null ? chassis.transform.position : Vector3.zero;
 
@@ -483,7 +502,9 @@ namespace CoreEngine.Spike
                 }
                 if (updateVisuals)
                 {
-                    rayLines[i].enabled = sounding;
+                    // From the robot's own eye the beams start at the camera and only clutter the view: the
+                    // hit marker shows where they land.
+                    rayLines[i].enabled = sounding && (arenaCamera == null || arenaCamera.View != ArenaView.Eye);
                     rayLines[i].SetPosition(0, origin);
                     rayLines[i].SetPosition(1, origin + dir * length);
                     var color = accepted ? new Color(0.2f, 0.9f, 0.3f) : new Color(0.5f, 0.5f, 0.5f, 0.5f);
@@ -666,6 +687,7 @@ namespace CoreEngine.Spike
             visuals!.SetLight(partId, name, on);
         }
 
+        /// <summary>The arena's camera and its six viewpoints (<see cref="ArenaCamera"/>), starting behind the robot.</summary>
         void BuildCamera()
         {
             followCamera = new GameObject("Camera").AddComponent<Camera>();
@@ -673,27 +695,17 @@ namespace CoreEngine.Spike
             followCamera.nearClipPlane = 0.01f;
             followCamera.fieldOfView = 55f;
             followCamera.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+            arenaCamera = followCamera.gameObject.AddComponent<ArenaCamera>();
+            arenaCamera.Target = chassis != null ? chassis.transform : null;
+            arenaCamera.Eye = sonarMount;
+            arenaCamera.OverUi = point => OverUi?.Invoke(point) ?? false;
         }
 
         void LateUpdate()
         {
-            if (Input.GetKeyDown(KeyCode.C) && !UI.CodeEditor.HasTypingFocus) topView = !topView;
             if (chassis == null) return;
             CastSonar(true);
             UpdateLightsAndHorns();
-
-            var target = chassis.transform;
-            if (topView)
-            {
-                followCamera.transform.SetPositionAndRotation(new Vector3(0, 3.2f, -0.6f), Quaternion.Euler(80f, 0, 0));
-            }
-            else
-            {
-                var flatForward = Vector3.ProjectOnPlane(target.forward, Vector3.up).normalized;
-                var desired = target.position - flatForward * 0.45f + Vector3.up * 0.28f;
-                followCamera.transform.position = Vector3.Lerp(followCamera.transform.position, desired, 0.1f);
-                followCamera.transform.LookAt(target.position + flatForward * 0.15f);
-            }
 
             frameCount++;
             frameTimer += Time.unscaledDeltaTime;
@@ -713,7 +725,7 @@ namespace CoreEngine.Spike
             if (chassis == null || !ShowHud) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 13, richText = true };
             var text = new StringBuilder();
-            text.AppendLine("<b>CoreEngine Phase 0 spike</b>  (C: camera)");
+            text.AppendLine("<b>CoreEngine Phase 0 spike</b>  (C or 1-6: camera)");
             text.AppendLine($"FPS {fps:F0}   emulator {emulatorMsAverage:F2} ms per 10 ms step ({10.0 / Math.Max(emulatorMsAverage, 1e-6):F1}x real time)");
             text.AppendLine(mcu == null
                 ? "No board on this robot"

@@ -140,6 +140,17 @@ namespace CoreEngine.Spike
             yield return null;
             yield return SpikeReport.Capture(SpikeReport.Shot("top"));
 
+            // The arena's six viewpoints (ArenaCamera), each photographed where the robot now is.
+            foreach (ArenaView view in System.Enum.GetValues(typeof(ArenaView)))
+            {
+                spike.ShowView(view, now: true);
+                yield return null;
+                yield return null;
+                yield return SpikeReport.Capture(SpikeReport.Shot("view-" + view.ToString().ToLowerInvariant()));
+            }
+            spike.TopView = true;
+            report.AppendLine("arena viewpoints: follow, orbit, top, side, eye, arena; screenshots -view-follow ... -view-arena");
+
             // 3. Mesh booleans, then a close-up of the chassis they produced.
             var csg = GetComponent<CsgSpike>();
             if (csg != null)

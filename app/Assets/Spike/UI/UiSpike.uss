@@ -83,6 +83,47 @@
 .viewport {
     flex-grow: 1;
 }
+/* The arena's viewpoints over the 3D view (ArenaCamera) */
+.view-bar {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    max-width: 94%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 3px;
+    border-radius: 8px;
+    background-color: rgba(12, 15, 21, 0.72);
+}
+.view-choice {
+    flex-direction: row;
+    align-items: center;
+    height: 28px;
+    margin: 0 2px 0 0;
+    padding: 0 9px 0 7px;
+    border-width: 0;
+    border-radius: 6px;
+    background-color: rgba(0, 0, 0, 0);
+    color: rgb(200, 208, 220);
+    font-size: 12px;
+}
+.view-choice:hover {
+    background-color: rgba(79, 193, 255, 0.18);
+    color: rgb(255, 255, 255);
+}
+.view-choice--active {
+    background-color: rgb(79, 193, 255);
+    color: rgb(12, 16, 22);
+}
+.view-choice--active:hover {
+    background-color: rgb(110, 205, 255);
+    color: rgb(12, 16, 22);
+}
+.view-choice-icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
+}
 .dock-area {
     flex-grow: 1;
     background-color: rgb(24, 28, 36);

@@ -62,11 +62,18 @@ namespace CoreEngine.Spike.UI
             ["event.stall"] = new[] { "{0} motor stalled: {1:F2} A", "{0} motor toʻxtab qoldi: {1:F2} A", "{0} мотор остановлен нагрузкой: {1:F2} А" },
             ["event.left"] = new[] { "Left", "Chap", "Левый" },
             ["event.right"] = new[] { "Right", "Oʻng", "Правый" },
+            ["arena.follow"] = new[] { "Follow", "Orqadan", "Сзади" },
+            ["arena.orbit"] = new[] { "Free", "Erkin", "Свободно" },
+            ["arena.top"] = new[] { "Top", "Yuqoridan", "Сверху" },
+            ["arena.side"] = new[] { "Side", "Yondan", "Сбоку" },
+            ["arena.eye"] = new[] { "Robot's eye", "Robot koʻzi", "Глазами робота" },
+            ["arena.whole"] = new[] { "Arena", "Maydon", "Арена" },
+            ["arena.key"] = new[] { "Key {0}", "{0} tugmasi", "Клавиша {0}" },
             ["ui.hint"] = new[]
             {
-                "F1: hide panels · C: camera · drag a tab to move its panel",
-                "F1: panellarni yashirish · C: kamera · panelni koʻchirish uchun yorligʻini torting",
-                "F1: скрыть панели · C: камера · перетащите вкладку, чтобы переместить панель",
+                "F1: hide panels · 1–6 or C: camera · drag the view to turn it, the wheel zooms · drag a tab to move its panel",
+                "F1: panellarni yashirish · 1–6 yoki C: kamera · koʻrinishni burish uchun torting, gʻildirak bilan yaqinlashtiring · panelni koʻchirish uchun yorligʻini torting",
+                "F1: скрыть панели · 1–6 или C: камера · тяните вид, чтобы повернуть, колёсико приближает · перетащите вкладку, чтобы переместить панель",
             },
             // ---- Garage (ADR-0009) ----
             ["nav.garage"] = new[] { "Garage", "Garaj", "Гараж" },

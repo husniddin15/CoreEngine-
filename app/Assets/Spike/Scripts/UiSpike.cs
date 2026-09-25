@@ -35,6 +35,19 @@ namespace CoreEngine.Spike
         Label fpsLabel = null!, codeStatus = null!, codeFile = null!;
         readonly List<(TextElement element, string key)> localized = new List<(TextElement, string)>();
         readonly List<Button> languageButtons = new List<Button>();
+        readonly List<Button> viewButtons = new List<Button>();
+        ArenaView shownView = (ArenaView)(-1);
+
+        /// <summary>The viewpoints' buttons over the 3D view: icon and name, in the order of the keys 1 to 6.</summary>
+        static readonly (ArenaView view, Icon icon, string key)[] ViewChoices =
+        {
+            (ArenaView.Follow, Icon.ViewFollow, "arena.follow"),
+            (ArenaView.Orbit, Icon.Rotate, "arena.orbit"),
+            (ArenaView.Top, Icon.ViewTop, "arena.top"),
+            (ArenaView.Side, Icon.ViewSide, "arena.side"),
+            (ArenaView.Eye, Icon.Eye, "arena.eye"),
+            (ArenaView.Arena, Icon.ViewArena, "arena.whole"),
+        };
         readonly Dictionary<string, Label> values = new Dictionary<string, Label>();
         FontAsset? uiFont, codeFont;
         double fontPreloadMs;
@@ -80,6 +93,7 @@ namespace CoreEngine.Spike
             {
                 robot.SerialLine += OnSerialLine;
                 robot.ShowHud = false;
+                robot.OverUi = IsOverUi;
             }
         }
 
@@ -133,6 +147,7 @@ namespace CoreEngine.Spike
             viewport = new VisualElement { pickingMode = PickingMode.Ignore };
             viewport.AddToClassList("viewport");
             viewport.RegisterCallback<GeometryChangedEvent>(_ => UpdateCameraRect());
+            viewport.Add(BuildViewBar());
             var centre = new TwoPaneSplitView(1, 190, TwoPaneSplitViewOrientation.Vertical);
             centre.Add(viewport);
             centre.Add(bottomDock);
@@ -153,6 +168,55 @@ namespace CoreEngine.Spike
             bottomDock.AddPanel(serialPanel);
             bottomDock.AddPanel(new DockPanel("panel.events", BuildEventLog()));
             bottomDock.Select(serialPanel);
+        }
+
+        /// <summary>The viewpoints over the top left of the 3D view (the owner, 2026-09-25: the arena only showed the robot from behind).</summary>
+        VisualElement BuildViewBar()
+        {
+            var bar = new VisualElement { pickingMode = PickingMode.Ignore };
+            bar.AddToClassList("view-bar");
+            for (int i = 0; i < ViewChoices.Length; i++)
+            {
+                var (view, icon, key) = ViewChoices[i];
+                var button = new Button(() =>
+                {
+                    if (robot != null) robot.View = view;
+                }) { focusable = false };
+                button.AddToClassList("view-choice");
+                var image = new IconView(icon);
+                image.AddToClassList("view-choice-icon");
+                button.Add(image);
+                button.Add(Localized(new Label(), key));
+                int number = i + 1;
+                button.userData = number;
+                viewButtons.Add(button);
+                bar.Add(button);
+            }
+            return bar;
+        }
+
+        /// <summary>
+        /// True where a panel, a splitter or one of the view's buttons is under the mouse (screen pixels, from the
+        /// bottom left), false over the 3D view itself, so the camera takes only the drags meant for it.
+        /// </summary>
+        public bool IsOverUi(Vector2 screen)
+        {
+            if (!Visible || root.panel == null) return false;
+            var point = RuntimePanelUtils.ScreenToPanel(root.panel, new Vector2(screen.x, Screen.height - screen.y));
+            var picked = root.panel.Pick(point);
+            if (picked == null) return false;
+            for (VisualElement? holder = viewport; holder != null; holder = holder.parent)
+                if (picked == holder) return false; // the view itself, or what holds it
+            return true;
+        }
+
+        /// <summary>Marks the viewpoint the camera shows, however it was chosen (a button, a key, a drag).</summary>
+        void UpdateViewButtons()
+        {
+            var current = robot != null ? robot.View : ArenaView.Follow;
+            if (current == shownView) return;
+            shownView = current;
+            for (int i = 0; i < viewButtons.Count; i++) viewButtons[i].EnableInClassList("view-choice--active", ViewChoices[i].view == current);
         }
 
         VisualElement BuildCodePanel()
@@ -296,6 +360,7 @@ namespace CoreEngine.Spike
         void ApplyLanguage()
         {
             foreach (var (element, key) in localized) element.text = SpikeStrings.Get(key);
+            foreach (var button in viewButtons) button.tooltip = SpikeStrings.Format("arena.key", button.userData);
             for (int i = 0; i < languageButtons.Count; i++)
                 languageButtons[i].EnableInClassList("lang-button--active", i == SpikeStrings.Language);
             autoscroll.text = SpikeStrings.Get("serial.autoscroll");
@@ -411,6 +476,7 @@ namespace CoreEngine.Spike
         void Update()
         {
             if (Input.GetKeyDown(KeyCode.F1) && !CodeEditor.HasTypingFocus) Visible = !Visible;
+            UpdateViewButtons();
             if (Input.GetKeyDown(KeyCode.Escape) && !CodeEditor.HasTypingFocus && !SpikeReport.Active) ReturnToGarage();
 
             if (pendingSerial.Count > 0)
