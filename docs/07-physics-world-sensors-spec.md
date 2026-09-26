@@ -64,6 +64,7 @@ The Body Studio assembly ([08 §2](08-body-designer-spec.md)) is converted at "P
 | Pan-tilt bracket | Two chained servo joints |
 | Gripper fingers | Two revolute children driven from one servo (mirrored) or a linkage approximation (v1: direct mirrored drive) |
 | Pieces that touch nothing on the robot ([03 §5.2](03-game-design.md#52-placement-rules-physical-realism), `RobotPieces`) | Not part of the tree: a `Rigidbody` for each group of touching pieces, with their colliders, mass and centre of mass; it falls off as the run starts |
+| Wires between two bodies (`WireTethers`) | No force: drawn between the pins, sagging as a wire of its laid length would. Checked every step: past its laid length + 5 mm it pulls out, and `CircuitAnalysis` runs again without it, so motors, board, driver, servos and the HC-SR04 (`HcSr04.Live`) lose what it carried |
 | Loose objects (cans, cubes) | `Rigidbody` with convex colliders |
 | Second robot | Another articulation tree; no joints between robots |
 
