@@ -155,6 +155,24 @@ public class ObstacleAvoiderGoldenTests
     }
 
     [Fact]
+    public void ASensorWhoseWireCameOffNeverAnswers()
+    {
+        // A wall 1 m ahead, but the sensor's supply or its TRIG/ECHO wire has pulled out (the arena's WireTethers):
+        // pulseIn() times out as if nothing were in range, and the sensor never starts a measurement.
+        var (mcu, lines) = Start(() => 100, out var sensor);
+        mcu.RunSeconds(0.5);
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line => Assert.InRange(long.Parse(line), 97, 101)); // about 100 cm while it answers
+        int answered = sensor.Measurements;
+        lines.Clear();
+        sensor.Live = false;
+        mcu.RunSeconds(0.5);
+        Assert.Equal(answered, sensor.Measurements);
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line => Assert.Equal("999", line));
+    }
+
+    [Fact]
     public void FarObstacleDrivesForward()
     {
         var (mcu, _) = Start(() => 100, out _);

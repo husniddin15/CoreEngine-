@@ -31,6 +31,7 @@ namespace CoreEngine.Sim.Components
         long triggerRiseCycle = -1;
         long echoEndCycle;
         int phase; // 0 idle, 1 waiting for the echo to start, 2 echo high
+        bool live = true;
 
         /// <param name="distanceCm">Distance to the nearest target in cm, or NaN when nothing is in range.</param>
         public HcSr04(AvrCpu cpu, double clockHz, AvrPort triggerPort, int triggerBit, AvrPort echoPort, int echoBit, Func<double> distanceCm)
@@ -56,6 +57,22 @@ namespace CoreEngine.Sim.Components
 
         public bool Busy => phase != 0;
 
+        /// <summary>
+        /// False once the module has lost its supply or its TRIG or ECHO wire (a wire pulled out in the arena): it
+        /// ignores triggers and drops an echo it was giving, so pulseIn() waits in vain, as on a desk.
+        /// </summary>
+        public bool Live
+        {
+            get => live;
+            set
+            {
+                live = value;
+                if (live || phase == 0) return;
+                echoPort.SetInputLevel(echoBit, false);
+                phase = 0;
+            }
+        }
+
         /// <summary>Echo pulse length in microseconds for a distance in cm (NaN or beyond 4 m: timeout).</summary>
         public double EchoMicros(double cm)
         {
@@ -67,6 +84,11 @@ namespace CoreEngine.Sim.Components
         void OnTriggerChanged(AvrPort port, int bit, PinDrive drive, long cycle)
         {
             if (bit != triggerBit) return;
+            if (!live)
+            {
+                triggerRiseCycle = -1;
+                return;
+            }
             if (drive == PinDrive.High)
             {
                 triggerRiseCycle = cycle;
@@ -88,6 +110,7 @@ namespace CoreEngine.Sim.Components
 
         void OnEvent(long cycle)
         {
+            if (!live) return; // cut off mid-measurement: Live already let the echo pin fall
             if (phase == 1)
             {
                 echoPort.SetInputLevel(echoBit, true);
