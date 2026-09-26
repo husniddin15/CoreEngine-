@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -139,7 +140,42 @@ namespace CoreEngine.Spike
             report.AppendLine($"the owner's robot with its plate dragged 17.5 cm away: {spike.Loose.Count} pieces fell off as separate bodies: {Yes(spike.Loose.Count >= 5)}; " +
                               $"the plate lies {gap * 100:F0} cm from what is left of the robot and moved {plateMoved * 100:F1} cm while that moved {robotMoved * 100:F1} cm: " +
                               $"{Yes(plate != null && plateMoved < 0.03f)}; screenshot -arena-loose");
+            report.AppendLine("  " + LooseWires(spike, ui));
         }
+
+        /// <summary>
+        /// The same run's wires (the owner, 2026-09-26: the lone motor that was left kept turning with its battery lying
+        /// elsewhere, "how the heck it is rotating without power"): the wires to the pieces that fell off hang between
+        /// the bodies and pull out as they part, and whatever lost a wire loses what it carried.
+        /// </summary>
+        static string LooseWires(RobotSpike spike, UiSpike? ui)
+        {
+            var tethers = spike.Tethers;
+            if (tethers == null) return "its wires: none ran to a loose piece: NO";
+            var design = spike.Project.Design;
+            var names = new List<string>();
+            bool leadsCut = true; // a motor whose lead came off gets no voltage
+            foreach (int i in tethers.PulledOut)
+            {
+                var wire = design.Wires[i];
+                names.Add($"{wire.FromPart}.{wire.FromPin}-{wire.ToPart}.{wire.ToPin}");
+                foreach (var (id, volts) in new[] { (spike.LeftMotorId, spike.LeftVolts), (spike.RightMotorId, spike.RightVolts) })
+                    if (id.Length > 0 && (wire.FromPart == id || wire.ToPart == id) && !double.IsNaN(volts)) leadsCut = false;
+            }
+            string heading = UI.SpikeStrings.Get("event.wireOut");
+            heading = heading.Substring(0, heading.IndexOf(':'));
+            int logged = 0;
+            if (ui != null) foreach (string line in ui.Events) if (line.Contains(heading)) logged++;
+            int wires = tethers.Hanging + tethers.PulledOut.Count;
+            return $"its wires: {wires} ran from the robot to pieces that fell off and hung between them: {Yes(wires > 0)}; " +
+                   $"{tethers.PulledOut.Count} pulled out as the bodies parted ({(names.Count == 0 ? "none" : string.Join(", ", names))}), " +
+                   $"{tethers.Hanging} still hang; the event log names each: {Yes(logged == tethers.PulledOut.Count)}; " +
+                   $"a motor whose lead came off gets no voltage: {Yes(leadsCut)}; " +
+                   $"the L298N's supply reads 0 V without its battery wires: {Yes(spike.Circuit.DriverPowered || spike.SupplyVolts == 0)}; " +
+                   $"left motor {Volts(spike.LeftVolts)}, right motor {Volts(spike.RightVolts)}, board {UI.SpikeStrings.Get(spike.BoardStatusKey)}";
+        }
+
+        static string Volts(double volts) => double.IsNaN(volts) ? "unpowered" : $"{volts:F2} V";
 
         IEnumerator Start()
         {

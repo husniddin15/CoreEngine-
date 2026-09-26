@@ -59,7 +59,7 @@ namespace CoreEngine.Spike.Garage
     public sealed class RobotVisuals
     {
         const float Mm = 0.001f;
-        const float WireRadius = 0.0008f;   // a jumper is about 1.6 mm thick
+        public const float WireRadius = 0.0008f;   // a jumper is about 1.6 mm thick
         const float MarkerSize = 0.0024f;
 
         static Mesh? cube, cylinder, sphere;
@@ -291,10 +291,23 @@ namespace CoreEngine.Spike.Garage
                     go.transform.SetParent(to, true);
                     moved.Add(go);
                 }
+            // A wire with both ends on the piece goes with it; one that leaves it can no longer be laid round the
+            // parts, so it is hidden here and the arena hangs it between the two bodies (WireTethers).
             for (int i = 0; i < design.Wires.Count && i < wireGroups.Count; i++)
             {
                 var wire = design.Wires[i];
-                if (wireGroups[i] != null && (pieces.Contains(wire.FromPart) || pieces.Contains(wire.ToPart))) wireGroups[i]!.SetActive(false);
+                var group = wireGroups[i];
+                if (group == null) continue;
+                bool fromHere = pieces.Contains(wire.FromPart), toHere = pieces.Contains(wire.ToPart);
+                if (fromHere && toHere)
+                {
+                    group.transform.SetParent(to, true);
+                    moved.Add(group);
+                }
+                else if (fromHere || toHere)
+                {
+                    group.SetActive(false);
+                }
             }
         }
 
@@ -770,7 +783,8 @@ namespace CoreEngine.Spike.Garage
             }
         }
 
-        Material WireMaterial(string colour)
+        /// <summary>The material of a wire of that colour (shared by every wire of it in this build).</summary>
+        public Material WireMaterial(string colour)
         {
             if (!wireMaterials.TryGetValue(colour, out var material))
             {

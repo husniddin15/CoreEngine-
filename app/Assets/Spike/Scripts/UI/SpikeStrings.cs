@@ -60,6 +60,12 @@ namespace CoreEngine.Spike.UI
                 "В конце команды не хватает точки с запятой (;). Поставьте ; в конце строки перед отмеченной.",
             },
             ["event.stall"] = new[] { "{0} motor stalled: {1:F2} A", "{0} motor toʻxtab qoldi: {1:F2} A", "{0} мотор остановлен нагрузкой: {1:F2} А" },
+            ["event.wireOut"] = new[]
+            {
+                "Wire pulled out: {0} {1} – {2} {3}. The parts it joined are not fixed together",
+                "Sim chiqib ketdi: {0} {1} – {2} {3}. U ulagan qismlar bir-biriga mahkamlanmagan",
+                "Провод выдернулся: {0} {1} – {2} {3}. Соединённые им детали не закреплены вместе",
+            },
             ["event.tips"] = new[] { "Tipped onto its {0}: {1} drags on the floor", "{0} ogʻib ketdi: {1} polga sudralmoqda", "Завалился {0}: {1} волочится по полу" },
             ["tip.front"] = new[] { "front", "Oldinga", "вперёд" },
             ["tip.back"] = new[] { "back", "Orqaga", "назад" },

@@ -281,6 +281,8 @@ namespace CoreEngine.Spike.Garage
             shown = null;
             foreach (var holder in looseHolders) if (holder != null) Destroy(holder.gameObject);
             looseHolders.Clear();
+            showroomWires?.Clear();
+            showroomWires = null;
             bool showroom = mode == EditMode.None;
             robotAnchor.localPosition = new Vector3(0, showroom ? turntableTop : 0, 0);
             var built = RobotVisuals.Build(robotAnchor, null, Robot, litMaterial, pickable: mode == EditMode.Body, pins: mode == EditMode.Wire, prebuiltBody: body);
@@ -297,6 +299,14 @@ namespace CoreEngine.Spike.Garage
                     built.MovePieces(pieces, holder);
                     looseHolders.Add(holder);
                 }
+                // Their wires hang between the pieces as they fall (in the arena they also pull out when stretched).
+                var groups = settling.Loose.ConvertAll(l => l.Pieces);
+                var holders = new List<Transform>(looseHolders);
+                showroomWires = WireTethers.Build(Robot.Design, built, partId =>
+                {
+                    int k = groups.FindIndex(g => g.Contains(partId));
+                    return k >= 0 && k < holders.Count ? holders[k] : built.Root.transform;
+                });
                 PoseRobot();
             }
             else if (mode != EditMode.Body) robotAnchor.localPosition += new Vector3(0, Mathf.Max(0, -DesignGeometry.LowestPoint(Robot.Design)) * 0.001f, 0);
@@ -312,6 +322,7 @@ namespace CoreEngine.Spike.Garage
         RobotSettle.Settling? settling; // the showroom's robot coming to rest, a pose every 10 ms
         float settleStart;
         readonly List<Transform> looseHolders = new List<Transform>(); // pieces not attached to the robot, falling on their own
+        WireTethers? showroomWires; // the wires between the robot and its loose pieces
 
         /// <summary>
         /// Where the robot comes to rest on a flat floor, or on a turntable of that radius and height standing on a desk;
@@ -371,6 +382,7 @@ namespace CoreEngine.Spike.Garage
                 CameraControls(overUi, leftTurns: true);
                 if (viewDrag == ViewDrag.None && viewGoal == null) idleSeconds += Time.deltaTime;
                 if (idleSeconds > 4f && !holdTurntable) turntable.Rotate(0, 10f * Time.deltaTime, 0);
+                showroomWires?.Draw();
             }
             else
             {

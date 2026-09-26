@@ -97,6 +97,7 @@ namespace CoreEngine.Spike
             if (robot != null)
             {
                 robot.SerialLine += OnSerialLine;
+                robot.WirePulledOut += OnWirePulledOut;
                 robot.ShowHud = false;
                 robot.OverUi = IsOverUi;
             }
@@ -105,7 +106,21 @@ namespace CoreEngine.Spike
         void OnDisable()
         {
             SpikeStrings.LanguageChanged -= ApplyLanguage;
-            if (robot != null) robot.SerialLine -= OnSerialLine;
+            if (robot == null) return;
+            robot.SerialLine -= OnSerialLine;
+            robot.WirePulledOut -= OnWirePulledOut;
+        }
+
+        /// <summary>"Wire pulled out: 4×AA battery holder + – L298N +12V": the two ends by part and pin.</summary>
+        void OnWirePulledOut(WireInstance wire)
+        {
+            var design = robot!.Project.Design;
+            string Name(string partId)
+            {
+                var part = design.Find(partId);
+                return part == null ? partId : PartCatalog.Get(part.Part)?.Name ?? part.Part;
+            }
+            AddEvent(SpikeStrings.Format("event.wireOut", Name(wire.FromPart), wire.FromPin, Name(wire.ToPart), wire.ToPin));
         }
 
         // ------------------------------------------------------------------ layout

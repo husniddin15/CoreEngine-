@@ -53,6 +53,11 @@ namespace CoreEngine.Spike
         Atmega328P? mcu;
         PinDuty? duty; // how much of each 10 ms step each pin was high: PWM, as the motors average it
         HcSr04? sonar;
+        string? sonarTrig, sonarEcho; // the Uno pins its TRIG and ECHO wires reached when it was switched on
+
+        // Wires to pieces that fell off hang between the bodies and pull out when stretched (WireTethers).
+        WireTethers? tethers;
+        int reportedPulls;
         bool boardRunning;
         readonly Dictionary<string, (AvrPort port, int bit)?> pins = new Dictionary<string, (AvrPort, int)?>();
         Func<string, bool> pinHigh = null!;
@@ -96,9 +101,17 @@ namespace CoreEngine.Spike
 
         // Live values for the UI spike's panels.
         public event Action<string>? SerialLine;
-        public double DistanceCm => distanceCm;
+
+        /// <summary>A wire came off its pin: the two bodies it joined moved farther apart than it is long.</summary>
+        public event Action<WireInstance>? WirePulledOut;
+
+        /// <summary>Wires hanging between the robot and pieces that fell off, or null when everything holds together.</summary>
+        public WireTethers? Tethers => tethers;
+        /// <summary>What the HC-SR04 sees, or NaN when nothing is in range or it has lost its supply or a signal wire.</summary>
+        public double DistanceCm => sonar == null || sonar.Live ? distanceCm : double.NaN;
         public int SonarMeasurements => sonar?.Measurements ?? 0;
-        public double SupplyVolts => bridge.SupplyVolts;
+        /// <summary>The L298N's supply: the battery's voltage while it is wired to the driver, else nothing.</summary>
+        public double SupplyVolts => circuit != null && circuit.DriverPowered ? bridge.SupplyVolts : 0;
         public double LeftVolts => leftVolts;
         public double RightVolts => rightVolts;
         public double LeftAmps => leftAmps;
@@ -106,6 +119,10 @@ namespace CoreEngine.Spike
         public double LeftWheelSpeed => leftWheel != null ? leftWheel.jointVelocity[0] : 0;
         public double RightWheelSpeed => rightWheel != null ? rightWheel.jointVelocity[0] : 0;
         public bool BoardRunning => boardRunning;
+
+        /// <summary>The motors whose wheels the left and right winding models drive ("" when there is none).</summary>
+        public string LeftMotorId => leftMotorId;
+        public string RightMotorId => rightMotorId;
         /// <summary>Seconds since the robot was put in the arena (100 physics steps per second).</summary>
         public double ArenaSeconds => fixedSteps * 0.01;
 
@@ -290,6 +307,10 @@ namespace CoreEngine.Spike
             visuals = RobotVisuals.Build(root.transform, wheels, project, chassisMaterial, prebuiltBody: bodyMeshes);
             foreach (var piece in loose) visuals.MovePieces(piece.Pieces, piece.Body.transform);
             Loose = loose;
+
+            // A wire to a piece that fell off holds nothing, but it carries current while it reaches.
+            if (loose.Count > 0)
+                tethers = WireTethers.Build(design, visuals, partId => loose.Find(l => l.Pieces.Contains(partId))?.Body.transform ?? root.transform);
         }
 
         /// <summary>The groups of pieces that fall off because nothing attaches them to the robot.</summary>
@@ -352,7 +373,7 @@ namespace CoreEngine.Spike
         double CastSonar(bool updateVisuals)
         {
             if (sonarMount == null) return double.NaN;
-            bool sounding = sonar != null && boardRunning; // rays are drawn while the sensor is being used
+            bool sounding = sonar != null && sonar.Live && boardRunning; // rays are drawn while the sensor is being used
             double best = double.NaN;
             Vector3 bestPoint = Vector3.zero;
             var origin = sonarMount.position;
@@ -409,7 +430,11 @@ namespace CoreEngine.Spike
             var trig = circuit.Trig == null ? null : Pin(circuit.Trig);
             var echo = circuit.Echo == null ? null : Pin(circuit.Echo);
             if (sonarMount != null && sensorWorks && trig != null && echo != null)
+            {
                 sonar = new HcSr04(mcu.Cpu, Atmega328P.ClockHz, trig.Value.port, trig.Value.bit, echo.Value.port, echo.Value.bit, () => distanceCm);
+                sonarTrig = circuit.Trig;
+                sonarEcho = circuit.Echo;
+            }
 
             // Servos on whatever pins their signal leads reach.
             foreach (var link in circuit.Servos)
@@ -444,6 +469,36 @@ namespace CoreEngine.Spike
                       (circuit.Warnings.Count == 0 ? "no findings" : string.Join(", ", circuit.Warnings)));
         }
 
+        /// <summary>
+        /// Works the circuit out again without the wires that pulled out (<see cref="WireTethers"/>): a motor, the
+        /// board or the driver may lose its supply, and the sensor and the servos stop when theirs goes.
+        /// </summary>
+        void Rewire()
+        {
+            var wired = project.Design.Clone();
+            var gone = new List<int>(tethers!.PulledOut);
+            gone.Sort();
+            for (int k = gone.Count - 1; k >= 0; k--) wired.Wires.RemoveAt(gone[k]);
+            circuit = CircuitAnalysis.Analyse(wired);
+
+            if (sonar != null)
+                sonar.Live = circuit.SonarPowered && circuit.Trig == sonarTrig && circuit.Echo == sonarEcho;
+            for (int i = 0; i < servos.Count; i++)
+            {
+                var (servo, link) = servos[i];
+                var now = circuit.Servos.Find(s => s.PartId == link.PartId);
+                servos[i] = (servo, new ServoLink(link.PartId, link.Pin, now != null && now.Powered && now.Pin == link.Pin));
+            }
+
+            for (; reportedPulls < tethers.PulledOut.Count; reportedPulls++)
+            {
+                var wire = project.Design.Wires[tethers.PulledOut[reportedPulls]];
+                Debug.Log($"Spike: at {ArenaSeconds:F2} s the wire {wire.FromPart}.{wire.FromPin} - {wire.ToPart}.{wire.ToPin} pulled out; " +
+                          "wiring now: " + (circuit.Warnings.Count == 0 ? "no findings" : string.Join(", ", circuit.Warnings)));
+                WirePulledOut?.Invoke(wire);
+            }
+        }
+
         /// <summary>The port and bit of an Uno pin name, or null for pins that are not port I/O.</summary>
         (AvrPort port, int bit)? Pin(string name)
         {
@@ -467,6 +522,9 @@ namespace CoreEngine.Spike
         {
             if (chassis == null) return;
             fixedSteps++;
+
+            // 0. A wire stretched between two bodies that moved apart comes off its pin; the rest is the circuit.
+            if (tethers != null && tethers.Pull()) Rewire();
 
             // 1. Inputs from physics: the sonar distance the HC-SR04 will report if triggered in this slice.
             distanceCm = CastSonar(false);
@@ -578,6 +636,7 @@ namespace CoreEngine.Spike
             if (chassis == null) return;
             CastSonar(true);
             UpdateLightsAndHorns();
+            tethers?.Draw();
 
             frameCount++;
             frameTimer += Time.unscaledDeltaTime;
