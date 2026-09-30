@@ -45,7 +45,7 @@ The release key's private half is `%USERPROFILE%\.coreengine\hub\release-key.pem
 ## Try it
 
 - `CoreEngineHub.exe --source hub/.release/stable` installs from the release folder, as players will from the web.
-- `CoreEngineHub.exe --home hub/.test-home --source hub/.release/stable --shots <folder>` does a whole install into `hub/.test-home` without showing a window, and draws each step into a picture. Run on an installed copy, it shows an update instead.
+- `CoreEngineHub.exe --home hub/.test-home --source hub/.release/stable --shots <folder>` does a whole install into `hub/.test-home` without showing a window, and draws each step into a picture. Run on an installed copy, it shows an update instead. With the newest version installed there it stops, since its big button would start the game, which opens a window: use a new folder.
 - `CoreEngineHub.exe --icon hub/CoreEngine.Hub/Assets/hub.ico` draws the icon.
 
 The page's picture (`Assets/keyart.jpg`) is rendered by the game: run the game with `-batchmode -spikeBench <report> -uiShots` and scale `report-hub-keyart.png` to 1920 × 1080.

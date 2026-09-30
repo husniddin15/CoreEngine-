@@ -23,6 +23,7 @@ public partial class App : Application
         base.OnStartup(e);
         var args = Arguments.Parse(e.Args);
         if (args.Home != null) HubHome.Use(args.Home);
+        if ((args.Shots == null && args.Icon == null) || HubHome.IsSandbox) HubHome.RefreshInstalledHub(); // a test run leaves the player's Hub alone
         if (args.Shots != null || args.Icon != null)
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

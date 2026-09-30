@@ -31,7 +31,7 @@ Things found while building it:
 - "What's new" at the bottom left;
 - at the bottom right, one big button that is always the next step: Download, Pause, Resume, Update, Start, Retry. The progress (per cent, speed, time left, MB) shows above it, and the game's menu (⋯: Repair game files, Open game folder, Find the game on this PC, Uninstall game) sits beside it.
 
-It uses the game's colours and Bahnschrift labels, in English, Uzbek and Russian. The settings hold the language, a download speed limit, what happens when the game starts (minimise, close or keep the Hub) and the download server.
+It uses the game's colours and Bahnschrift labels, in English, Uzbek and Russian. The settings hold the language, a download speed limit, what happens once the game's window is up (close the Hub, the default; minimise it until the game closes; or keep it open) and the download server.
 
 **Releases** are plain files that any web server (or folder) can hold, written by `CoreEngine.Hub.Publish`:
 - `manifest.json`: the version, the program to start, notes in three languages, and every file with its size and SHA-256;
@@ -52,9 +52,15 @@ A new version written into the same folder adds only the contents that changed. 
 - Everything is unpacked and checked beside the game, then moved into place at once, so a stopped update never leaves a half-updated game.
 - The Hub records what it wrote (`.hub/state.json`), so a later check trusts unchanged files. Repair reads every file; Uninstall deletes only the files the Hub wrote, and the player's robots in their own folder stay.
 - On the first install it copies itself to `%LOCALAPPDATA%\Programs\CoreEngine Hub` and puts CoreEngine shortcuts on the desktop and in the Start menu that open the Hub, so each start checks for updates.
+- A newer Hub started from elsewhere (a new download, a USB stick) replaces that copy, so the shortcuts open the newest Hub the player has had.
+
+**Starting the game:**
+- Start runs the game from its folder. The Hub shows Running until the game's window is up, then closes: the owner asked on 2026-09-30 "why hub isn't closing when simulator running". The shortcuts open the Hub again, and it checks for updates then. In its settings the Hub can instead minimise itself until the game closes, or stay open.
+- A Hub opened while the game runs finds it (the game's program running from the game's folder) and shows Running until it closes. So the game is not started twice, and no update, repair or uninstall changes its files while they are in use.
+- The compiler's first compile after an install finishes by itself if the Hub closes meanwhile.
 
 **Testing without a window** (the owner's PC is in use while tests run):
-- 31 xUnit tests cover paths, signatures, manifests, install, update, pause and resume from a folder and over HTTP (a small local server), repair, damaged downloads, uninstall and adopting a copied game.
+- 33 xUnit tests cover paths, signatures, manifests, install, update, pause and resume from a folder and over HTTP (a small local server), repair, damaged downloads, uninstall, adopting a copied game and finding the game while it runs.
 - `CoreEngineHub.exe --home <folder> --source <release> --shots <folder>` drives the real page through a whole install into a test folder and draws each step into a picture; the same run on an installed copy shows an update.
 - `--icon` draws the Hub's icon: the game's chip mark.
 

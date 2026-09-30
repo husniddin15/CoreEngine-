@@ -78,10 +78,16 @@ public sealed class HubModel : Observable
         T.PropertyChanged += (_, _) => Refresh();
         MainCommand = new Command(Main);
         MenuCommand = new Command(() => MenuOpen = !MenuOpen);
-        RepairCommand = new Command(() => Menu(() => _ = RunAsync(verify: true)));
+        RepairCommand = new Command(() => Menu(() =>
+        {
+            if (CanChangeGame) _ = RunAsync(verify: true);
+        }));
         OpenFolderCommand = new Command(() => Menu(OpenFolder));
-        LocateCommand = new Command(() => Menu(Locate));
-        UninstallCommand = new Command(() => Menu(() => UninstallOpen = true));
+        LocateCommand = new Command(() => Menu(() =>
+        {
+            if (CanFindGame) Locate();
+        }));
+        UninstallCommand = new Command(() => Menu(() => UninstallOpen = CanChangeGame));
         ConfirmUninstallCommand = new Command(() => _ = UninstallAsync());
         InstallCommand = new Command(ConfirmInstall);
         ChangeFolderCommand = new Command(ChangeFolder);
@@ -151,6 +157,15 @@ public sealed class HubModel : Observable
 
     /// <summary>Whether the game is installed (the menu's Repair, Open folder and Uninstall need it).</summary>
     public bool IsInstalled { get => hasGame; private set => Set(ref hasGame, value); }
+
+    /// <summary>
+    /// Whether the menu's Repair and Uninstall may change the game's files now: not while the game runs (its files are in
+    /// use), nor while the Hub is busy with them (a download, a check, the compiler's first compile).
+    /// </summary>
+    public bool CanChangeGame => IsInstalled && CanFindGame && !Preparing;
+
+    /// <summary>Whether the menu's Find the game may run now: not while the game runs, nor while the Hub is busy with it.</summary>
+    public bool CanFindGame => State is not (HubState.Checking or HubState.Downloading or HubState.Installing or HubState.Verifying or HubState.Running);
 
     public bool MenuOpen { get => menuOpen; set => Set(ref menuOpen, value); }
     public bool InstallOpen { get => installOpen; set => Set(ref installOpen, value); }
@@ -272,6 +287,8 @@ public sealed class HubModel : Observable
             ProgressRight = "";
         }
         Changed(nameof(UninstallText));
+        Changed(nameof(CanChangeGame));
+        Changed(nameof(CanFindGame));
     }
 
     bool SourceIsSet => (sourceOverride ?? (settings.Source.Length > 0 ? settings.Source : BuiltInSource)).Length > 0;
@@ -315,6 +332,15 @@ public sealed class HubModel : Observable
     public async Task CheckAsync()
     {
         State = HubState.Checking;
+        var next = await LookAsync();
+        // The game may be running already: the Hub closed when it started, and the player opened the Hub again. Then the
+        // Hub says so and waits for it, so it is not started twice and nothing changes its files while they are in use.
+        if (next is HubState.Ready or HubState.UpdateAvailable && (game != null || WatchRunningGame())) next = HubState.Running;
+        State = next;
+    }
+
+    async Task<HubState> LookAsync()
+    {
         installed = settings.InstallDir.Length > 0 ? InstallState.Load(settings.InstallDir) : null;
         latest = null;
         pendingPlan = null;
@@ -327,11 +353,7 @@ public sealed class HubModel : Observable
             settings.Source = beside;
             settings.Save();
         }
-        if (where.Length == 0)
-        {
-            State = installed != null ? HubState.Ready : HubState.NoSource;
-            return;
-        }
+        if (where.Length == 0) return installed != null ? HubState.Ready : HubState.NoSource;
         try
         {
             source = ReleaseSource.From(where);
@@ -340,29 +362,24 @@ public sealed class HubModel : Observable
         }
         catch (ReleaseNotTrustedException)
         {
-            State = installed != null ? HubState.Ready : HubState.Untrusted;
-            return;
+            return installed != null ? HubState.Ready : HubState.Untrusted;
         }
         catch (Exception e) when (e is HttpRequestException or IOException or InvalidDataException or OperationCanceledException or UnauthorizedAccessException or ArgumentException or UriFormatException)
         {
-            State = installed != null ? HubState.Ready : HubState.Offline;
-            return;
+            return installed != null ? HubState.Ready : HubState.Offline;
         }
-        if (installed == null)
-        {
-            State = HubState.NotInstalled;
-            return;
-        }
+        if (installed == null) return HubState.NotInstalled;
         try
         {
             var target = latest;
             string dir = settings.InstallDir;
             pendingPlan = await Task.Run(() => UpdatePlanner.Plan(target, dir));
-            State = pendingPlan.UpToDate ? HubState.Ready : HubState.UpdateAvailable;
+            return pendingPlan.UpToDate ? HubState.Ready : HubState.UpdateAvailable;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Fail(e.Message);
+            lastError = e.Message;
+            return HubState.Error;
         }
     }
 
@@ -456,6 +473,11 @@ public sealed class HubModel : Observable
             await CheckAsync();
             if (latest == null || source == null) return;
         }
+        if (game != null || WatchRunningGame())
+        {
+            State = HubState.Running; // its files are in use: the update waits until it closes
+            return;
+        }
         var target = latest;
         string dir = settings.InstallDir;
         work = new CancellationTokenSource();
@@ -526,7 +548,8 @@ public sealed class HubModel : Observable
     /// that brought it: the first compile on a PC is slow (the antivirus reads each new compiler program, the Arduino core
     /// is built: over 2 minutes on a busy PC, 2026-09-30), so the player's first Upload in the game is not. It uses the
     /// game's compiler cache (tools/arduino/cache) and its own settings file, not the game's; a failure only means the
-    /// game's first compile is the slow one.
+    /// game's first compile is the slow one. Its output is not read, so it finishes by itself when the Hub closes
+    /// meanwhile (it closes when the game starts).
     /// </summary>
     async Task PrepareCompilerAsync(string dir)
     {
@@ -546,19 +569,11 @@ public sealed class HubModel : Observable
             await File.WriteAllTextAsync(settingsFile,
                 $"build_cache:\n  path: \"{folder}/cache\"\ndirectories:\n  data: \"{folder}/data\"\n  downloads: \"{folder}/staging\"\n  user: \"{folder}/user\"\n" +
                 "locale: en\nupdater:\n  enable_notification: false\n");
-            var start = new ProcessStartInfo(cli)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
+            var start = new ProcessStartInfo(cli) { UseShellExecute = false, CreateNoWindow = true };
             foreach (string argument in new[] { "compile", "--fqbn", "arduino:avr:uno", "--config-file", settingsFile, "--build-path", Path.Combine(root, "build"), sketch })
                 start.ArgumentList.Add(argument);
             using var process = Process.Start(start);
             if (process == null) return;
-            var output = process.StandardOutput.ReadToEndAsync();
-            var errors = process.StandardError.ReadToEndAsync();
             using var limit = new CancellationTokenSource(TimeSpan.FromMinutes(6));
             try
             {
@@ -568,7 +583,6 @@ public sealed class HubModel : Observable
             {
                 process.Kill(entireProcessTree: true);
             }
-            await Task.WhenAll(output, errors);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
@@ -635,25 +649,75 @@ public sealed class HubModel : Observable
             _ = CheckAsync();
             return;
         }
+        Process? started;
         try
         {
-            game = Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = settings.InstallDir, UseShellExecute = false });
+            started = Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = settings.InstallDir, UseShellExecute = false });
         }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or IOException)
         {
             ShowMessage(T["error.title"], e.Message);
             return;
         }
-        if (game == null) return;
-        game.EnableRaisingEvents = true;
-        game.Exited += (_, _) => Post(() =>
+        if (started == null || !Watch(started)) return;
+        State = HubState.Running;
+        _ = StepAsideAsync(started);
+    }
+
+    /// <summary>
+    /// Once the game's window is up, the Hub does what its settings say: it closes (the default; the shortcuts open it
+    /// again, and it checks for updates then), minimises (it comes back when the game closes) or stays open. Until then
+    /// it shows Running, so a slow first start does not look as if nothing happened; a game that closes at once brings
+    /// the Hub back instead.
+    /// </summary>
+    async Task StepAsideAsync(Process started)
+    {
+        await GameProcess.WaitForWindowAsync(started, TimeSpan.FromSeconds(30));
+        if (game != started || !GameProcess.IsRunning(started)) return;
+        WindowRequest?.Invoke(settings.AfterStart switch { 0 => "close", 1 => "minimize", _ => "none" });
+    }
+
+    /// <summary>
+    /// The installed game when it runs already (started before the Hub closed, or by hand), followed until it closes;
+    /// false when it does not run.
+    /// </summary>
+    bool WatchRunningGame()
+    {
+        if (installed == null || settings.InstallDir.Length == 0) return false;
+        try
         {
+            var running = GameProcess.Find(ReleasePaths.Resolve(settings.InstallDir, installed.Exe));
+            return running != null && Watch(running);
+        }
+        catch (Exception e) when (e is InvalidDataException or ArgumentException or NotSupportedException or IOException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Follows the game until it closes; then the Hub comes back, if it is still open, and checks for updates.</summary>
+    bool Watch(Process process)
+    {
+        game = process;
+        process.Exited += (_, _) => Post(() =>
+        {
+            if (game != process) return;
             game = null;
+            process.Dispose();
             WindowRequest?.Invoke("restore");
             _ = CheckAsync(); // an update may have come out while playing
         });
-        State = HubState.Running;
-        WindowRequest?.Invoke(settings.AfterStart switch { 1 => "close", 0 => "minimize", _ => "none" });
+        try
+        {
+            process.EnableRaisingEvents = true;
+            return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            game = null; // it cannot be followed (another user's program): the Hub does not wait for it
+            process.Dispose();
+            return false;
+        }
     }
 
     // ------------------------------------------------------------------ the game's menu

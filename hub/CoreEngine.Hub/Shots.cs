@@ -73,6 +73,9 @@ static class Shots
             log.AppendLine($"updated from {before} to {InstallState.Load(settings.InstallDir)?.Version}");
             return;
         }
+        // The big button would start the game now, and the game opens a window: a new test folder is needed.
+        if (model.State != HubState.NotInstalled)
+            throw new InvalidOperationException($"--shots needs a test folder without the game, or with an older version to update (the Hub is {model.State})");
         await Shot("01-download");
         model.MainCommand.Execute(null); // Download: where to install
         await Shot("02-install");
@@ -98,6 +101,7 @@ static class Shots
         model.CloseDialogCommand.Execute(null);
         model.SettingsCommand.Execute(null);
         await Shot("07-settings");
+        log.AppendLine("   when the game starts: " + new[] { "close the Hub", "minimise it", "keep it open" }[model.AfterStartIndex]);
         model.CloseSettingsCommand.Execute(null);
         model.UninstallCommand.Execute(null);
         await Shot("08-uninstall");
@@ -113,13 +117,22 @@ static class Shots
         await Shot("11-repaired");
         model.CloseDialogCommand.Execute(null);
 
+        // While the game runs (started here, or found running when the Hub opened): the button says so, and the menu's
+        // Repair, Find and Uninstall wait until it closes.
+        model.Pose(HubState.Running);
+        model.MenuCommand.Execute(null);
+        await Shot("12-running-menu");
+        log.AppendLine($"   the menu while the game runs: repair and uninstall {(model.CanChangeGame ? "on" : "off")}, find {(model.CanFindGame ? "on" : "off")}");
+        model.CloseDialogCommand.Execute(null);
+        model.Pose(HubState.Ready);
+
         // The same page for a player whose internet is down, before anything is installed.
         var offline = new HubModel(new HubSettings { Language = 0 }, "http://127.0.0.1:9/stable/");
         view.DataContext = offline;
         await offline.CheckAsync();
         await Settle();
-        Render(view, Path.Combine(dir, "12-offline.png"));
-        log.AppendLine($"12-offline: {offline.State}; button \"{offline.MainText}\"; status \"{offline.Status}\"");
+        Render(view, Path.Combine(dir, "13-offline.png"));
+        log.AppendLine($"13-offline: {offline.State}; button \"{offline.MainText}\"; status \"{offline.Status}\"");
         view.DataContext = model;
 
         var state = InstallState.Load(settings.InstallDir);

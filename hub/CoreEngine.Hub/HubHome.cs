@@ -64,6 +64,16 @@ public static class HubHome
         }
     }
 
+    /// <summary>
+    /// A newer Hub started from elsewhere (a new download, a USB stick) replaces the installed copy the shortcuts open, so
+    /// the shortcuts open the newest Hub the player has had. Nothing happens before the first install made that copy,
+    /// nor while the copy runs.
+    /// </summary>
+    public static void RefreshInstalledHub()
+    {
+        if (File.Exists(Path.Combine(HubInstallDir, "CoreEngineHub.exe"))) EnsureHubInstalled();
+    }
+
     /// <summary>A Windows shortcut (.lnk) to a program, made with the shell's own ShellLink.</summary>
     public static void CreateShortcut(string lnkPath, string target, string? icon = null, string arguments = "")
     {
@@ -141,7 +151,10 @@ public sealed class HubSettings
     /// <summary>The download speed limit in MB/s; 0 for none.</summary>
     public int SpeedLimitMBps { get; set; }
 
-    /// <summary>When the game starts: 0 minimise the Hub, 1 close it, 2 keep it open.</summary>
+    /// <summary>
+    /// When the game's window is up: 0 close the Hub (the default; the owner, 2026-09-30: "why hub isn't closing when
+    /// simulator running"), 1 minimise it until the game closes, 2 keep it open.
+    /// </summary>
     public int AfterStart { get; set; }
 
     /// <summary>Where releases come from; empty for the built-in address.</summary>
