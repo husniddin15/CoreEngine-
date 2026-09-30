@@ -1,0 +1,14 @@
+{
+  "en": [
+    "The IR line sensor no longer carries a stick of its own: in Build, 'Hang on a standoff' puts it 5 mm above the floor on a brass standoff that fits up to the plate, all joined. Robots saved before keep a standoff cut to fit the plate.",
+    "No more red or orange boxes round parts: the robot card and the side panel say what is not joined."
+  ],
+  "uz": [
+    "IR chiziq sensorida endi oʻz ustuni yoʻq: Yigʻish rejimida 'Ustunga osish' uni poldan 5 mm balandlikka, plastinagacha yetadigan mis ustunga osadi va hammasini biriktiradi. Avval saqlangan robotlarda ustun plastinaga moslab kesiladi.",
+    "Qismlar atrofida endi qizil yoki toʻq sariq qutilar yoʻq: nima biriktirilmaganini robot kartasi va yon panel aytadi."
+  ],
+  "ru": [
+    "У ИК-датчика линии больше нет своей стойки: в «Сборке» кнопка «Повесить на стойку» вешает его в 5 мм над полом на латунную стойку до пластины и всё соединяет. В сохранённых роботах стойка обрезается по пластине.",
+    "Больше нет красных и оранжевых рамок вокруг деталей: что не соединено, говорят карточка робота и боковая панель."
+  ]
+}
