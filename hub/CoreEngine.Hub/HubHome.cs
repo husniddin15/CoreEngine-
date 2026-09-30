@@ -45,9 +45,14 @@ public static class HubHome
             Directory.CreateDirectory(to);
             foreach (string file in Directory.EnumerateFiles(from))
             {
+                // Only the Hub's own files (one CoreEngineHub.exe when published as a single file; its .dll and .json
+                // beside it in a developer's build), never the rest of the folder it was started from (Downloads).
                 string name = Path.GetFileName(file);
+                bool mine = string.Equals(file, running, StringComparison.OrdinalIgnoreCase) ||
+                            name.StartsWith("CoreEngineHub.", StringComparison.OrdinalIgnoreCase) ||
+                            name.StartsWith("CoreEngine.Hub.", StringComparison.OrdinalIgnoreCase);
                 string ext = Path.GetExtension(file).ToLowerInvariant();
-                if (ext is not (".exe" or ".dll" or ".json" or ".pri")) continue; // the program and what it needs, nothing else from Downloads
+                if (!mine || ext is not (".exe" or ".dll" or ".json")) continue;
                 string target = Path.Combine(to, name);
                 if (!File.Exists(target) || File.GetLastWriteTimeUtc(target) < File.GetLastWriteTimeUtc(file)) File.Copy(file, target, overwrite: true);
             }

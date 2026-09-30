@@ -42,7 +42,7 @@ static class Shots
     {
         string dir = Path.GetFullPath(args.Shots!);
         Directory.CreateDirectory(dir);
-        if (args.Source == null) throw new ArgumentException("--shots needs --source (a release)");
+        if (args.Source == null && HubModel.LocalRelease() == null) throw new ArgumentException("--shots needs --source (a release) or a release folder beside the Hub");
         if (!HubHome.IsSandbox) throw new ArgumentException("--shots needs --home: it installs the game there, not in the player's folders");
 
         var settings = HubSettings.Load(); // the test folder's: a game installed by an earlier run is updated

@@ -16,6 +16,16 @@ dotnet build hub/CoreEngine.Hub -c Release
 dotnet test hub/CoreEngine.Hub.Tests
 ```
 
+## The Hub as one file
+
+The Hub players get is one `CoreEngineHub.exe` that needs no .NET installed: .NET 10 and its Windows desktop part are inside it. That uses Microsoft's runtime packs from nuget.org, approved by the owner on 2026-09-30.
+
+```
+dotnet publish hub/CoreEngine.Hub -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o "hub/.dist/CoreEngine Hub"
+```
+
+Put a release beside it, in a folder called `release`, and the folder is ready to hand out (on a USB stick, for example). Opened, the Hub finds the release there by itself, remembers it, and installs from it. So without a web server, the Hub still installs and updates from a folder.
+
 ## Publish a version
 
 1. Build the game (`SpikeSetup.BuildWindowsIl2cpp`).

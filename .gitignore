@@ -58,3 +58,4 @@ native/manifold/src/
 hub/.build/
 hub/.release/
 hub/.test-home/
+hub/.dist/

@@ -297,6 +297,20 @@ public sealed class HubModel : Observable
 
     // ------------------------------------------------------------------ checking for the newest release
 
+    /// <summary>
+    /// A release carried with the Hub: a "release" folder beside CoreEngineHub.exe (or the Hub's own folder) holding a
+    /// signed manifest, as on a USB stick for a classroom without internet (ADR-0010); null when there is none. Until the
+    /// releases have a web address this is how the Hub is handed out: the program and the release in one folder.
+    /// </summary>
+    public static string? LocalRelease()
+    {
+        string dir = AppContext.BaseDirectory;
+        foreach (string folder in new[] { Path.Combine(dir, "release"), dir })
+            if (File.Exists(Path.Combine(folder, ReleaseManifest.FileName)) && File.Exists(Path.Combine(folder, ReleaseManifest.SignatureName)))
+                return Path.GetFullPath(folder);
+        return null;
+    }
+
     /// <summary>What is installed, and what the server has: the state the button shows next.</summary>
     public async Task CheckAsync()
     {
@@ -305,6 +319,14 @@ public sealed class HubModel : Observable
         latest = null;
         pendingPlan = null;
         string where = sourceOverride ?? (settings.Source.Length > 0 ? settings.Source : BuiltInSource);
+        if (where.Length == 0 && LocalRelease() is { } beside)
+        {
+            // A release carried with the Hub (a USB stick, a folder handed over): remembered, so the Hub's own copy in
+            // Programs, which the shortcuts open, keeps finding it.
+            where = beside;
+            settings.Source = beside;
+            settings.Save();
+        }
         if (where.Length == 0)
         {
             State = installed != null ? HubState.Ready : HubState.NoSource;
