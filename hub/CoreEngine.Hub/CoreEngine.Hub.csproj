@@ -13,8 +13,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The game's picture behind the page: the Garage rendered by the game itself (-uiShots, "hub-keyart"). -->
+    <!-- The game's pictures, rendered by the game itself (-uiShots, GarageUiShots.cs HubPictures): the key art behind
+         the page, the tile in the column of games, and the news banners. -->
     <Resource Include="Assets\keyart.jpg" />
+    <Resource Include="Assets\tile.jpg" />
+    <Resource Include="Assets\banner-build.jpg" />
+    <Resource Include="Assets\banner-code.jpg" />
+    <Resource Include="Assets\banner-drive.jpg" />
     <Resource Include="Assets\hub.ico" Condition="Exists('Assets\hub.ico')" />
   </ItemGroup>
 

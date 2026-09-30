@@ -3,14 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:CoreEngine.Hub"
              Width="1280" Height="720"
-             FontFamily="Segoe UI" FontSize="14" Foreground="#E4E7EB"
+             FontFamily="Segoe UI" FontSize="14" Foreground="#EDE7DC"
              UseLayoutRounding="True" SnapsToDevicePixels="True">
     <!--
-      CoreEngine Hub's one page, laid out as HoYoPlay's page for a game: the game's picture over the whole window,
-      the column of games at the left, the window's buttons at the top right, what is new at the bottom left, and at
-      the bottom right the one big button that is always the next step, with the game's menu beside it. The colours
-      are the game's own (docs/research/R6: ink #0C0E13, blue #82D8FF for what is chosen, green #55E414 to go, amber
-      #FFBA52 for problems), the labels in Bahnschrift as in the game.
+      CoreEngine Hub's one page, laid out as HoYoPlay's page for a game and dressed as Genshin Impact's launcher (the
+      owner, 2026-09-30: "beautiful design like hoyoverse hub and genshin impact style"): the game's picture over the whole
+      window, rendered by the game (-uiShots); frosted glass for the column of games and the news; the game's name in
+      ivory and gold; at the bottom right one gold button that is always the next step, with the game's menu beside it;
+      cream dialogs with pill buttons, each with its round badge, as Genshin's are. Ink #0B0E14, gold #E8C77B, ivory
+      #FBF6EC, cream #F5EFE4, navy #4A5366.
     -->
     <UserControl.Resources>
         <FontFamily x:Key="Heading">Bahnschrift SemiBold Condensed, Bahnschrift, Segoe UI</FontFamily>
@@ -18,106 +19,174 @@
         <BooleanToVisibilityConverter x:Key="Shown" />
         <local:UpperConverter x:Key="Upper" />
         <local:IndexIsConverter x:Key="IndexIs" />
+        <local:NotEmptyConverter x:Key="NotEmpty" />
 
-        <!-- The big button: green to go; quiet (dark) for Pause and while busy -->
-        <Style x:Key="MainButton" TargetType="Button">
-            <Setter Property="Background" Value="#55E414" />
-            <Setter Property="Foreground" Value="#0C0E13" />
-            <Setter Property="BorderBrush" Value="#55E414" />
+        <SolidColorBrush x:Key="Ivory" Color="#FBF6EC" />
+        <SolidColorBrush x:Key="Muted" Color="#BDB5A6" />
+        <SolidColorBrush x:Key="Faint" Color="#948C7D" />
+        <SolidColorBrush x:Key="Gold" Color="#E8C77B" />
+        <SolidColorBrush x:Key="Hairline" Color="#40E8CC8A" />
+        <SolidColorBrush x:Key="OnGold" Color="#3A2A0C" />
+        <SolidColorBrush x:Key="Cream" Color="#F5EFE4" />
+        <SolidColorBrush x:Key="Navy" Color="#3B4252" />
+        <SolidColorBrush x:Key="NavyBadge" Color="#4A5366" />
+        <SolidColorBrush x:Key="CreamText" Color="#4B5262" />
+        <SolidColorBrush x:Key="CreamMuted" Color="#857C6B" />
+        <LinearGradientBrush x:Key="GoldFill" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFEAAE" Offset="0" />
+            <GradientStop Color="#FFD466" Offset="0.5" />
+            <GradientStop Color="#F2B53B" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="GoldFillHover" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFF2C8" Offset="0" />
+            <GradientStop Color="#FFDD80" Offset="0.5" />
+            <GradientStop Color="#F7C24E" Offset="1" />
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="GoldFillPressed" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#F6D98E" Offset="0" />
+            <GradientStop Color="#F2C352" Offset="0.5" />
+            <GradientStop Color="#E0A12E" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- Frosted glass: the page's picture behind it, blurred (Glass.cs) -->
+        <Style TargetType="local:Glass">
+            <Setter Property="Background" Value="#A80C1017" />
+            <Setter Property="BorderBrush" Value="{StaticResource Hairline}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontFamily" Value="{StaticResource Heading}" />
-            <Setter Property="FontSize" Value="28" />
-            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,2" />
-                        </Border>
+                    <ControlTemplate TargetType="local:Glass">
+                        <Grid x:Name="PART_Root">
+                            <Rectangle x:Name="PART_Blur" />
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" />
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#72F23A" />
-                    <Setter Property="BorderBrush" Value="#72F23A" />
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#46C20F" />
-                </Trigger>
-                <DataTrigger Binding="{Binding MainQuiet}" Value="True">
-                    <Setter Property="Background" Value="#1C2129" />
-                    <Setter Property="BorderBrush" Value="#3A4452" />
-                    <Setter Property="Foreground" Value="#E4E7EB" />
-                </DataTrigger>
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding MainQuiet}" Value="True" />
-                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Background" Value="#262C35" />
-                    <Setter Property="BorderBrush" Value="#526072" />
-                </MultiDataTrigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#161A20" />
-                    <Setter Property="BorderBrush" Value="#2A313B" />
-                    <Setter Property="Foreground" Value="#8A95A3" />
-                    <Setter Property="Cursor" Value="Arrow" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <!-- Square dark buttons: the game's menu (⋯) -->
-        <Style x:Key="SquareButton" TargetType="Button">
-            <Setter Property="Background" Value="#E60F1116" />
-            <Setter Property="Foreground" Value="#E4E7EB" />
-            <Setter Property="BorderBrush" Value="#3A4452" />
+        <!-- The big button: gold to go, as Genshin's Start Game; quiet glass for Pause and while busy -->
+        <Style x:Key="StartButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource OnGold}" />
+            <Setter Property="FontSize" Value="21" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6">
+                        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+                            <Border x:Name="Glow" CornerRadius="14" Background="#FFD466" Opacity="0" Margin="4">
+                                <Border.Effect>
+                                    <BlurEffect Radius="26" />
+                                </Border.Effect>
+                            </Border>
+                            <Border x:Name="Fill" CornerRadius="14" Background="{StaticResource GoldFill}" BorderBrush="#B3FFF4D6" BorderThickness="1" />
+                            <Border x:Name="Sheen" CornerRadius="13,13,30,30" Margin="1,1,1,30" IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                        <GradientStop Color="#70FFFFFF" Offset="0" />
+                                        <GradientStop Color="#00FFFFFF" Offset="1" />
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource GoldFillHover}" />
+                                <Setter TargetName="Glow" Property="Opacity" Value="0.6" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="{StaticResource GoldFillPressed}" />
+                                <Setter TargetName="Root" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.985" ScaleY="0.985" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding MainQuiet}" Value="True">
+                                <Setter TargetName="Fill" Property="Background" Value="#D9121720" />
+                                <Setter TargetName="Fill" Property="BorderBrush" Value="#66E8CC8A" />
+                                <Setter TargetName="Sheen" Property="Opacity" Value="0.22" />
+                                <Setter TargetName="Glow" Property="Opacity" Value="0" />
+                                <Setter Property="Foreground" Value="{StaticResource Ivory}" />
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding MainQuiet}" Value="True" />
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Fill" Property="Background" Value="#E61B212B" />
+                                <Setter TargetName="Fill" Property="BorderBrush" Value="#A6E8CC8A" />
+                            </MultiDataTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Fill" Property="Background" Value="#CC10141B" />
+                                <Setter TargetName="Fill" Property="BorderBrush" Value="#38E8CC8A" />
+                                <Setter TargetName="Sheen" Property="Opacity" Value="0.12" />
+                                <Setter TargetName="Glow" Property="Opacity" Value="0" />
+                                <Setter Property="Foreground" Value="#B0A898" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The square glass button beside it: the game's menu -->
+        <Style x:Key="MenuButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource Ivory}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Face" CornerRadius="14" Background="#D9121720" BorderBrush="#66E8CC8A" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Face" Property="Background" Value="#E61B212B" />
+                                <Setter TargetName="Face" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#262C35" />
-                    <Setter Property="BorderBrush" Value="#526072" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <!-- The window's buttons at the top right -->
+        <!-- The window's buttons at the top right: round, as HoYoPlay's -->
         <Style x:Key="WindowButton" TargetType="Button">
-            <Setter Property="Width" Value="46" />
-            <Setter Property="Height" Value="36" />
-            <Setter Property="Foreground" Value="#E4E7EB" />
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="Foreground" Value="{StaticResource Ivory}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="FontFamily" Value="{StaticResource Glyphs}" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}">
+                        <Grid>
+                            <Ellipse Fill="{TemplateBinding Background}" />
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#26FFFFFF" />
+                    <Setter Property="Background" Value="#29FFFFFF" />
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource WindowButton}">
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E81123" />
+                    <Setter Property="Background" Value="#E5484D" />
                     <Setter Property="Foreground" Value="White" />
                 </Trigger>
             </Style.Triggers>
@@ -126,14 +195,13 @@
         <!-- A line of the game's menu -->
         <Style x:Key="MenuLine" TargetType="Button">
             <Setter Property="Height" Value="44" />
-            <Setter Property="Foreground" Value="#E4E7EB" />
+            <Setter Property="Foreground" Value="#EDE7DC" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="14,0">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="9" Padding="14,0">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left" />
                         </Border>
                     </ControlTemplate>
@@ -141,88 +209,168 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1FFFFFFF" />
+                    <Setter Property="Background" Value="#1FE8C77B" />
+                    <Setter Property="Foreground" Value="#FFF3D6" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#5C6673" />
+                    <Setter Property="Foreground" Value="#6E685E" />
                 </Trigger>
             </Style.Triggers>
         </Style>
-
-        <!-- The menu's Uninstall: red, and grey like the others while it waits (a colour set on the button would stay red) -->
+        <!-- The menu's Uninstall: coral, and grey like the others while it waits -->
         <Style x:Key="MenuLineDanger" TargetType="Button" BasedOn="{StaticResource MenuLine}">
-            <Setter Property="Foreground" Value="#FF8A8E" />
+            <Setter Property="Foreground" Value="#FF9E8F" />
+        </Style>
+        <Style x:Key="MenuGlyph" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Glyphs}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Width" Value="30" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <!-- Buttons in the dialogs -->
-        <Style x:Key="DialogButton" TargetType="Button">
-            <Setter Property="Height" Value="42" />
-            <Setter Property="MinWidth" Value="120" />
-            <Setter Property="Padding" Value="22,0" />
-            <Setter Property="Margin" Value="10,0,0,0" />
-            <Setter Property="Foreground" Value="#E4E7EB" />
-            <Setter Property="Background" Value="#1C2129" />
-            <Setter Property="BorderBrush" Value="#3A4452" />
-            <Setter Property="FontFamily" Value="{StaticResource Heading}" />
-            <Setter Property="FontSize" Value="17" />
+        <!-- The dialogs: cream cards with a thin inner frame, as Genshin's -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Width" Value="548" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource Cream}" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="38,30,38,30" />
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+            <Setter Property="local:Motion.PopIn" Value="True" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="48" ShadowDepth="8" Opacity="0.5" Color="Black" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <ControlTemplate x:Key="CardFrame" TargetType="ContentControl">
+            <Border Margin="-28,-22" BorderBrush="#E4D7BF" BorderThickness="1" CornerRadius="12" IsHitTestVisible="False" />
+        </ControlTemplate>
+        <!-- Under a card's title: a line, a diamond, a line -->
+        <ControlTemplate x:Key="Ornament" TargetType="ContentControl">
+            <Grid Width="150" Height="10" HorizontalAlignment="Center" Margin="0,8,0,20">
+                <Rectangle Height="1" Width="62" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#00D6B46A" Offset="0" />
+                            <GradientStop Color="#FFD6B46A" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle Width="7" Height="7" Fill="#D6B46A" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                    <Rectangle.RenderTransform>
+                        <RotateTransform Angle="45" />
+                    </Rectangle.RenderTransform>
+                </Rectangle>
+                <Rectangle Height="1" Width="62" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#FFD6B46A" Offset="0" />
+                            <GradientStop Color="#00D6B46A" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Grid>
+        </ControlTemplate>
+        <Style x:Key="CardTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="23" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Navy}" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="CardField" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource CreamMuted}" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="CardText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14.5" />
+            <Setter Property="Foreground" Value="{StaticResource CreamText}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="22" />
+        </Style>
+
+        <!-- Pill buttons with a round badge at their left, as Genshin's: the badge shows the glyph in Tag -->
+        <Style x:Key="Pill" TargetType="Button">
+            <Setter Property="Height" Value="46" />
+            <Setter Property="MinWidth" Value="156" />
+            <Setter Property="Margin" Value="12,0,0,0" />
+            <Setter Property="Foreground" Value="{StaticResource Navy}" />
+            <Setter Property="Background" Value="#E7DECE" />
+            <Setter Property="BorderBrush" Value="{StaticResource NavyBadge}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Tag" Value="&#xE711;" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border x:Name="Face" Background="{TemplateBinding Background}" CornerRadius="23" Padding="8,0,24,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Grid Width="30" Height="30" Margin="0,0,12,0">
+                                    <Ellipse Fill="{TemplateBinding BorderBrush}" />
+                                    <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" FontFamily="{StaticResource Glyphs}" FontSize="12"
+                                               Foreground="{TemplateBinding Background}" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Normal" />
+                                </Grid>
+                                <ContentPresenter VerticalAlignment="Center" Margin="0,0,0,1" />
+                            </StackPanel>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Face" Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#262C35" />
-                    <Setter Property="BorderBrush" Value="#526072" />
+                    <Setter Property="Background" Value="#DDD2BE" />
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="DialogGo" TargetType="Button" BasedOn="{StaticResource DialogButton}">
-            <Setter Property="Background" Value="#55E414" />
-            <Setter Property="BorderBrush" Value="#55E414" />
-            <Setter Property="Foreground" Value="#0C0E13" />
+        <Style x:Key="PillGo" TargetType="Button" BasedOn="{StaticResource Pill}">
+            <Setter Property="Background" Value="{StaticResource GoldFill}" />
+            <Setter Property="BorderBrush" Value="{StaticResource OnGold}" />
+            <Setter Property="Foreground" Value="{StaticResource OnGold}" />
+            <Setter Property="Tag" Value="&#xE73E;" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#72F23A" />
-                    <Setter Property="BorderBrush" Value="#72F23A" />
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#161A20" />
-                    <Setter Property="BorderBrush" Value="#2A313B" />
-                    <Setter Property="Foreground" Value="#6B7684" />
+                    <Setter Property="Background" Value="{StaticResource GoldFillHover}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="DialogDanger" TargetType="Button" BasedOn="{StaticResource DialogButton}">
-            <Setter Property="Background" Value="#C8383D" />
-            <Setter Property="BorderBrush" Value="#C8383D" />
+        <Style x:Key="PillDanger" TargetType="Button" BasedOn="{StaticResource Pill}">
+            <Setter Property="Background" Value="#D1605A" />
+            <Setter Property="BorderBrush" Value="White" />
             <Setter Property="Foreground" Value="White" />
+            <Setter Property="Tag" Value="&#xE74D;" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E5484D" />
-                    <Setter Property="BorderBrush" Value="#E5484D" />
+                    <Setter Property="Background" Value="#DB6E68" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Choices in the settings, as chips (one of several) -->
+        <!-- Choices in the settings: pills; the chosen one navy, as Genshin's tabs -->
         <Style x:Key="Chip" TargetType="RadioButton">
             <Setter Property="Height" Value="36" />
             <Setter Property="Margin" Value="0,0,8,8" />
-            <Setter Property="Padding" Value="16,0" />
-            <Setter Property="Foreground" Value="#C9D1D9" />
-            <Setter Property="Background" Value="#161A20" />
-            <Setter Property="BorderBrush" Value="#2E3642" />
+            <Setter Property="Padding" Value="17,0" />
+            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="Foreground" Value="{StaticResource CreamText}" />
+            <Setter Property="Background" Value="#ECE4D5" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="18" Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -230,29 +378,29 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#526072" />
+                    <Setter Property="Background" Value="#E3D9C6" />
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Background" Value="#1A82D8FF" />
-                    <Setter Property="BorderBrush" Value="#82D8FF" />
-                    <Setter Property="Foreground" Value="White" />
+                    <Setter Property="Background" Value="{StaticResource NavyBadge}" />
+                    <Setter Property="BorderBrush" Value="#D6B46A" />
+                    <Setter Property="Foreground" Value="{StaticResource Cream}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Height" Value="42" />
+            <Setter Property="Padding" Value="12,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#E4E7EB" />
-            <Setter Property="Background" Value="#161A20" />
-            <Setter Property="BorderBrush" Value="#2E3642" />
-            <Setter Property="CaretBrush" Value="#82D8FF" />
-            <Setter Property="SelectionBrush" Value="#82D8FF" />
+            <Setter Property="Foreground" Value="{StaticResource Navy}" />
+            <Setter Property="Background" Value="#FFFCF6" />
+            <Setter Property="BorderBrush" Value="#DCCFB8" />
+            <Setter Property="CaretBrush" Value="{StaticResource Navy}" />
+            <Setter Property="SelectionBrush" Value="#E8C77B" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="10">
                             <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
                         </Border>
                     </ControlTemplate>
@@ -260,28 +408,28 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsKeyboardFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#82D8FF" />
+                    <Setter Property="BorderBrush" Value="#C9A04E" />
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#E4E7EB" />
+            <Setter Property="Foreground" Value="{StaticResource CreamText}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
                         <StackPanel Orientation="Horizontal" Background="Transparent">
-                            <Border x:Name="Box" Width="20" Height="20" CornerRadius="4" BorderThickness="1" BorderBrush="#526072" Background="#161A20">
-                                <TextBlock x:Name="Mark" Text="&#xE73E;" FontFamily="{StaticResource Glyphs}" FontSize="12" Foreground="#0C0E13"
+                            <Border x:Name="Box" Width="20" Height="20" CornerRadius="6" BorderThickness="1" BorderBrush="#BCAE93" Background="#FFFCF6">
+                                <TextBlock x:Name="Mark" Text="&#xE73E;" FontFamily="{StaticResource Glyphs}" FontSize="12" Foreground="{StaticResource Cream}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
                             </Border>
                             <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" />
                         </StackPanel>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Box" Property="Background" Value="#82D8FF" />
-                                <Setter TargetName="Box" Property="BorderBrush" Value="#82D8FF" />
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource NavyBadge}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource NavyBadge}" />
                                 <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -290,171 +438,330 @@
             </Setter>
         </Style>
 
-        <Style x:Key="DialogTitle" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="{StaticResource Heading}" />
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="Margin" Value="0,0,0,18" />
+        <!-- A banner of the news: the game's own picture, darker at the bottom where its words are -->
+        <Style x:Key="BannerTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource Ivory}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
-        <Style x:Key="FieldLabel" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="#A8B2BD" />
-            <Setter Property="Margin" Value="0,0,0,8" />
+        <Style x:Key="BannerText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="#E6DFD2" />
+            <Setter Property="Margin" Value="0,3,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="17" />
+            <Setter Property="MaxHeight" Value="36" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         </Style>
-        <Style x:Key="DialogPanel" TargetType="Border">
-            <Setter Property="Width" Value="540" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Background" Value="#0F1116" />
-            <Setter Property="BorderBrush" Value="#2A313B" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="30,26,30,26" />
+        <LinearGradientBrush x:Key="BannerShade" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#000B0E14" Offset="0.35" />
+            <GradientStop Color="#D90B0E14" Offset="1" />
+        </LinearGradientBrush>
+        <Style x:Key="BannerDot" TargetType="Button">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="3,0" />
+            <Setter Property="Background" Value="#80FBF6EC" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
-    <Grid ClipToBounds="True" Background="#0C0E13">
-        <!-- The game's picture over the whole window, darker where the words are -->
-        <Image Source="Assets/keyart.jpg" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
-        <Rectangle>
+    <Grid x:Name="Page" ClipToBounds="True" Background="#0B0E14">
+        <!-- The game's picture over the whole window; the glass shows it blurred. It moves a little with the mouse. -->
+        <Grid x:Name="Backdrop">
+            <Image x:Name="BgImage" Source="Assets/keyart.jpg" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="0.62,0.48">
+                <Image.RenderTransform>
+                    <TransformGroup>
+                        <ScaleTransform x:Name="BgScale" ScaleX="1.03" ScaleY="1.03" />
+                        <TranslateTransform x:Name="BgShift" />
+                    </TransformGroup>
+                </Image.RenderTransform>
+            </Image>
+        </Grid>
+        <!-- Darker where the words are: the left, the top edge and the bottom -->
+        <Rectangle IsHitTestVisible="False">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#E00C0E13" Offset="0" />
-                    <GradientStop Color="#990C0E13" Offset="0.25" />
-                    <GradientStop Color="#000C0E13" Offset="0.55" />
+                    <GradientStop Color="#E60B0E14" Offset="0" />
+                    <GradientStop Color="#990B0E14" Offset="0.26" />
+                    <GradientStop Color="#1F0B0E14" Offset="0.5" />
+                    <GradientStop Color="#000B0E14" Offset="0.62" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
-        <Rectangle>
+        <Rectangle IsHitTestVisible="False">
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#990C0E13" Offset="0" />
-                    <GradientStop Color="#000C0E13" Offset="0.16" />
-                    <GradientStop Color="#000C0E13" Offset="0.55" />
-                    <GradientStop Color="#F00C0E13" Offset="1" />
+                    <GradientStop Color="#990B0E14" Offset="0" />
+                    <GradientStop Color="#000B0E14" Offset="0.15" />
+                    <GradientStop Color="#000B0E14" Offset="0.58" />
+                    <GradientStop Color="#E60B0E14" Offset="1" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
+        <!-- Motes of dust drifting up in the light round the robot (HubView.xaml.cs) -->
+        <Canvas x:Name="Motes" IsHitTestVisible="False" />
 
-        <!-- The column of games at the left, as HoYoPlay's: the Hub's mark, then the game (chosen) -->
-        <Border Width="76" HorizontalAlignment="Left" Background="#F00C0E13" BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,0">
+        <!-- The column of games at the left, on glass: the Hub's mark, then the game (chosen) -->
+        <local:Glass Backdrop="{Binding ElementName=Backdrop}" Width="72" HorizontalAlignment="Left" Background="#B80A0D12" BorderThickness="0,0,1,0" Blur="36">
             <StackPanel VerticalAlignment="Top" Margin="0,20,0,0">
-                <Viewbox Width="34" Height="34">
+                <Viewbox Width="30" Height="30">
                     <Canvas Width="24" Height="24">
-                        <Rectangle Canvas.Left="5.5" Canvas.Top="5.5" Width="13" Height="13" RadiusX="2.2" RadiusY="2.2" Stroke="#82D8FF" StrokeThickness="1.8" />
-                        <Rectangle Canvas.Left="9.25" Canvas.Top="9.25" Width="5.5" Height="5.5" RadiusX="0.8" RadiusY="0.8" Fill="#82D8FF" />
-                        <Path Stroke="#82D8FF" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                        <Rectangle Canvas.Left="5.5" Canvas.Top="5.5" Width="13" Height="13" RadiusX="2.2" RadiusY="2.2" Stroke="#E8C77B" StrokeThickness="1.8" />
+                        <Rectangle Canvas.Left="9.25" Canvas.Top="9.25" Width="5.5" Height="5.5" RadiusX="0.8" RadiusY="0.8" Fill="#E8C77B" />
+                        <Path Stroke="#E8C77B" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               Data="M9,1.8 V5.2 M15,1.8 V5.2 M9,18.8 V22.2 M15,18.8 V22.2 M1.8,9 H5.2 M1.8,15 H5.2 M18.8,9 H22.2 M18.8,15 H22.2" />
                     </Canvas>
                 </Viewbox>
-                <Rectangle Height="1" Width="36" Fill="#26FFFFFF" Margin="0,20,0,18" />
-                <Grid Width="76" Height="56" ToolTip="CoreEngine">
-                    <Rectangle Width="3" Height="26" Fill="#82D8FF" HorizontalAlignment="Left" RadiusX="1.5" RadiusY="1.5" />
-                    <Border Width="54" Height="54" CornerRadius="10" BorderBrush="#82D8FF" BorderThickness="2" Background="#0C0E13">
-                        <Border CornerRadius="8" Margin="2">
+                <Rectangle Height="1" Width="32" Fill="#26FFFFFF" Margin="0,20,0,16" />
+                <Grid Width="72" Height="60" ToolTip="CoreEngine">
+                    <Rectangle Width="3" Height="26" Fill="{StaticResource Gold}" HorizontalAlignment="Left" RadiusX="1.5" RadiusY="1.5" />
+                    <Border Width="52" Height="52" CornerRadius="14" BorderBrush="{StaticResource Gold}" BorderThickness="2" Background="#0B0E14">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="0" Color="#FFD466" Opacity="0.4" />
+                        </Border.Effect>
+                        <Border CornerRadius="12" Margin="2">
                             <Border.Background>
-                                <ImageBrush ImageSource="Assets/keyart.jpg" Stretch="UniformToFill" Viewbox="0.3,0.18,0.4,0.62" ViewboxUnits="RelativeToBoundingBox" />
+                                <ImageBrush ImageSource="Assets/tile.jpg" Stretch="UniformToFill" />
                             </Border.Background>
                         </Border>
                     </Border>
                 </Grid>
             </StackPanel>
-        </Border>
+        </local:Glass>
 
         <!-- The top bar: drag the window by it; settings, minimise and close at the right -->
-        <Grid x:Name="TopBar" Height="44" VerticalAlignment="Top" Margin="76,0,0,0" Background="Transparent">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
-                <Button Style="{StaticResource WindowButton}" Command="{Binding SettingsCommand}" ToolTip="{Binding T[tip.settings]}" Content="&#xE713;" FontSize="15" />
+        <Grid x:Name="TopBar" Height="52" VerticalAlignment="Top" Margin="72,0,0,0" Background="Transparent">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0">
+                <Button Style="{StaticResource WindowButton}" Command="{Binding SettingsCommand}" ToolTip="{Binding T[tip.settings]}" Content="&#xE713;" FontSize="14" />
                 <Button Style="{StaticResource WindowButton}" Command="{Binding MinimizeCommand}" ToolTip="{Binding T[tip.minimize]}" Content="&#xE921;" />
                 <Button Style="{StaticResource CloseButton}" Command="{Binding CloseCommand}" ToolTip="{Binding T[tip.close]}" Content="&#xE8BB;" />
             </StackPanel>
         </Grid>
 
-        <!-- The game's name on its picture, as HoYoPlay shows a game's logo -->
-        <StackPanel Margin="118,78,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
-            <TextBlock Text="COREENGINE" FontFamily="{StaticResource Heading}" FontSize="66" Foreground="White">
+        <!-- The game's name on its picture, as HoYoPlay shows a game's logo: ivory turning gold, a diamond and a line -->
+        <StackPanel x:Name="Title" Margin="118,64,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False">
+            <StackPanel Orientation="Horizontal">
+                <Viewbox Width="46" Height="46" VerticalAlignment="Center" Margin="0,6,14,0">
+                    <Canvas Width="24" Height="24">
+                        <Canvas.Effect>
+                            <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.55" Color="#FFD466" />
+                        </Canvas.Effect>
+                        <Rectangle Canvas.Left="5.5" Canvas.Top="5.5" Width="13" Height="13" RadiusX="2.2" RadiusY="2.2" Stroke="#F6DA96" StrokeThickness="1.7" />
+                        <Rectangle Canvas.Left="9.25" Canvas.Top="9.25" Width="5.5" Height="5.5" RadiusX="0.8" RadiusY="0.8" Fill="#F6DA96" />
+                        <Path Stroke="#F6DA96" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M9,1.8 V5.2 M15,1.8 V5.2 M9,18.8 V22.2 M15,18.8 V22.2 M1.8,9 H5.2 M1.8,15 H5.2 M18.8,9 H22.2 M18.8,15 H22.2" />
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="COREENGINE" FontFamily="{StaticResource Heading}" FontSize="68">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FFFFFF" Offset="0.18" />
+                            <GradientStop Color="#FFF3D8" Offset="0.6" />
+                            <GradientStop Color="#EDC57B" Offset="1" />
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                    <TextBlock.Effect>
+                        <DropShadowEffect BlurRadius="24" ShadowDepth="0" Opacity="0.7" Color="#0B0E14" />
+                    </TextBlock.Effect>
+                </TextBlock>
+            </StackPanel>
+            <Grid Margin="62,0,0,0" Width="340" Height="12" HorizontalAlignment="Left">
+                <Rectangle Width="8" Height="8" Fill="{StaticResource Gold}" HorizontalAlignment="Left" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                    <Rectangle.RenderTransform>
+                        <RotateTransform Angle="45" />
+                    </Rectangle.RenderTransform>
+                </Rectangle>
+                <Rectangle Height="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#FFE8C77B" Offset="0" />
+                            <GradientStop Color="#00E8C77B" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+            </Grid>
+            <TextBlock Text="{Binding T[tagline]}" FontSize="16.5" Foreground="#F4EEE3" MaxWidth="460" TextWrapping="Wrap" Margin="62,12,0,0" LineHeight="23">
                 <TextBlock.Effect>
-                    <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.55" Color="Black" />
-                </TextBlock.Effect>
-            </TextBlock>
-            <TextBlock Text="{Binding T[tagline]}" FontSize="16" Foreground="#E4E7EB" MaxWidth="470" TextWrapping="Wrap" Margin="4,2,0,0">
-                <TextBlock.Effect>
-                    <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.7" Color="Black" />
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.8" Color="#0B0E14" />
                 </TextBlock.Effect>
             </TextBlock>
         </StackPanel>
 
-        <!-- What is new, at the bottom left -->
-        <Border Margin="118,0,0,44" Width="450" HorizontalAlignment="Left" VerticalAlignment="Bottom" CornerRadius="8"
-                Background="#EB0F1116" BorderBrush="#1FFFFFFF" BorderThickness="1" Padding="22,18,22,18">
+        <!-- The news at the bottom left, on glass: the game's banners, then what is new in this version -->
+        <local:Glass x:Name="News" Backdrop="{Binding ElementName=Backdrop}" CornerRadius="16" Width="456" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                     Margin="118,0,0,36">
             <StackPanel>
-                <TextBlock Text="{Binding NotesTitle, Converter={StaticResource Upper}}" FontFamily="{StaticResource Heading}" FontSize="16" Foreground="#82D8FF" TextTrimming="CharacterEllipsis" />
-                <ItemsControl ItemsSource="{Binding Notes}" Margin="0,10,0,0">
+                <Grid x:Name="Banners" Height="178">
+                    <Grid x:Name="Banner0">
+                        <Image Source="Assets/banner-build.jpg" Stretch="UniformToFill" />
+                        <Rectangle Fill="{StaticResource BannerShade}" />
+                        <StackPanel VerticalAlignment="Bottom" Margin="18,0,18,14">
+                            <TextBlock Text="{Binding T[banner.build.title]}" Style="{StaticResource BannerTitle}" />
+                            <TextBlock Text="{Binding T[banner.build.text]}" Style="{StaticResource BannerText}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="Banner1" Opacity="0" Visibility="Hidden">
+                        <Image Source="Assets/banner-code.jpg" Stretch="UniformToFill" />
+                        <Rectangle Fill="{StaticResource BannerShade}" />
+                        <StackPanel VerticalAlignment="Bottom" Margin="18,0,18,14">
+                            <TextBlock Text="{Binding T[banner.code.title]}" Style="{StaticResource BannerTitle}" />
+                            <TextBlock Text="{Binding T[banner.code.text]}" Style="{StaticResource BannerText}" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="Banner2" Opacity="0" Visibility="Hidden">
+                        <Image Source="Assets/banner-drive.jpg" Stretch="UniformToFill" />
+                        <Rectangle Fill="{StaticResource BannerShade}" />
+                        <StackPanel VerticalAlignment="Bottom" Margin="18,0,18,14">
+                            <TextBlock Text="{Binding T[banner.drive.title]}" Style="{StaticResource BannerTitle}" />
+                            <TextBlock Text="{Binding T[banner.drive.text]}" Style="{StaticResource BannerText}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Background="#660B0E14" CornerRadius="9" Padding="5,5">
+                        <StackPanel x:Name="BannerDots" Orientation="Horizontal">
+                            <Button Style="{StaticResource BannerDot}" Tag="0" Width="20" Background="{StaticResource Gold}" />
+                            <Button Style="{StaticResource BannerDot}" Tag="1" />
+                            <Button Style="{StaticResource BannerDot}" Tag="2" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <DockPanel Margin="20,14,20,0">
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding NotesMeta}" Foreground="{StaticResource Faint}" FontSize="12.5" VerticalAlignment="Top" Margin="12,2,0,0" />
+                    <StackPanel HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding NotesTitle}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ivory}" />
+                        <Rectangle Height="2" Width="26" Fill="{StaticResource Gold}" HorizontalAlignment="Left" Margin="0,7,0,0" RadiusX="1" RadiusY="1" />
+                    </StackPanel>
+                </DockPanel>
+                <Rectangle Height="1" Fill="#1FFFFFFF" Margin="20,-1,20,0" />
+                <ItemsControl ItemsSource="{Binding Notes}" Margin="20,12,20,16">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <DockPanel Margin="0,0,0,6">
-                                <Ellipse Width="5" Height="5" Fill="#82D8FF" DockPanel.Dock="Left" VerticalAlignment="Top" Margin="1,8,11,0" />
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="#E4E7EB" FontSize="14" LineHeight="20" />
+                                <Rectangle Width="5" Height="5" Fill="{StaticResource Gold}" DockPanel.Dock="Left" VerticalAlignment="Top" Margin="2,8,12,0" RenderTransformOrigin="0.5,0.5">
+                                    <Rectangle.RenderTransform>
+                                        <RotateTransform Angle="45" />
+                                    </Rectangle.RenderTransform>
+                                </Rectangle>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Foreground="#E9E3D7" FontSize="13.5" LineHeight="20" />
                             </DockPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </StackPanel>
-        </Border>
+        </local:Glass>
 
         <!-- The next step, at the bottom right: the progress, the big button with the game's menu, the status -->
-        <StackPanel Width="420" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,44,40">
+        <StackPanel x:Name="Action" Width="372" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,40,36">
             <Grid Visibility="{Binding ProgressVisible, Converter={StaticResource Shown}}" Margin="2,0,2,12">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Text="{Binding ProgressLeft}" FontSize="15" FontWeight="SemiBold" Foreground="White">
+                <TextBlock Text="{Binding ProgressLeft}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ivory}">
                     <TextBlock.Effect>
-                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.8" Color="Black" />
+                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.85" Color="Black" />
                     </TextBlock.Effect>
                 </TextBlock>
-                <TextBlock Text="{Binding ProgressRight}" FontSize="13" Foreground="#C9D1D9" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                <TextBlock Text="{Binding ProgressRight}" FontSize="12.5" Foreground="#E0D9CC" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                     <TextBlock.Effect>
-                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.8" Color="Black" />
+                        <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.85" Color="Black" />
                     </TextBlock.Effect>
                 </TextBlock>
-                <ProgressBar Grid.Row="1" Height="6" Margin="0,9,0,0" Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}">
+                <ProgressBar Grid.Row="1" Height="6" Margin="0,10,0,0" Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}">
                     <ProgressBar.Template>
                         <ControlTemplate TargetType="ProgressBar">
                             <Grid>
-                                <Border x:Name="PART_Track" CornerRadius="3" Background="#40FFFFFF" />
-                                <Border x:Name="PART_Indicator" CornerRadius="3" Background="#55E414" HorizontalAlignment="Left" />
+                                <Border x:Name="PART_Track" CornerRadius="3" Background="#38FFFFFF" />
+                                <Border x:Name="PART_Indicator" CornerRadius="3" HorizontalAlignment="Left" ClipToBounds="True">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#F2B53B" Offset="0" />
+                                            <GradientStop Color="#FFE39A" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Rectangle Width="90" HorizontalAlignment="Left">
+                                        <Rectangle.Fill>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#00FFFFFF" Offset="0" />
+                                                <GradientStop Color="#A6FFFFFF" Offset="0.5" />
+                                                <GradientStop Color="#00FFFFFF" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Rectangle.Fill>
+                                        <Rectangle.RenderTransform>
+                                            <TranslateTransform X="-90" />
+                                        </Rectangle.RenderTransform>
+                                        <Rectangle.Triggers>
+                                            <EventTrigger RoutedEvent="Loaded">
+                                                <BeginStoryboard>
+                                                    <Storyboard RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
+                                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                         From="-90" To="400" Duration="0:0:1.7" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </EventTrigger>
+                                        </Rectangle.Triggers>
+                                    </Rectangle>
+                                </Border>
                             </Grid>
                         </ControlTemplate>
                     </ProgressBar.Template>
                 </ProgressBar>
             </Grid>
-            <StackPanel Orientation="Horizontal">
-                <Button Style="{StaticResource MainButton}" Width="344" Height="66" Command="{Binding MainCommand}" IsEnabled="{Binding MainEnabled}"
-                        Content="{Binding MainText, Converter={StaticResource Upper}}" />
-                <Button Style="{StaticResource SquareButton}" Width="66" Height="66" Margin="10,0,0,0" Command="{Binding MenuCommand}" ToolTip="{Binding T[menu]}">
-                    <TextBlock Text="&#xE712;" FontFamily="{StaticResource Glyphs}" FontSize="18" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Style="{StaticResource StartButton}" Width="298" Height="64" Command="{Binding MainCommand}" IsEnabled="{Binding MainEnabled}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding MainGlyph}" FontFamily="{StaticResource Glyphs}" FontSize="18" VerticalAlignment="Center" Margin="0,1,12,0" FontWeight="Normal"
+                                   Visibility="{Binding MainGlyph, Converter={StaticResource NotEmpty}}" />
+                        <Path Width="20" Height="20" Margin="0,0,12,0" Data="M10,2 A8,8 0 1 1 2,10" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" RenderTransformOrigin="0.5,0.5"
+                              Visibility="{Binding MainBusy, Converter={StaticResource Shown}}">
+                            <Path.RenderTransform>
+                                <RotateTransform />
+                            </Path.RenderTransform>
+                            <Path.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:0.9" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Path.Triggers>
+                        </Path>
+                        <TextBlock Text="{Binding MainText}" VerticalAlignment="Center" Margin="0,0,0,2" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource MenuButton}" Width="64" Height="64" Margin="10,0,0,0" Command="{Binding MenuCommand}" ToolTip="{Binding T[menu]}">
+                    <TextBlock Text="&#xE700;" FontFamily="{StaticResource Glyphs}" FontSize="18" />
                 </Button>
             </StackPanel>
-            <TextBlock Text="{Binding Status}" Margin="3,11,0,0" FontSize="13" TextWrapping="Wrap">
+            <TextBlock Text="{Binding Status}" Margin="4,11,0,0" FontSize="13" TextWrapping="Wrap">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                        <Setter Property="Foreground" Value="#C9D1D9" />
+                        <Setter Property="Foreground" Value="#E0D9CC" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding StatusWarn}" Value="True">
-                                <Setter Property="Foreground" Value="#FFBA52" />
+                                <Setter Property="Foreground" Value="#FFB65C" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
                 <TextBlock.Effect>
-                    <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.8" Color="Black" />
+                    <DropShadowEffect BlurRadius="8" ShadowDepth="0" Opacity="0.85" Color="Black" />
                 </TextBlock.Effect>
             </TextBlock>
         </StackPanel>
 
-        <!-- The game's menu, above its button; a click anywhere else closes it -->
+        <!-- The game's menu, above its button, on glass; a click anywhere else closes it -->
         <Grid Visibility="{Binding MenuOpen, Converter={StaticResource Shown}}">
             <Button Command="{Binding CloseDialogCommand}" Background="Transparent" Cursor="Arrow">
                 <Button.Template>
@@ -463,133 +770,153 @@
                     </ControlTemplate>
                 </Button.Template>
             </Button>
-            <Border Width="280" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,44,146" Background="#F70F1116"
-                    BorderBrush="#2E3642" BorderThickness="1" CornerRadius="8" Padding="6">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" Color="Black" />
-                </Border.Effect>
+            <local:Glass Backdrop="{Binding ElementName=Backdrop}" Width="290" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,40,150"
+                         CornerRadius="14" Background="#D90E1219" Padding="8" RenderTransformOrigin="1,1" local:Motion.PopIn="True">
+                <local:Glass.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="6" Opacity="0.5" Color="Black" />
+                </local:Glass.Effect>
                 <StackPanel>
-                    <TextBlock Text="{Binding T[menu], Converter={StaticResource Upper}}" FontFamily="{StaticResource Heading}" FontSize="14" Foreground="#8A95A3" Margin="14,8,0,6" />
+                    <TextBlock Text="{Binding T[menu], Converter={StaticResource Upper}}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="14,8,0,6" />
                     <Button Style="{StaticResource MenuLine}" Command="{Binding RepairCommand}" IsEnabled="{Binding CanChangeGame}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE90F;" FontFamily="{StaticResource Glyphs}" FontSize="15" Width="28" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE90F;" Style="{StaticResource MenuGlyph}" Foreground="{StaticResource Gold}" />
                             <TextBlock Text="{Binding T[menu.repair]}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource MenuLine}" Command="{Binding OpenFolderCommand}" IsEnabled="{Binding IsInstalled}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE838;" FontFamily="{StaticResource Glyphs}" FontSize="15" Width="28" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE838;" Style="{StaticResource MenuGlyph}" Foreground="{StaticResource Gold}" />
                             <TextBlock Text="{Binding T[menu.folder]}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Button Style="{StaticResource MenuLine}" Command="{Binding LocateCommand}" IsEnabled="{Binding CanFindGame}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE721;" FontFamily="{StaticResource Glyphs}" FontSize="15" Width="28" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE721;" Style="{StaticResource MenuGlyph}" Foreground="{StaticResource Gold}" />
                             <TextBlock Text="{Binding T[menu.locate]}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                     <Rectangle Height="1" Fill="#1FFFFFFF" Margin="10,4" />
                     <Button Style="{StaticResource MenuLineDanger}" Command="{Binding UninstallCommand}" IsEnabled="{Binding CanChangeGame}">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE74D;" FontFamily="{StaticResource Glyphs}" FontSize="15" Width="28" VerticalAlignment="Center" />
+                            <TextBlock Text="&#xE74D;" Style="{StaticResource MenuGlyph}" />
                             <TextBlock Text="{Binding T[menu.uninstall]}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
-            </Border>
+            </local:Glass>
         </Grid>
 
         <!-- Install: where, how much space, a desktop shortcut -->
-        <Grid Background="#A6000000" Visibility="{Binding InstallOpen, Converter={StaticResource Shown}}">
-            <Border Style="{StaticResource DialogPanel}">
-                <StackPanel>
-                    <TextBlock Text="{Binding T[install.title], Converter={StaticResource Upper}}" Style="{StaticResource DialogTitle}" />
-                    <TextBlock Text="{Binding T[install.folder]}" Style="{StaticResource FieldLabel}" />
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource DialogButton}" Command="{Binding ChangeFolderCommand}" Content="{Binding T[install.change], Converter={StaticResource Upper}}" MinWidth="0" Height="40" />
-                        <TextBox x:Name="PathBox" Text="{Binding InstallDir, Mode=OneWay}" IsReadOnly="True" />
-                    </DockPanel>
-                    <TextBlock Text="{Binding InstallSpace}" FontSize="13" Margin="0,10,0,0" TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#A8B2BD" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding InstallSpaceOk}" Value="False">
-                                        <Setter Property="Foreground" Value="#FFBA52" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <CheckBox Content="{Binding T[install.shortcut]}" IsChecked="{Binding DesktopShortcut}" Margin="0,20,0,0" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,28,0,0">
-                        <Button Style="{StaticResource DialogGo}" Command="{Binding InstallCommand}" IsEnabled="{Binding InstallSpaceOk}" Content="{Binding T[install.go], Converter={StaticResource Upper}}" />
-                        <Button Style="{StaticResource DialogButton}" Command="{Binding CloseDialogCommand}" Content="{Binding T[cancel], Converter={StaticResource Upper}}" />
+        <Grid Visibility="{Binding InstallOpen, Converter={StaticResource Shown}}">
+            <local:Glass Backdrop="{Binding ElementName=Backdrop}" Background="#9906090E" BorderThickness="0" Blur="22" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <ContentControl Template="{StaticResource CardFrame}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding T[install.title]}" Style="{StaticResource CardTitle}" />
+                        <ContentControl Template="{StaticResource Ornament}" />
+                        <TextBlock Text="{Binding T[install.folder]}" Style="{StaticResource CardField}" />
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource Pill}" Command="{Binding ChangeFolderCommand}" Content="{Binding T[install.change]}" MinWidth="0" Height="42" Tag="&#xE838;" />
+                            <TextBox x:Name="PathBox" Text="{Binding InstallDir, Mode=OneWay}" IsReadOnly="True" />
+                        </DockPanel>
+                        <TextBlock Text="{Binding InstallSpace}" FontSize="13" Margin="2,10,0,0" TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource CreamMuted}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding InstallSpaceOk}" Value="False">
+                                            <Setter Property="Foreground" Value="#C4552E" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <CheckBox Content="{Binding T[install.shortcut]}" IsChecked="{Binding DesktopShortcut}" Margin="2,20,0,0" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30,0,0">
+                            <Button Style="{StaticResource Pill}" Command="{Binding CloseDialogCommand}" Content="{Binding T[cancel]}" Margin="0" />
+                            <Button Style="{StaticResource PillGo}" Command="{Binding InstallCommand}" IsEnabled="{Binding InstallSpaceOk}" Content="{Binding T[install.go]}" Tag="&#xE896;" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 
         <!-- The Hub's settings -->
-        <Grid Background="#A6000000" Visibility="{Binding SettingsOpen, Converter={StaticResource Shown}}">
-            <Border Style="{StaticResource DialogPanel}" Width="600">
-                <StackPanel>
-                    <TextBlock Text="{Binding T[settings], Converter={StaticResource Upper}}" Style="{StaticResource DialogTitle}" />
-                    <TextBlock Text="{Binding T[settings.language]}" Style="{StaticResource FieldLabel}" />
-                    <WrapPanel>
-                        <RadioButton Style="{StaticResource Chip}" Content="English" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Oʻzbekcha" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="Русский" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
-                    </WrapPanel>
-                    <TextBlock Text="{Binding T[settings.speed]}" Style="{StaticResource FieldLabel}" Margin="0,10,0,8" />
-                    <WrapPanel>
-                        <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.noLimit]}" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="1 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="2 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="5 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=3}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="10 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=4}" />
-                    </WrapPanel>
-                    <TextBlock Text="{Binding T[settings.afterStart]}" Style="{StaticResource FieldLabel}" Margin="0,10,0,8" />
-                    <WrapPanel>
-                        <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.close]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.minimize]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
-                        <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.keep]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
-                    </WrapPanel>
-                    <TextBlock Text="{Binding T[settings.source]}" Style="{StaticResource FieldLabel}" Margin="0,10,0,8" />
-                    <TextBox Text="{Binding SourceText, UpdateSourceTrigger=PropertyChanged}" />
-                    <TextBlock Text="{Binding T[settings.sourceNote]}" FontSize="12" Foreground="#8A95A3" Margin="0,6,0,0" />
-                    <DockPanel Margin="0,24,0,0">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource DialogButton}" Command="{Binding CloseSettingsCommand}" Content="{Binding T[ok], Converter={StaticResource Upper}}" />
-                        <TextBlock Text="{Binding HubVersion}" FontSize="12" Foreground="#6B7684" VerticalAlignment="Center" />
-                    </DockPanel>
-                </StackPanel>
+        <Grid Visibility="{Binding SettingsOpen, Converter={StaticResource Shown}}">
+            <local:Glass Backdrop="{Binding ElementName=Backdrop}" Background="#9906090E" BorderThickness="0" Blur="22" />
+            <Border Style="{StaticResource Card}" Width="620">
+                <Grid>
+                    <ContentControl Template="{StaticResource CardFrame}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding T[settings]}" Style="{StaticResource CardTitle}" />
+                        <ContentControl Template="{StaticResource Ornament}" />
+                        <TextBlock Text="{Binding T[settings.language]}" Style="{StaticResource CardField}" />
+                        <WrapPanel>
+                            <RadioButton Style="{StaticResource Chip}" Content="English" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="Oʻzbekcha" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="Русский" IsChecked="{Binding LanguageIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding T[settings.speed]}" Style="{StaticResource CardField}" Margin="0,8,0,8" />
+                        <WrapPanel>
+                            <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.noLimit]}" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="1 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="2 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="5 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=3}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="10 MB/s" IsChecked="{Binding SpeedIndex, Converter={StaticResource IndexIs}, ConverterParameter=4}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding T[settings.afterStart]}" Style="{StaticResource CardField}" Margin="0,8,0,8" />
+                        <WrapPanel>
+                            <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.close]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=0}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.minimize]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=1}" />
+                            <RadioButton Style="{StaticResource Chip}" Content="{Binding T[settings.keep]}" IsChecked="{Binding AfterStartIndex, Converter={StaticResource IndexIs}, ConverterParameter=2}" />
+                        </WrapPanel>
+                        <TextBlock Text="{Binding T[settings.source]}" Style="{StaticResource CardField}" Margin="0,8,0,8" />
+                        <TextBox Text="{Binding SourceText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="{Binding T[settings.sourceNote]}" FontSize="12" Foreground="{StaticResource CreamMuted}" Margin="2,6,0,0" />
+                        <DockPanel Margin="0,26,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource PillGo}" Command="{Binding CloseSettingsCommand}" Content="{Binding T[ok]}" />
+                            <TextBlock Text="{Binding HubVersion}" FontSize="12" Foreground="#A39A88" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 
         <!-- Uninstall: are you sure -->
-        <Grid Background="#A6000000" Visibility="{Binding UninstallOpen, Converter={StaticResource Shown}}">
-            <Border Style="{StaticResource DialogPanel}">
-                <StackPanel>
-                    <TextBlock Text="{Binding T[uninstall.title], Converter={StaticResource Upper}}" Style="{StaticResource DialogTitle}" />
-                    <TextBlock Text="{Binding UninstallText}" TextWrapping="Wrap" Foreground="#C9D1D9" LineHeight="20" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,28,0,0">
-                        <Button Style="{StaticResource DialogDanger}" Command="{Binding ConfirmUninstallCommand}" Content="{Binding T[uninstall.go], Converter={StaticResource Upper}}" />
-                        <Button Style="{StaticResource DialogButton}" Command="{Binding CloseDialogCommand}" Content="{Binding T[cancel], Converter={StaticResource Upper}}" />
+        <Grid Visibility="{Binding UninstallOpen, Converter={StaticResource Shown}}">
+            <local:Glass Backdrop="{Binding ElementName=Backdrop}" Background="#9906090E" BorderThickness="0" Blur="22" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <ContentControl Template="{StaticResource CardFrame}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding T[uninstall.title]}" Style="{StaticResource CardTitle}" />
+                        <ContentControl Template="{StaticResource Ornament}" />
+                        <TextBlock Text="{Binding UninstallText}" Style="{StaticResource CardText}" TextAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30,0,0">
+                            <Button Style="{StaticResource Pill}" Command="{Binding CloseDialogCommand}" Content="{Binding T[cancel]}" Margin="0" />
+                            <Button Style="{StaticResource PillDanger}" Command="{Binding ConfirmUninstallCommand}" Content="{Binding T[uninstall.go]}" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 
         <!-- A message: a repair's result, an error -->
-        <Grid Background="#A6000000" Visibility="{Binding MessageOpen, Converter={StaticResource Shown}}">
-            <Border Style="{StaticResource DialogPanel}">
-                <StackPanel>
-                    <TextBlock Text="{Binding MessageTitle, Converter={StaticResource Upper}}" Style="{StaticResource DialogTitle}" />
-                    <TextBlock Text="{Binding MessageText}" TextWrapping="Wrap" Foreground="#C9D1D9" LineHeight="20" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,28,0,0">
-                        <Button Style="{StaticResource DialogButton}" Command="{Binding CloseDialogCommand}" Content="{Binding T[ok], Converter={StaticResource Upper}}" />
+        <Grid Visibility="{Binding MessageOpen, Converter={StaticResource Shown}}">
+            <local:Glass Backdrop="{Binding ElementName=Backdrop}" Background="#9906090E" BorderThickness="0" Blur="22" />
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <ContentControl Template="{StaticResource CardFrame}" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding MessageTitle}" Style="{StaticResource CardTitle}" />
+                        <ContentControl Template="{StaticResource Ornament}" />
+                        <TextBlock Text="{Binding MessageText}" Style="{StaticResource CardText}" TextAlignment="Center" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30,0,0">
+                            <Button Style="{StaticResource PillGo}" Command="{Binding CloseDialogCommand}" Content="{Binding T[ok]}" Margin="0" />
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

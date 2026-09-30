@@ -48,4 +48,4 @@ The release key's private half is `%USERPROFILE%\.coreengine\hub\release-key.pem
 - `CoreEngineHub.exe --home hub/.test-home --source hub/.release/stable --shots <folder>` does a whole install into `hub/.test-home` without showing a window, and draws each step into a picture. Run on an installed copy, it shows an update instead. With the newest version installed there it stops, since its big button would start the game, which opens a window: use a new folder.
 - `CoreEngineHub.exe --icon hub/CoreEngine.Hub/Assets/hub.ico` draws the icon.
 
-The page's picture (`Assets/keyart.jpg`) is rendered by the game: run the game with `-batchmode -spikeBench <report> -uiShots` and scale `report-hub-keyart.png` to 1920 × 1080.
+The page's pictures are rendered by the game (`GarageUiShots.cs`, `HubPictures`): run it with `-batchmode -spikeBench <report> -uiShots` and copy `report-hub-keyart.jpg`, `report-hub-tile.jpg` and `report-hub-banner-build.jpg`, `-code.jpg`, `-drive.jpg` into `CoreEngine.Hub/Assets` as `keyart.jpg`, `tile.jpg` and `banner-build.jpg`, `banner-code.jpg`, `banner-drive.jpg`.

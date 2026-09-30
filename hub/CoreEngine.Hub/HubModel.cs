@@ -133,18 +133,24 @@ public sealed class HubModel : Observable
         }
     }
 
-    string mainText = "";
-    bool mainEnabled, mainQuiet, progressVisible, statusWarn, hasGame, menuOpen, installOpen, settingsOpen, uninstallOpen, messageOpen;
+    string mainText = "", mainGlyph = "";
+    bool mainEnabled, mainQuiet, mainBusy, progressVisible, statusWarn, hasGame, menuOpen, installOpen, settingsOpen, uninstallOpen, messageOpen;
     double progress;
-    string progressLeft = "", progressRight = "", status = "", notesTitle = "", installDir = "", installSpace = "", messageTitle = "", messageText = "", sourceText = "";
+    string progressLeft = "", progressRight = "", status = "", notesTitle = "", notesMeta = "", installDir = "", installSpace = "", messageTitle = "", messageText = "", sourceText = "";
     bool installSpaceOk = true, desktopShortcut = true;
     IReadOnlyList<string> notes = Array.Empty<string>();
 
     public string MainText { get => mainText; private set => Set(ref mainText, value); }
     public bool MainEnabled { get => mainEnabled; private set => Set(ref mainEnabled, value); }
 
-    /// <summary>The big button in its quiet look (Pause, and while busy), else the green one.</summary>
+    /// <summary>The big button in its quiet look (Pause, and while busy), else the gold one.</summary>
     public bool MainQuiet { get => mainQuiet; private set => Set(ref mainQuiet, value); }
+
+    /// <summary>The big button's icon (Segoe Fluent Icons): download, play, pause, retry, settings; none while busy.</summary>
+    public string MainGlyph { get => mainGlyph; private set => Set(ref mainGlyph, value); }
+
+    /// <summary>The Hub is checking, installing or verifying: the big button turns a spinner instead of an icon.</summary>
+    public bool MainBusy { get => mainBusy; private set => Set(ref mainBusy, value); }
 
     public bool ProgressVisible { get => progressVisible; private set => Set(ref progressVisible, value); }
     public double Progress { get => progress; private set => Set(ref progress, value); }
@@ -153,6 +159,9 @@ public sealed class HubModel : Observable
     public string Status { get => status; private set => Set(ref status, value); }
     public bool StatusWarn { get => statusWarn; private set => Set(ref statusWarn, value); }
     public string NotesTitle { get => notesTitle; private set => Set(ref notesTitle, value); }
+
+    /// <summary>The newest version and the day it came out, beside the notes' title ("0.1.1 · 30 September 2026").</summary>
+    public string NotesMeta { get => notesMeta; private set => Set(ref notesMeta, value); }
     public IReadOnlyList<string> Notes { get => notes; private set => Set(ref notes, value); }
 
     /// <summary>Whether the game is installed (the menu's Repair, Open folder and Uninstall need it).</summary>
@@ -237,6 +246,16 @@ public sealed class HubModel : Observable
         bool busy = State is HubState.Downloading or HubState.Installing or HubState.Verifying or HubState.Paused;
         ProgressVisible = busy;
         MainQuiet = State is HubState.Downloading or HubState.Installing or HubState.Verifying or HubState.Running or HubState.Checking;
+        MainBusy = State is HubState.Checking or HubState.Installing or HubState.Verifying;
+        MainGlyph = State switch
+        {
+            HubState.NotInstalled or HubState.UpdateAvailable => "", // download
+            HubState.Ready or HubState.Paused => "", // play
+            HubState.Downloading => "", // pause
+            HubState.NoSource => "", // settings
+            HubState.Offline or HubState.Untrusted or HubState.Error => "", // retry
+            _ => "",
+        };
         (MainText, MainEnabled) = State switch
         {
             HubState.Checking => (T["btn.checking"], false),
@@ -272,12 +291,14 @@ public sealed class HubModel : Observable
         if (shown != null)
         {
             string date = shown.Published.ToLocalTime().ToString("d MMMM yyyy", Culture());
-            NotesTitle = $"{T["news"]} · {shown.Version} · {date}";
+            NotesTitle = T["news"];
+            NotesMeta = $"{shown.Version} · {date}";
             Notes = shown.NotesIn(T.Code);
         }
         else
         {
             NotesTitle = T["news"];
+            NotesMeta = "";
             Notes = new[] { T["news.none"] };
         }
         IsInstalled = installed != null;

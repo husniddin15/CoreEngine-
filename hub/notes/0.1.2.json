@@ -1,0 +1,14 @@
+{
+  "en": [
+    "Ctrl+J joins pieces that touch: joined, they hold together as if glued. A part that only rests on the robot rides along until a turn, a stop or a bump slides it off, as in real life.",
+    "Robots saved before have everything that touches joined, so they hold together as they did."
+  ],
+  "uz": [
+    "Ctrl+J tegib turgan qismlarni biriktiradi: ular yelimlangandek birga turadi. Robot ustida shunchaki turgan qism burilish, toʻxtash yoki urilishda sirpanib tushadi, xuddi haqiqiy hayotdagidek.",
+    "Avval saqlangan robotlarda tegib turgan hamma narsa biriktirilgan, shuning uchun ular avvalgidek birga turadi."
+  ],
+  "ru": [
+    "Ctrl+J соединяет касающиеся детали: они держатся вместе, как склеенные. Деталь, которая просто лежит на роботе, едет с ним, пока поворот, торможение или удар её не сдвинет, как в жизни.",
+    "В сохранённых раньше роботах соединено всё, что касается, поэтому они держатся как прежде."
+  ]
+}

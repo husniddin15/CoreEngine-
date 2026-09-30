@@ -25,13 +25,13 @@ Things found while building it:
 
 ## Decision
 **CoreEngine Hub** (`hub/`, .NET 10, WPF), laid out like HoYoPlay's page for a game:
-- the game's picture over the window, rendered by the game itself (`-uiShots`, "hub-keyart");
-- the column of games at the left;
-- the window's buttons (settings, minimise, close) at the top right;
-- "What's new" at the bottom left;
-- at the bottom right, one big button that is always the next step: Download, Pause, Resume, Update, Start, Retry. The progress (per cent, speed, time left, MB) shows above it, and the game's menu (⋯: Repair game files, Open game folder, Find the game on this PC, Uninstall game) sits beside it.
+- the game's picture over the window, rendered by the game itself (`-uiShots`): a hero's view of the robot on the right of the page, drawn twice as large and halved, with a warm key light and a cool rim light; it settles in as the window opens and leans a few pixels away from the mouse;
+- the column of games at the left, on frosted glass (the picture behind it, blurred);
+- the window's round buttons (settings, minimise, close) at the top right;
+- the news at the bottom left, on frosted glass: three banners rendered by the game (building, coding, driving) that change every 6.5 s, then What's new in this version;
+- at the bottom right, one big button that is always the next step: Download, Pause, Resume, Update, Start, Retry, each with its icon. The progress (per cent, speed, time left, MB) shows above it on a gold bar, and the game's menu (≡: Repair game files, Open game folder, Find the game on this PC, Uninstall game) sits beside it.
 
-It uses the game's colours and Bahnschrift labels, in English, Uzbek and Russian. The settings hold the language, a download speed limit, what happens once the game's window is up (close the Hub, the default; minimise it until the game closes; or keep it open) and the download server.
+It is dressed as Genshin Impact's launcher (the owner, 2026-09-30: "we need beautiful design like hoyoverse hub and genshin impact style ... also use better render for background"): ivory and gold on the dark picture; the game's name turning from ivory to gold, with a diamond and a line under it; a gold Start button that glows under the mouse; cream dialogs with a thin inner frame, an ornament under the title and pill buttons with a round badge; motes of dust drifting in the light round the robot. In English, Uzbek and Russian. The settings hold the language, a download speed limit, what happens once the game's window is up (close the Hub, the default; minimise it until the game closes; or keep it open) and the download server.
 
 **Releases** are plain files that any web server (or folder) can hold, written by `CoreEngine.Hub.Publish`:
 - `manifest.json`: the version, the program to start, notes in three languages, and every file with its size and SHA-256;
@@ -63,6 +63,7 @@ A new version written into the same folder adds only the contents that changed. 
 - 33 xUnit tests cover paths, signatures, manifests, install, update, pause and resume from a folder and over HTTP (a small local server), repair, damaged downloads, uninstall, adopting a copied game and finding the game while it runs.
 - `CoreEngineHub.exe --home <folder> --source <release> --shots <folder>` drives the real page through a whole install into a test folder and draws each step into a picture; the same run on an installed copy shows an update.
 - `--icon` draws the Hub's icon: the game's chip mark.
+- The game draws the Hub's pictures without a window: `CoreEngineSpike.exe -batchmode -spikeBench <report> -uiShots` writes `<report>-hub-keyart.jpg` (2560 × 1440), `-hub-tile.jpg` and `-hub-banner-build`, `-code` and `-drive.jpg` (1380 × 540), which go into `hub/CoreEngine.Hub/Assets`.
 
 ## Consequences
 - Publishing a version: build the game, then run `CoreEngine.Hub.Publish publish --build app/Builds/Spike --toolchain tools/arduino --out <release folder> --version <v> --notes hub/notes/<v>.json`, then copy the folder to the server. `check` verifies a release as the Hub will.
