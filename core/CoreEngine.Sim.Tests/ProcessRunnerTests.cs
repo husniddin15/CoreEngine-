@@ -41,6 +41,39 @@ public class ProcessRunnerTests
     }
 
     /// <summary>
+    /// A toolchain installed somewhere else than where it was set up (by CoreEngine Hub) gets settings naming its own
+    /// folders; the one in the repository keeps its own file.
+    /// </summary>
+    [Fact]
+    public void AToolchainInstalledElsewhereGetsSettingsForItsOwnFolder()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "CoreEngine hub test " + Guid.NewGuid().ToString("N").Substring(0, 8));
+        try
+        {
+            string tools = Path.Combine(root, "Game", "tools", "arduino");
+            Directory.CreateDirectory(Path.Combine(tools, "bin"));
+            File.WriteAllText(Path.Combine(tools, "bin", "arduino-cli.exe"), "");
+            File.WriteAllText(Path.Combine(tools, "arduino-cli.yaml"), "directories:\n  data: D:/Projects/CoreEngine/tools/arduino/data\n");
+            var compiler = ArduinoCliCompiler.FindBundled(Path.Combine(root, "Game", "CoreEngineSpike_Data"));
+            Assert.NotNull(compiler);
+            Assert.Equal(Path.Combine(tools, "arduino-cli.local.yaml"), compiler!.ConfigPath);
+            string settings = File.ReadAllText(compiler.ConfigPath);
+            string mine = Path.GetFullPath(tools).Replace('\\', '/');
+            Assert.Contains($"data: \"{mine}/data\"", settings);
+            Assert.Contains($"user: \"{mine}/user\"", settings);
+            Assert.DoesNotContain("D:/Projects", settings);
+
+            // Where it was set up, its own file is used.
+            File.WriteAllText(Path.Combine(tools, "arduino-cli.yaml"), $"directories:\n  data: {mine}/data\n");
+            Assert.Equal(Path.Combine(tools, "arduino-cli.yaml"), ArduinoCliCompiler.FindBundled(tools)!.ConfigPath);
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>
     /// End to end through the default runner, with spaces in every folder name, as in the player's data folder.
     /// Needs tools/fetch-toolchain.ps1; without the toolchain (for example in CI) there is nothing to check.
     /// </summary>

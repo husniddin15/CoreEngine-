@@ -93,10 +93,40 @@ namespace CoreEngine.Sim.Compile
                 string baseDir = Path.Combine(dir.FullName, "tools", "arduino");
                 string cli = Path.Combine(baseDir, "bin", "arduino-cli.exe");
                 string config = Path.Combine(baseDir, "arduino-cli.yaml");
-                if (File.Exists(cli) && File.Exists(config)) return new ArduinoCliCompiler(cli, config);
+                if (File.Exists(cli) && File.Exists(config)) return new ArduinoCliCompiler(cli, ConfigFor(baseDir, config));
                 dir = dir.Parent;
             }
             return null;
+        }
+
+        /// <summary>
+        /// The toolchain's settings for the folder it is in. The shipped arduino-cli.yaml names the folders it was set up
+        /// in; a copy installed somewhere else (by CoreEngine Hub, docs/adr/ADR-0010) writes arduino-cli.local.yaml beside
+        /// it, naming its own folders, and uses that. When that file cannot be written, the shipped one is used as it is.
+        /// </summary>
+        public static string ConfigFor(string baseDir, string config)
+        {
+            string root = Path.GetFullPath(baseDir).Replace('\\', '/').TrimEnd('/');
+            try
+            {
+                if (File.ReadAllText(config).Contains(root + "/data")) return config; // set up in this very folder
+                string local = Path.Combine(baseDir, "arduino-cli.local.yaml");
+                string text =
+                    "board_manager:\n  additional_urls: []\n" +
+                    $"build_cache:\n  path: \"{root}/cache\"\n" +
+                    $"directories:\n  data: \"{root}/data\"\n  downloads: \"{root}/staging\"\n  user: \"{root}/user\"\n" +
+                    "locale: en\nupdater:\n  enable_notification: false\n";
+                if (!File.Exists(local) || File.ReadAllText(local) != text) File.WriteAllText(local, text);
+                return local;
+            }
+            catch (IOException)
+            {
+                return config;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return config;
+            }
         }
 
         public CompileResult Compile(string sketchDirectory, string fqbn, string buildDirectory, string outputDirectory, TimeSpan? timeout = null)
