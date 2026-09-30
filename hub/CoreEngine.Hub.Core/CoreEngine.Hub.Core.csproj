@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- What the Hub does, without its window: releases, signatures, downloads, installs, updates, repairs. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CoreEngine.Hub</RootNamespace>
+  </PropertyGroup>
+
+</Project>

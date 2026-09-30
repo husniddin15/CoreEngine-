@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- CoreEngine Hub: download, update and start the game, like HoYoPlay (docs/adr/ADR-0010-hub-launcher.md). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>CoreEngine.Hub</RootNamespace>
+    <AssemblyName>CoreEngineHub</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The icon is drawn by the Hub itself: CoreEngineHub.exe with the icon switch (Shots.cs, WriteIcon). -->
+    <ApplicationIcon Condition="Exists('Assets\hub.ico')">Assets\hub.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The game's picture behind the page: the Garage rendered by the game itself (-uiShots, "hub-keyart"). -->
+    <Resource Include="Assets\keyart.jpg" />
+    <Resource Include="Assets\hub.ico" Condition="Exists('Assets\hub.ico')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CoreEngine.Hub.Core\CoreEngine.Hub.Core.csproj" />
+  </ItemGroup>
+
+</Project>

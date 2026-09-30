@@ -53,3 +53,8 @@ core/.build/
 
 # ---- Manifold source, fetched by native/manifold/build.ps1 ----
 native/manifold/src/
+
+# ---- CoreEngine Hub (hub/): build output, releases written for testing, test installs ----
+hub/.build/
+hub/.release/
+hub/.test-home/

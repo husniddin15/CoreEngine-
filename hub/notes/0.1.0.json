@@ -1,0 +1,20 @@
+{
+  "en": [
+    "The first version of CoreEngine through the Hub.",
+    "Garage, Workshop and Arenas in CS2's style, with the friends bar.",
+    "Your Arduino code compiles on this PC and runs on the robot.",
+    "Loose parts fall off, parts on the floor stand, wires hang and pull out."
+  ],
+  "uz": [
+    "CoreEngineʼning Hub orqali birinchi versiyasi.",
+    "CS2 uslubidagi Garaj, Ustaxona va Maydonlar, doʻstlar paneli bilan.",
+    "Arduino kodingiz shu kompyuterda kompilyatsiya qilinib, robotda ishlaydi.",
+    "Boʻsh qismlar tushadi, poldagi qismlar turadi, simlar osiladi va uziladi."
+  ],
+  "ru": [
+    "Первая версия CoreEngine через Hub.",
+    "Гараж, Мастерская и Арены в стиле CS2, с панелью друзей.",
+    "Ваш код Arduino компилируется на этом ПК и работает на роботе.",
+    "Незакреплённые детали падают, детали на полу стоят, провода висят и выдёргиваются."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "en": [
+    "The first Upload after installing no longer runs out of time: the Hub prepares the Arduino compiler once, and the game waits up to 5 minutes.",
+    "Only what changed since 0.1.0 is downloaded."
+  ],
+  "uz": [
+    "Oʻrnatgandan keyingi birinchi Yuklash endi vaqtdan chiqib ketmaydi: Hub Arduino kompilyatorini bir marta tayyorlaydi, oʻyin esa 5 daqiqagacha kutadi.",
+    "Faqat 0.1.0 dan beri oʻzgargan narsalar yuklab olinadi."
+  ],
+  "ru": [
+    "Первая загрузка кода после установки больше не обрывается по времени: Hub один раз готовит компилятор Arduino, а игра ждёт до 5 минут.",
+    "Скачивается только то, что изменилось с версии 0.1.0."
+  ]
+}

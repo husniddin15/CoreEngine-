@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CoreEngine.Hub.Core/CoreEngine.Hub.Core.csproj" />
+  <Project Path="CoreEngine.Hub/CoreEngine.Hub.csproj" />
+  <Project Path="CoreEngine.Hub.Publish/CoreEngine.Hub.Publish.csproj" />
+  <Project Path="CoreEngine.Hub.Tests/CoreEngine.Hub.Tests.csproj" />
+</Solution>

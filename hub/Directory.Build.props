@@ -1,0 +1,18 @@
+<Project>
+  <!-- Settings shared by every project under hub/: CoreEngine Hub, the launcher that downloads, updates and starts
+       the game outside Steam (docs/adr/ADR-0010-hub-launcher.md). -->
+  <PropertyGroup>
+    <!-- Build output goes to hub/.build/, as core/'s goes to core/.build/. -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory).build\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory).build\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Product>CoreEngine Hub</Product>
+    <Company>CoreEngine</Company>
+    <Copyright>CoreEngine</Copyright>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>
