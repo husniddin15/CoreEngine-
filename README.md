@@ -24,4 +24,4 @@ Repository layout (see docs/04 §3): `core/` (C# simulation core), `app/` (Unity
 Arduino® is a trademark of Arduino S.r.l. This project is not affiliated with Arduino.
 <img width="840" height="648" alt="Screenshot 2026-09-29 225248" src="https://github.com/user-attachments/assets/4015d298-5d21-4ba8-a24e-500a28c9a1d1" />
 
-
+© 2026 Husniddin Bekturdiyev. All rights reserved.
